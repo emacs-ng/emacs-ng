@@ -4,11 +4,10 @@ pub type LispProcessRef = ExternalPtr<Lisp_Process>;
 
 use crate::vector::LispVectorlikeRef;
 
-use crate::{
-    bindings::Lisp_Process,
-    globals::Qprocessp,
-    lisp::{ExternalPtr, LispObject},
-};
+use crate::bindings::Lisp_Process;
+use crate::globals::Qprocessp;
+use crate::lisp::ExternalPtr;
+use crate::lisp::LispObject;
 
 impl LispObject {
     pub fn as_process(self) -> Option<LispProcessRef> {

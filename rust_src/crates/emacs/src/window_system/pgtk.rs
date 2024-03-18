@@ -5,13 +5,14 @@ use gtk::prelude::Cast;
 use gtk::prelude::DisplayExtManual;
 use gtk::prelude::ObjectType;
 use gtk::prelude::WidgetExt;
+use raw_window_handle::HasRawDisplayHandle;
+use raw_window_handle::HasRawWindowHandle;
 use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
 use raw_window_handle::WaylandDisplayHandle;
 use raw_window_handle::WaylandWindowHandle;
 use raw_window_handle::XlibDisplayHandle;
 use raw_window_handle::XlibWindowHandle;
-use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::ptr;
 use webrender_api::ColorF;
 

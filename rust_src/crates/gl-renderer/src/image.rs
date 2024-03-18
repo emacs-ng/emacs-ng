@@ -5,25 +5,50 @@ use emacs::bindings::EMACS_UINT;
 use std::time::Duration;
 use webrender::api::ImageKey;
 
-use emacs::{
-    bindings::{image, make_float, plist_get},
-    definitions::EmacsInt,
-    frame::FrameRef,
-    globals::{
-        QCbackground, QCdata, QCfile, QCforeground, QCindex, QCmax_height, QCmax_width, QCtype,
-        Qbmp, Qcount, Qdds, Qdelay, Qfarbfeld, Qgif, Qhdr, Qico, Qjpeg, Qnative_image, Qnil,
-        Qopen_exr, Qpbm, Qpng, Qpnm, Qsvg, Qtga, Qtiff, Qwebp,
-    },
-    lisp::ExternalPtr,
-    lisp::LispObject,
-};
+use emacs::bindings::image;
+use emacs::bindings::make_float;
+use emacs::bindings::plist_get;
+use emacs::definitions::EmacsInt;
+use emacs::frame::FrameRef;
+use emacs::globals::QCbackground;
+use emacs::globals::QCdata;
+use emacs::globals::QCfile;
+use emacs::globals::QCforeground;
+use emacs::globals::QCindex;
+use emacs::globals::QCmax_height;
+use emacs::globals::QCmax_width;
+use emacs::globals::QCtype;
+use emacs::globals::Qbmp;
+use emacs::globals::Qcount;
+use emacs::globals::Qdds;
+use emacs::globals::Qdelay;
+use emacs::globals::Qfarbfeld;
+use emacs::globals::Qgif;
+use emacs::globals::Qhdr;
+use emacs::globals::Qico;
+use emacs::globals::Qjpeg;
+use emacs::globals::Qnative_image;
+use emacs::globals::Qnil;
+use emacs::globals::Qopen_exr;
+use emacs::globals::Qpbm;
+use emacs::globals::Qpng;
+use emacs::globals::Qpnm;
+use emacs::globals::Qsvg;
+use emacs::globals::Qtga;
+use emacs::globals::Qtiff;
+use emacs::globals::Qwebp;
+use emacs::lisp::ExternalPtr;
+use emacs::lisp::LispObject;
 use libc::c_void;
 use webrender::api::units::DeviceIntSize;
-use webrender::api::{ColorF, ImageData, ImageDescriptor};
+use webrender::api::ColorF;
+use webrender::api::ImageData;
+use webrender::api::ImageDescriptor;
 
 use crate::frame::FrameExtGlRendererCommon;
 
-use emacs::color::{lookup_color_by_name_or_hex, pixel_to_color};
+use emacs::color::lookup_color_by_name_or_hex;
+use emacs::color::pixel_to_color;
 
 pub type ImageRef = ExternalPtr<image>;
 

@@ -1,13 +1,14 @@
 use crate::frame::FrameExtGlRendererCommon;
 use crate::util::HandyDandyRectBuilder;
 
-use emacs::{
-    bindings::{
-        draw_glyphs_face, draw_phys_cursor_glyph, get_phys_cursor_geometry, get_phys_cursor_glyph,
-        glyph_row, glyph_row_area, glyph_type,
-    },
-    window::LispWindowRef,
-};
+use emacs::bindings::draw_glyphs_face;
+use emacs::bindings::draw_phys_cursor_glyph;
+use emacs::bindings::get_phys_cursor_geometry;
+use emacs::bindings::get_phys_cursor_glyph;
+use emacs::bindings::glyph_row;
+use emacs::bindings::glyph_row_area;
+use emacs::bindings::glyph_type;
+use emacs::window::LispWindowRef;
 
 pub fn draw_filled_cursor(mut window: LispWindowRef, row: *mut glyph_row) {
     unsafe { draw_phys_cursor_glyph(window.as_mut(), row, draw_glyphs_face::DRAW_CURSOR) };

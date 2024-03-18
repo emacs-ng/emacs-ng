@@ -1,8 +1,10 @@
 //! wrterm.rs
+use crate::frame::FrameExtWinit;
+use crate::input::keysym_to_emacs_key_name;
 use crate::term::winit_term_init;
-use crate::{frame::FrameExtWinit, input::keysym_to_emacs_key_name};
+use emacs::bindings::gui_update_cursor;
+use emacs::bindings::selected_frame;
 use emacs::bindings::Fredraw_frame;
-use emacs::bindings::{gui_update_cursor, selected_frame};
 use emacs::color::color_to_pixel;
 use emacs::frame::Frame;
 use emacs::terminal::TerminalRef;

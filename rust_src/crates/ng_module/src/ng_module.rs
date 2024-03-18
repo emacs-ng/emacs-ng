@@ -14,12 +14,13 @@
 //! To make the ABI easy to consume, primitive data types are preferred over structs. If a struct
 //! is used, it must be marked `#[repr(C)]`, and its layout must not be changed.
 
-use emacs::{
-    bindings::{buffer_text, current_thread, make_user_ptr, BYTE_POS_ADDR},
-    globals::Qnil,
-    lisp::LispObject,
-    multibyte::LispStringRef,
-};
+use emacs::bindings::buffer_text;
+use emacs::bindings::current_thread;
+use emacs::bindings::make_user_ptr;
+use emacs::bindings::BYTE_POS_ADDR;
+use emacs::globals::Qnil;
+use emacs::lisp::LispObject;
+use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 
 /// Return the address of the ng-module function with the given NAME.

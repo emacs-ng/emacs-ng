@@ -2,13 +2,15 @@
 
 use std::ptr;
 
-use crate::{
-    bindings::make_lisp_symbol,
-    bindings::{lispsym, Lisp_Symbol, Lisp_Type},
-    definitions::{EmacsInt, USE_LSB_TAG},
-    globals::Qsymbolp,
-    lisp::{ExternalPtr, LispObject},
-};
+use crate::bindings::lispsym;
+use crate::bindings::make_lisp_symbol;
+use crate::bindings::Lisp_Symbol;
+use crate::bindings::Lisp_Type;
+use crate::definitions::EmacsInt;
+use crate::definitions::USE_LSB_TAG;
+use crate::globals::Qsymbolp;
+use crate::lisp::ExternalPtr;
+use crate::lisp::LispObject;
 
 pub type LispSymbolRef = ExternalPtr<Lisp_Symbol>;
 

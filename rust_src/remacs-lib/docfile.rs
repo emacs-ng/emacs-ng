@@ -2,12 +2,17 @@
 
 #![allow(clippy::cognitive_complexity)]
 
-use libc::{c_char, c_int};
+use libc::c_char;
+use libc::c_int;
 use regex::Regex;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
+use std::ffi::CString;
 use std::fs::File;
-use std::io::{stdout, BufRead, BufReader, Write};
+use std::io::stdout;
+use std::io::BufRead;
+use std::io::BufReader;
+use std::io::Write;
 use std::mem;
 use std::ptr;
 

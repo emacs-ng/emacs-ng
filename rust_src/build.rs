@@ -1,6 +1,8 @@
 extern crate ng_bindgen;
 
-use ng_bindgen::{env_var, generate_include_files, BuildError};
+use ng_bindgen::env_var;
+use ng_bindgen::generate_include_files;
+use ng_bindgen::BuildError;
 
 fn main() {
     // TODO watch relevent files to re rerun, rs files under crates?

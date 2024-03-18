@@ -5,17 +5,19 @@ use emacs::composite::LGlyphString;
 use emacs::lisp::LispObject;
 use euclid::Scale;
 
-use webrender::{self, api::units::*, api::*};
+use webrender::api::units::*;
+use webrender::api::*;
+use webrender::{self};
 
 use crate::frame::FrameExtGlRendererCommon;
 
-use font::{FontInfo, FontInfoRef};
+use font::FontInfo;
+use font::FontInfoRef;
 
-use emacs::{
-    bindings::{face_box_type::FACE_NO_BOX, glyph_type},
-    display_traits::GlyphStringRef,
-    frame::FrameRef,
-};
+use emacs::bindings::face_box_type::FACE_NO_BOX;
+use emacs::bindings::glyph_type;
+use emacs::display_traits::GlyphStringRef;
+use emacs::frame::FrameRef;
 
 pub trait WrGlyph {
     fn x(self) -> i32;

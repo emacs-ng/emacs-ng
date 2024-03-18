@@ -1,7 +1,7 @@
-use crate::{
-    bindings::{allocate_kboard, KBOARD},
-    lisp::{ExternalPtr, LispObject},
-};
+use crate::bindings::allocate_kboard;
+use crate::bindings::KBOARD;
+use crate::lisp::ExternalPtr;
+use crate::lisp::LispObject;
 
 pub type Keyboard = KBOARD;
 pub type KeyboardRef = ExternalPtr<KBOARD>;

@@ -5,21 +5,25 @@ use euclid::Scale;
 use std::cmp::min;
 use std::ptr;
 
-use webrender::{self, api::units::*, api::*};
+use webrender::api::units::*;
+use webrender::api::*;
+use webrender::{self};
 
 use crate::fringe::FringeBitmap;
 
 use super::util::HandyDandyRectBuilder;
-use emacs::color::{color_to_pixel, pixel_to_color};
+use emacs::color::color_to_pixel;
+use emacs::color::pixel_to_color;
 use font::FontInfoRef;
 
-use emacs::{
-    bindings::{
-        draw_glyphs_face, face as Face, face_underline_type, get_glyph_string_clip_rect,
-        glyph_type, prepare_face_for_display, Emacs_Rectangle,
-    },
-    display_traits::GlyphStringRef,
-};
+use emacs::bindings::draw_glyphs_face;
+use emacs::bindings::face as Face;
+use emacs::bindings::face_underline_type;
+use emacs::bindings::get_glyph_string_clip_rect;
+use emacs::bindings::glyph_type;
+use emacs::bindings::prepare_face_for_display;
+use emacs::bindings::Emacs_Rectangle;
+use emacs::display_traits::GlyphStringRef;
 
 use crate::glyph::WrGlyph;
 use crate::output::GlRenderer;

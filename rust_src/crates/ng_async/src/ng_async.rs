@@ -1,26 +1,48 @@
-use std::{
-    convert::TryInto,
-    ffi::CString,
-    fs::File,
-    io::{Read, Write},
-    os::unix::io::{FromRawFd, IntoRawFd},
-};
+use std::convert::TryInto;
+use std::ffi::CString;
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::os::unix::io::FromRawFd;
+use std::os::unix::io::IntoRawFd;
 
 use std::thread;
 
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::Receiver;
+use crossbeam::channel::Sender;
 
-use emacs::bindings::{
-    build_string, intern_c_string, make_string_from_utf8, make_user_ptr, plist_get, plist_put,
-    Ffuncall, Fmake_pipe_process, Fprocess_plist, Fset_process_plist, Fuser_ptrp, XUSER_PTR,
-};
-use emacs::globals::{
-    QCcoding, QCfilter, QCinchannel, QCname, QCoutchannel, QCplist, QCtype, Qcall, Qdata, Qnil,
-    Qraw_text, Qreturn, Qstring, Quser_ptr, Quser_ptrp,
-};
+use emacs::bindings::build_string;
+use emacs::bindings::intern_c_string;
+use emacs::bindings::make_string_from_utf8;
+use emacs::bindings::make_user_ptr;
+use emacs::bindings::plist_get;
+use emacs::bindings::plist_put;
+use emacs::bindings::Ffuncall;
+use emacs::bindings::Fmake_pipe_process;
+use emacs::bindings::Fprocess_plist;
+use emacs::bindings::Fset_process_plist;
+use emacs::bindings::Fuser_ptrp;
+use emacs::bindings::XUSER_PTR;
+use emacs::globals::QCcoding;
+use emacs::globals::QCfilter;
+use emacs::globals::QCinchannel;
+use emacs::globals::QCname;
+use emacs::globals::QCoutchannel;
+use emacs::globals::QCplist;
+use emacs::globals::QCtype;
+use emacs::globals::Qcall;
+use emacs::globals::Qdata;
+use emacs::globals::Qnil;
+use emacs::globals::Qraw_text;
+use emacs::globals::Qreturn;
+use emacs::globals::Qstring;
+use emacs::globals::Quser_ptr;
+use emacs::globals::Quser_ptrp;
+use emacs::lisp::LispObject;
+use emacs::multibyte::LispStringRef;
 use emacs::process::LispProcessRef;
-use emacs::{lisp::LispObject, multibyte::LispStringRef};
-use lisp_macros::{async_stream, lisp_fn};
+use lisp_macros::async_stream;
+use lisp_macros::lisp_fn;
 
 #[repr(u32)]
 enum PIPE_PROCESS {

@@ -1,6 +1,8 @@
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::BufRead;
+use std::io::BufReader;
+use std::io::Write;
 use std::path::Path;
 
 const RGB_TXT_PATH: &str = "../rgb.txt";

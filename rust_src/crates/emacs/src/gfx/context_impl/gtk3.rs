@@ -1,5 +1,6 @@
 use crate::bindings::gl_renderer_fit_context;
-use crate::frame::{Frame, FrameRef};
+use crate::frame::Frame;
+use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
 use crate::window_system::FrameExtPgtk;
 use gleam::gl::ErrorCheckingGl;

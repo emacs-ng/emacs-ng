@@ -1,16 +1,17 @@
 use crate::number::LNumber;
 
-use crate::{
-    bindings::{
-        composition_gstring_from_id, lglyph_indices, make_nil_vector, make_vector, pvec_type,
-        Fcopy_sequence, ASET,
-    },
-    definitions::EmacsInt,
-    display_traits::GlyphStringRef,
-    globals::Qnil,
-    lisp::LispObject,
-    vector::LVector,
-};
+use crate::bindings::composition_gstring_from_id;
+use crate::bindings::lglyph_indices;
+use crate::bindings::make_nil_vector;
+use crate::bindings::make_vector;
+use crate::bindings::pvec_type;
+use crate::bindings::Fcopy_sequence;
+use crate::bindings::ASET;
+use crate::definitions::EmacsInt;
+use crate::display_traits::GlyphStringRef;
+use crate::globals::Qnil;
+use crate::lisp::LispObject;
+use crate::vector::LVector;
 
 impl GlyphStringRef {
     pub fn is_automatic_composition(&self) -> bool {

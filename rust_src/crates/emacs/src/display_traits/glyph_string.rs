@@ -1,13 +1,15 @@
-use std::{cmp::min, slice};
+use std::cmp::min;
+use std::slice;
 
-use crate::{
-    bindings::{
-        composition_hash_table, composition_method, glyph_string, hash_hash_t,
-        hash_lookup_get_hash, XHASH_TABLE,
-    },
-    definitions::EmacsInt,
-    lisp::ExternalPtr,
-};
+use crate::bindings::composition_hash_table;
+use crate::bindings::composition_method;
+use crate::bindings::glyph;
+use crate::bindings::glyph_string;
+use crate::bindings::hash_hash_t;
+use crate::bindings::hash_lookup_get_hash;
+use crate::bindings::XHASH_TABLE;
+use crate::definitions::EmacsInt;
+use crate::lisp::ExternalPtr;
 
 pub type XChar2b = u32;
 

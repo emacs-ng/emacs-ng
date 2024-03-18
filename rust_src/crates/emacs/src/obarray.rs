@@ -1,11 +1,14 @@
 //! obarray code
 
-use crate::{
-    bindings::{check_obarray, globals, intern_driver, oblookup, Fpurecopy},
-    lisp::LispObject,
-    multibyte::{LispStringRef, LispSymbolOrString},
-    symbol::LispSymbolRef,
-};
+use crate::bindings::check_obarray;
+use crate::bindings::globals;
+use crate::bindings::intern_driver;
+use crate::bindings::oblookup;
+use crate::bindings::Fpurecopy;
+use crate::lisp::LispObject;
+use crate::multibyte::LispStringRef;
+use crate::multibyte::LispSymbolOrString;
+use crate::symbol::LispSymbolRef;
 
 /// A lisp object containing an `obarray`.
 #[repr(transparent)]

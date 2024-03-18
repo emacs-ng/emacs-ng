@@ -9,7 +9,8 @@ pub use crate::bindings::x_display_info as DisplayInfo;
 #[cfg(any(feature = "window-system-pgtk", feature = "window-system-winit"))]
 pub use crate::bindings::Display_Info as DisplayInfo;
 
-use crate::{lisp::ExternalPtr, terminal::TerminalRef};
+use crate::lisp::ExternalPtr;
+use crate::terminal::TerminalRef;
 
 pub type DisplayInfoRef = ExternalPtr<DisplayInfo>;
 

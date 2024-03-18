@@ -28,9 +28,13 @@ pub fn display_descriptor(raw_display_handle: RawDisplayHandle) -> std::os::fd::
     #[cfg(free_unix)]
     use raw_window_handle::WaylandDisplayHandle;
     #[cfg(x11_platform)]
-    use raw_window_handle::{XcbDisplayHandle, XlibDisplayHandle};
+    use raw_window_handle::XcbDisplayHandle;
+    #[cfg(x11_platform)]
+    use raw_window_handle::XlibDisplayHandle;
     #[cfg(free_unix)]
-    use wayland_sys::client::{wayland_client_handle, wl_display};
+    use wayland_sys::client::wayland_client_handle;
+    #[cfg(free_unix)]
+    use wayland_sys::client::wl_display;
     match raw_display_handle {
         #[cfg(free_unix)]
         RawDisplayHandle::Wayland(WaylandDisplayHandle { display, .. }) => {

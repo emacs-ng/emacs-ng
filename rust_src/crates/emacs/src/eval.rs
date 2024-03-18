@@ -1,6 +1,7 @@
 //! Generic Lisp eval functions
 
-use crate::{bindings::xsignal, lisp::LispObject};
+use crate::bindings::xsignal;
+use crate::lisp::LispObject;
 
 /// Signal an error.  Args are ERROR-SYMBOL and associated DATA. This
 /// function does not return.

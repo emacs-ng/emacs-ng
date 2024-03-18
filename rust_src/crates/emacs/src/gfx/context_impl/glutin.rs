@@ -1,24 +1,35 @@
 use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
 use gleam::gl::ErrorCheckingGl;
-use glutin::{
-    config::{Api, ConfigTemplateBuilder, GlConfig},
-    context::{
-        ContextApi, ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext,
-        PossiblyCurrentGlContext, Version,
-    },
-    display::{Display, DisplayApiPreference, GetGlDisplay, GlDisplay},
-    prelude::GlSurface,
-    surface::{Surface, SurfaceAttributesBuilder, WindowSurface},
-};
-use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
+use glutin::config::Api;
+use glutin::config::ConfigTemplateBuilder;
+use glutin::config::GlConfig;
+use glutin::context::ContextApi;
+use glutin::context::ContextAttributesBuilder;
+use glutin::context::NotCurrentGlContext;
+use glutin::context::PossiblyCurrentContext;
+use glutin::context::PossiblyCurrentGlContext;
+use glutin::context::Version;
+use glutin::display::Display;
+use glutin::display::DisplayApiPreference;
+use glutin::display::GetGlDisplay;
+use glutin::display::GlDisplay;
+use glutin::prelude::GlSurface;
+use glutin::surface::Surface;
+use glutin::surface::SurfaceAttributesBuilder;
+use glutin::surface::WindowSurface;
+use raw_window_handle::HasRawDisplayHandle;
+use raw_window_handle::HasRawWindowHandle;
 use webrender_api::units::DeviceIntSize;
 
-use std::{ffi::CString, num::NonZeroU32};
+use std::ffi::CString;
+use std::num::NonZeroU32;
 
 use std::rc::Rc;
 
-use gleam::gl::{Gl, GlFns, GlesFns};
+use gleam::gl::Gl;
+use gleam::gl::GlFns;
+use gleam::gl::GlesFns;
 
 pub struct ContextImpl {
     context: PossiblyCurrentContext,

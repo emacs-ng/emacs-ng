@@ -1,19 +1,27 @@
 use crate::frame::FrameExtWinit;
-use emacs::sys::EmacsModifiers::{ctrl_modifier, meta_modifier, shift_modifier, super_modifier};
+use emacs::sys::EmacsModifiers::ctrl_modifier;
+use emacs::sys::EmacsModifiers::meta_modifier;
+use emacs::sys::EmacsModifiers::shift_modifier;
+use emacs::sys::EmacsModifiers::super_modifier;
 use winit::dpi::LogicalPosition;
 
-use emacs::{
-    bindings::{event_kind, input_event, scroll_bar_part},
-    globals::{Qnil, Qt},
-    lisp::LispObject,
-    sys::EmacsModifiers::{down_modifier, up_modifier},
-};
+use emacs::bindings::event_kind;
+use emacs::bindings::input_event;
+use emacs::bindings::scroll_bar_part;
+use emacs::globals::Qnil;
+use emacs::globals::Qt;
+use emacs::lisp::LispObject;
+use emacs::sys::EmacsModifiers::down_modifier;
+use emacs::sys::EmacsModifiers::up_modifier;
 use std::sync::OnceLock;
-use winit::{
-    dpi::PhysicalPosition,
-    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
-    keyboard::{KeyCode, ModifiersState, PhysicalKey},
-};
+use winit::dpi::PhysicalPosition;
+use winit::event::ElementState;
+use winit::event::MouseButton;
+use winit::event::MouseScrollDelta;
+use winit::event::TouchPhase;
+use winit::keyboard::KeyCode;
+use winit::keyboard::ModifiersState;
+use winit::keyboard::PhysicalKey;
 
 static mut INPUT_STATE: OnceLock<InputProcessor> = OnceLock::new();
 impl InputProcessor {

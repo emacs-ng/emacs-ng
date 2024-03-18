@@ -11,12 +11,25 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use euclid::default::Size2D;
-use surfman::chains::{PreserveBuffer, SwapChain};
-use surfman::{
-    Adapter, Connection, Context, ContextAttributeFlags, ContextAttributes, Device, Error, GLApi,
-    GLVersion, NativeContext, NativeDevice, NativeWidget, Surface, SurfaceAccess, SurfaceInfo,
-    SurfaceTexture, SurfaceType,
-};
+use surfman::chains::PreserveBuffer;
+use surfman::chains::SwapChain;
+use surfman::Adapter;
+use surfman::Connection;
+use surfman::Context;
+use surfman::ContextAttributeFlags;
+use surfman::ContextAttributes;
+use surfman::Device;
+use surfman::Error;
+use surfman::GLApi;
+use surfman::GLVersion;
+use surfman::NativeContext;
+use surfman::NativeDevice;
+use surfman::NativeWidget;
+use surfman::Surface;
+use surfman::SurfaceAccess;
+use surfman::SurfaceInfo;
+use surfman::SurfaceTexture;
+use surfman::SurfaceType;
 
 /// A Servo rendering context, which holds all of the information needed
 /// to render Servo's layout, and bridges WebRender and surfman.

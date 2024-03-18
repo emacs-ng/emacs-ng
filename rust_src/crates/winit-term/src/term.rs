@@ -1,50 +1,97 @@
 use super::frame::FrameExtWinit;
 use crate::input::InputProcessor;
-use crate::{winit_set_background_color, winit_set_cursor_color};
-use emacs::bindings::{
-    add_keyboard_wait_descriptor, gl_renderer_free_frame_resources,
-    gl_renderer_free_terminal_resources, init_sigio, interrupt_input, wr_after_update_window_line,
-    wr_clear_frame, wr_clear_frame_area, wr_defined_color, wr_draw_fringe_bitmap,
-    wr_draw_glyph_string, wr_draw_vertical_window_border, wr_draw_window_cursor,
-    wr_draw_window_divider, wr_flush_display, wr_free_pixmap, wr_new_font, wr_scroll_run,
-    wr_update_end, wr_update_window_begin, wr_update_window_end,
-};
+use crate::winit_set_background_color;
+use crate::winit_set_cursor_color;
+use emacs::bindings::add_keyboard_wait_descriptor;
+use emacs::bindings::gl_renderer_free_frame_resources;
+use emacs::bindings::gl_renderer_free_terminal_resources;
+use emacs::bindings::init_sigio;
+use emacs::bindings::interrupt_input;
+use emacs::bindings::wr_after_update_window_line;
+use emacs::bindings::wr_clear_frame;
+use emacs::bindings::wr_clear_frame_area;
+use emacs::bindings::wr_defined_color;
+use emacs::bindings::wr_draw_fringe_bitmap;
+use emacs::bindings::wr_draw_glyph_string;
+use emacs::bindings::wr_draw_vertical_window_border;
+use emacs::bindings::wr_draw_window_cursor;
+use emacs::bindings::wr_draw_window_divider;
+use emacs::bindings::wr_flush_display;
+use emacs::bindings::wr_free_pixmap;
+use emacs::bindings::wr_new_font;
+use emacs::bindings::wr_scroll_run;
+use emacs::bindings::wr_update_end;
+use emacs::bindings::wr_update_window_begin;
+use emacs::bindings::wr_update_window_end;
 use emacs::terminal::TerminalRef;
 use raw_window_handle::HasRawDisplayHandle;
 use std::ptr;
 use std::sync::OnceLock;
 use std::time::Duration;
-use winit::event::{ElementState, Event, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
-use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+use winit::event::ElementState;
+use winit::event::Event;
+use winit::event::WindowEvent;
+use winit::keyboard::Key;
+use winit::keyboard::NamedKey;
+use winit::platform::pump_events::EventLoopExtPumpEvents;
+use winit::platform::pump_events::PumpStatus;
 
-use webrender_api::{self, units::*};
+use webrender_api::units::*;
+use webrender_api::{self};
 
 use crate::event::create_emacs_event;
-use emacs::display_info::{DisplayInfo, DisplayInfoRef};
+use emacs::display_info::DisplayInfo;
+use emacs::display_info::DisplayInfoRef;
 
-use emacs::{
-    bindings::{
-        create_terminal, current_kboard, frame_parm_handler, initial_kboard, note_mouse_highlight,
-        output_method, redisplay_interface, scroll_bar_part, terminal, xlispstrdup, Emacs_Cursor,
-        Fcons,
-    },
-    bindings::{
-        gui_clear_end_of_line, gui_clear_window_mouse_face, gui_fix_overlapping_area,
-        gui_get_glyph_overhangs, gui_produce_glyphs, gui_set_alpha, gui_set_autolower,
-        gui_set_autoraise, gui_set_border_width, gui_set_bottom_divider_width, gui_set_font,
-        gui_set_font_backend, gui_set_fullscreen, gui_set_horizontal_scroll_bars,
-        gui_set_left_fringe, gui_set_line_spacing, gui_set_no_special_glyphs,
-        gui_set_right_divider_width, gui_set_right_fringe, gui_set_screen_gamma,
-        gui_set_scroll_bar_height, gui_set_scroll_bar_width, gui_set_unsplittable,
-        gui_set_vertical_scroll_bars, gui_set_visibility, gui_write_glyphs, input_event,
-        kbd_buffer_store_event_hold, Time, PT_PER_INCH,
-    },
-    frame::{all_frames, Frame, FrameRef},
-    globals::{Qnil, Qwinit},
-    keyboard::allocate_keyboard,
-    lisp::LispObject,
-};
+use emacs::bindings::create_terminal;
+use emacs::bindings::current_kboard;
+use emacs::bindings::frame_parm_handler;
+use emacs::bindings::gui_clear_end_of_line;
+use emacs::bindings::gui_clear_window_mouse_face;
+use emacs::bindings::gui_fix_overlapping_area;
+use emacs::bindings::gui_get_glyph_overhangs;
+use emacs::bindings::gui_produce_glyphs;
+use emacs::bindings::gui_set_alpha;
+use emacs::bindings::gui_set_autolower;
+use emacs::bindings::gui_set_autoraise;
+use emacs::bindings::gui_set_border_width;
+use emacs::bindings::gui_set_bottom_divider_width;
+use emacs::bindings::gui_set_font;
+use emacs::bindings::gui_set_font_backend;
+use emacs::bindings::gui_set_fullscreen;
+use emacs::bindings::gui_set_horizontal_scroll_bars;
+use emacs::bindings::gui_set_left_fringe;
+use emacs::bindings::gui_set_line_spacing;
+use emacs::bindings::gui_set_no_special_glyphs;
+use emacs::bindings::gui_set_right_divider_width;
+use emacs::bindings::gui_set_right_fringe;
+use emacs::bindings::gui_set_screen_gamma;
+use emacs::bindings::gui_set_scroll_bar_height;
+use emacs::bindings::gui_set_scroll_bar_width;
+use emacs::bindings::gui_set_unsplittable;
+use emacs::bindings::gui_set_vertical_scroll_bars;
+use emacs::bindings::gui_set_visibility;
+use emacs::bindings::gui_write_glyphs;
+use emacs::bindings::initial_kboard;
+use emacs::bindings::input_event;
+use emacs::bindings::kbd_buffer_store_event_hold;
+use emacs::bindings::note_mouse_highlight;
+use emacs::bindings::output_method;
+use emacs::bindings::redisplay_interface;
+use emacs::bindings::scroll_bar_part;
+use emacs::bindings::terminal;
+use emacs::bindings::xlispstrdup;
+use emacs::bindings::Emacs_Cursor;
+use emacs::bindings::Fcons;
+use emacs::bindings::Time;
+use emacs::bindings::PT_PER_INCH;
+use emacs::frame::all_frames;
+use emacs::frame::Frame;
+use emacs::frame::FrameRef;
+use emacs::globals::Qnil;
+use emacs::globals::Qwinit;
+use emacs::keyboard::allocate_keyboard;
+use emacs::lisp::LispObject;
 
 fn get_frame_parm_handlers() -> [frame_parm_handler; 48] {
     // Keep this list in the same order as frame_parms in frame.c.

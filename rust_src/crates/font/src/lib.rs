@@ -29,25 +29,39 @@ use std::mem::ManuallyDrop;
 use std::sync::OnceLock;
 use swash::text::Language;
 use swash::text::Script;
+use swash::Attributes;
 use swash::ObliqueAngle;
-use swash::{Attributes, Stretch, Style, Weight};
+use swash::Stretch;
+use swash::Style;
+use swash::Weight;
 
 use std::ptr;
 
 use crate::cache::TerminalExtFontIndex;
 use webrender_api::GlyphIndex;
 
-use emacs::{
-    bindings::{
-        font, font_driver, font_make_entity, font_make_object, font_metrics, font_property_index,
-        font_style_to_value, frame, glyph_string, intern, register_font_driver, Fcons,
-        Fmake_symbol, Fnreverse, FONT_INVALID_CODE,
-    },
-    frame::FrameRef,
-    globals::{Qiso10646_1, Qnil, Qswash},
-    lisp::{ExternalPtr, LispObject},
-    symbol::LispSymbolRef,
-};
+use emacs::bindings::font;
+use emacs::bindings::font_driver;
+use emacs::bindings::font_make_entity;
+use emacs::bindings::font_make_object;
+use emacs::bindings::font_metrics;
+use emacs::bindings::font_property_index;
+use emacs::bindings::font_style_to_value;
+use emacs::bindings::frame;
+use emacs::bindings::glyph_string;
+use emacs::bindings::intern;
+use emacs::bindings::register_font_driver;
+use emacs::bindings::Fcons;
+use emacs::bindings::Fmake_symbol;
+use emacs::bindings::Fnreverse;
+use emacs::bindings::FONT_INVALID_CODE;
+use emacs::frame::FrameRef;
+use emacs::globals::Qiso10646_1;
+use emacs::globals::Qnil;
+use emacs::globals::Qswash;
+use emacs::lisp::ExternalPtr;
+use emacs::lisp::LispObject;
+use emacs::symbol::LispSymbolRef;
 
 pub type FontRef = ExternalPtr<font>;
 
@@ -659,14 +673,16 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
     use crate::emacs::composite::LGlyphString;
     use crate::emacs::number::LNumber;
     use core::ops::Range;
+    use emacs::bindings::font_metrics as FontMetrics;
     use emacs::bindings::globals;
-    use emacs::bindings::{font_metrics as FontMetrics, CHECK_FONT_GET_OBJECT};
+    use emacs::bindings::CHECK_FONT_GET_OBJECT;
     use emacs::globals::QL2R;
     use emacs::globals::QR2L;
     use emacs::thread::ThreadState;
     use swash::shape::cluster::Glyph;
     use swash::shape::cluster::GlyphCluster;
-    use swash::shape::{Direction, ShapeContext};
+    use swash::shape::Direction;
+    use swash::shape::ShapeContext;
 
     let font = lgstring.lgstring_font();
     let font = unsafe { CHECK_FONT_GET_OBJECT(font) };

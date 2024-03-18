@@ -67,7 +67,8 @@ impl OutputRef {
 use crate::frame::FrameRef;
 use crate::terminal::TerminalRef;
 use arboard::Clipboard;
-use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
+use raw_window_handle::HasRawDisplayHandle;
+use raw_window_handle::RawDisplayHandle;
 use winit::event_loop::EventLoop;
 use winit::event_loop::EventLoopBuilder;
 use winit::monitor::MonitorHandle;

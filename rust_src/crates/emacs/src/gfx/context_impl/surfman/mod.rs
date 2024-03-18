@@ -2,16 +2,22 @@ mod rendering_context;
 
 use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
-use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
+use raw_window_handle::HasRawDisplayHandle;
+use raw_window_handle::HasRawWindowHandle;
 use webrender_api::units::DeviceIntSize;
 
-use surfman::{Connection, GLApi, SurfaceType};
+use surfman::Connection;
+use surfman::GLApi;
+use surfman::SurfaceType;
 
 use euclid::Size2D;
 
 use std::rc::Rc;
 
-use gleam::gl::{ErrorCheckingGl, Gl, GlFns, GlesFns};
+use gleam::gl::ErrorCheckingGl;
+use gleam::gl::Gl;
+use gleam::gl::GlFns;
+use gleam::gl::GlesFns;
 
 use rendering_context::RenderingContext;
 

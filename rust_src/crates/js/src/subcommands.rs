@@ -3,10 +3,12 @@ use deno::file_fetcher::File;
 use deno::file_watcher;
 use deno::file_watcher::ModuleResolutionResult;
 use deno::flags::Flags;
+use deno::fs_util;
 use deno::media_type::MediaType;
+use deno::module_graph;
 use deno::program_state::ProgramState;
 use deno::specifier_handler::FetchHandler;
-use deno::{fs_util, module_graph, tools};
+use deno::tools;
 use deno_core::error::AnyError;
 use deno_core::resolve_url_or_path;
 use deno_core::ModuleSpecifier;
@@ -17,7 +19,8 @@ use crate::futures::FutureExt;
 use std::env;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 // Forked from https://github.com/denoland/deno/
 // The context of this file is that we wanted to add lisp interfacing with

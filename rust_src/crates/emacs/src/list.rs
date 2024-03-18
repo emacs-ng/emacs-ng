@@ -2,14 +2,15 @@
 
 use libc::c_void;
 
-use crate::{
-    bindings::{Fcons, CHECK_IMPURE},
-    bindings::{Lisp_Cons, Lisp_Type},
-    globals::{Qconsp, Qlistp},
-    lisp::LispObject,
-    number::MOST_POSITIVE_FIXNUM,
-    sys::circular_list,
-};
+use crate::bindings::Fcons;
+use crate::bindings::Lisp_Cons;
+use crate::bindings::Lisp_Type;
+use crate::bindings::CHECK_IMPURE;
+use crate::globals::Qconsp;
+use crate::globals::Qlistp;
+use crate::lisp::LispObject;
+use crate::number::MOST_POSITIVE_FIXNUM;
+use crate::sys::circular_list;
 
 // Cons support (LispType == 6 | 3)
 

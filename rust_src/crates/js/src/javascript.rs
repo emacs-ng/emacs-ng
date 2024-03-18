@@ -13,10 +13,13 @@ use rusty_v8 as v8;
 use emacs::bindings::Ffuncall;
 use emacs::definitions::EmacsUint;
 use emacs::lisp::LispObject;
-use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use emacs::list::LispCons;
+use emacs::list::LispConsCircularChecks;
+use emacs::list::LispConsEndChecks;
 use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
-use lsp_json::parsing::{ArrayType, ObjectType};
+use lsp_json::parsing::ArrayType;
+use lsp_json::parsing::ObjectType;
 
 pub type EmacsJsError = deno_core::error::AnyError;
 pub type EmacsJsResult<T> = Result<T, EmacsJsError>;

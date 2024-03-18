@@ -1,13 +1,15 @@
-use crate::{
-    bindings::{
-        glyph_row_area::{self, TEXT_AREA},
-        pvec_type, window, window_box, window_box_left, Lisp_Type,
-    },
-    frame::FrameRef,
-    globals::Qwindowp,
-    lisp::{ExternalPtr, LispObject},
-    vector::LispVectorlikeRef,
-};
+use crate::bindings::glyph_row_area::TEXT_AREA;
+use crate::bindings::glyph_row_area::{self};
+use crate::bindings::pvec_type;
+use crate::bindings::window;
+use crate::bindings::window_box;
+use crate::bindings::window_box_left;
+use crate::bindings::Lisp_Type;
+use crate::frame::FrameRef;
+use crate::globals::Qwindowp;
+use crate::lisp::ExternalPtr;
+use crate::lisp::LispObject;
+use crate::vector::LispVectorlikeRef;
 
 pub type Lisp_Window = window;
 

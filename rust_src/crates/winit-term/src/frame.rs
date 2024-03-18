@@ -1,26 +1,36 @@
 use crate::cursor::build_mouse_cursors;
 use crate::cursor::emacs_to_winit_cursor;
+use emacs::bindings::do_pending_window_change;
+use emacs::bindings::fullscreen_type;
+use emacs::bindings::gl_renderer_fit_context;
+use emacs::bindings::list4i;
+use emacs::bindings::make_frame;
+use emacs::bindings::make_frame_without_minibuffer;
+use emacs::bindings::make_minibuffer_frame;
+use emacs::bindings::output_method;
+use emacs::bindings::winit_output;
+use emacs::bindings::Emacs_Cursor;
+use emacs::frame::FrameRef;
+use emacs::globals::Qfullboth;
+use emacs::globals::Qfullexclusive;
 use emacs::globals::Qfullscreen;
+use emacs::globals::Qinner_edges;
 use emacs::globals::Qmaximized;
+use emacs::globals::Qnil;
+use emacs::globals::Qnone;
+use emacs::globals::Qonly;
+use emacs::globals::Qouter_edges;
+use emacs::keyboard::KeyboardRef;
+use emacs::lisp::LispObject;
 use emacs::terminal::TerminalRef;
-use emacs::{
-    bindings::{
-        do_pending_window_change, fullscreen_type, gl_renderer_fit_context, list4i, make_frame,
-        make_frame_without_minibuffer, make_minibuffer_frame, output_method, winit_output,
-        Emacs_Cursor,
-    },
-    frame::FrameRef,
-    globals::{Qfullboth, Qfullexclusive, Qinner_edges, Qnil, Qnone, Qonly, Qouter_edges},
-    keyboard::KeyboardRef,
-    lisp::LispObject,
-};
 use webrender_api::units::*;
 use webrender_api::ColorF;
 use winit::dpi::LogicalPosition;
 use winit::dpi::PhysicalSize;
 use winit::monitor::MonitorHandle;
 
-use winit::{dpi::PhysicalPosition, window::WindowBuilder};
+use winit::dpi::PhysicalPosition;
+use winit::window::WindowBuilder;
 
 use emacs::display_info::DisplayInfoRef;
 use emacs::output::Output;

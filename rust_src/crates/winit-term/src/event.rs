@@ -1,9 +1,10 @@
 use super::input::InputEvent;
-use emacs::{
-    bindings::{event_kind, input_event, scroll_bar_part},
-    globals::{Qnil, Qt},
-    lisp::LispObject,
-};
+use emacs::bindings::event_kind;
+use emacs::bindings::input_event;
+use emacs::bindings::scroll_bar_part;
+use emacs::globals::Qnil;
+use emacs::globals::Qt;
+use emacs::lisp::LispObject;
 
 pub fn create_emacs_event(kind: event_kind::Type, top_frame: LispObject) -> input_event {
     InputEvent {

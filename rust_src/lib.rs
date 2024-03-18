@@ -1,7 +1,11 @@
 // #[cfg(debug_assertions)]
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::fmt;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
-use emacs::bindings::{main1, terminate_due_to_signal, will_dump_p};
+use emacs::bindings::main1;
+use emacs::bindings::terminate_due_to_signal;
+use emacs::bindings::will_dump_p;
 
 // Include the main c_exports file that holds the main rust_init_syms.
 // This function calls the other crates init_syms functions which contain

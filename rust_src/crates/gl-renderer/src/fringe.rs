@@ -2,11 +2,18 @@ use crate::display_info::DisplayInfoExtGlRenderer;
 use crate::frame::FrameExtGlRendererCommon;
 use bit_vec::BitVec;
 use emacs::frame::FrameRef;
-use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use image::DynamicImage;
+use image::GenericImageView;
+use image::Rgba;
+use image::RgbaImage;
 use std::sync::Arc;
 
 use emacs::bindings::draw_fringe_bitmap_params;
-use webrender::api::{ImageData, ImageDescriptor, ImageDescriptorFlags, ImageFormat, ImageKey};
+use webrender::api::ImageData;
+use webrender::api::ImageDescriptor;
+use webrender::api::ImageDescriptorFlags;
+use webrender::api::ImageFormat;
+use webrender::api::ImageKey;
 
 use crate::output::GlRendererRef;
 

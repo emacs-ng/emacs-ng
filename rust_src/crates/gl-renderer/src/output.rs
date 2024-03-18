@@ -4,14 +4,20 @@ use emacs::gfx::context::GLContextTrait;
 use emacs::lisp::ExternalPtr;
 pub use emacs::output::OutputRef;
 use font::FontId;
+use std::cell::RefCell;
 use std::fmt;
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use font::FontInfoRef;
 use gleam::gl;
 use webrender::FastHashMap;
 
-use webrender::{self, api::units::*, api::*, RenderApi, Renderer, Transaction};
+use webrender::api::units::*;
+use webrender::api::*;
+use webrender::RenderApi;
+use webrender::Renderer;
+use webrender::Transaction;
+use webrender::{self};
 
 use emacs::frame::FrameRef;
 

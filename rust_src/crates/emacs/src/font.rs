@@ -1,12 +1,11 @@
 //! font support
 
+use crate::bindings::font;
+use crate::bindings::font_property_index::FONT_ENTITY_MAX;
+use crate::bindings::pvec_type;
 use crate::lisp::ExternalPtr;
-use crate::{
-    bindings::font,
-    bindings::{font_property_index::FONT_ENTITY_MAX, pvec_type},
-    lisp::LispObject,
-    vector::LispVectorlikeRef,
-};
+use crate::lisp::LispObject;
+use crate::vector::LispVectorlikeRef;
 
 // A font is not a type in and of itself, it's just a group of three kinds of
 // pseudovector. This newtype allows us to define methods that yield the actual

@@ -7,27 +7,34 @@ use emacs::color::color_to_rgba;
 use emacs::globals::Qnil;
 use emacs::globals::Qsvg;
 use emacs::lisp::LispObject;
-use image::{
-    codecs::{
-        gif::GifDecoder,
-        pnm::{PnmDecoder, PnmSubtype},
-        webp::WebPDecoder,
-    },
-    error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
-    imageops::FilterType,
-    io::Reader,
-    AnimationDecoder, DynamicImage, ImageError, ImageResult, Rgba,
-};
+use image::codecs::gif::GifDecoder;
+use image::codecs::pnm::PnmDecoder;
+use image::codecs::pnm::PnmSubtype;
+use image::codecs::webp::WebPDecoder;
+use image::error::ImageFormatHint;
+use image::error::UnsupportedError;
+use image::error::UnsupportedErrorKind;
+use image::imageops::FilterType;
+use image::io::Reader;
+use image::AnimationDecoder;
+use image::DynamicImage;
+use image::ImageError;
+use image::ImageResult;
+use image::Rgba;
 use parking_lot::Mutex;
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::io::BufRead;
+use std::io::Cursor;
+use std::io::Seek;
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::{
-    io::{BufRead, Cursor, Seek},
-    time::Duration,
-};
-use webrender::api::{ImageData, ImageDescriptor, ImageDescriptorFlags, ImageFormat};
+use std::time::Duration;
+use webrender::api::ImageData;
+use webrender::api::ImageDescriptor;
+use webrender::api::ImageDescriptorFlags;
+use webrender::api::ImageFormat;
 use webrender::FastHashMap;
 
 pub type ImageId = isize;

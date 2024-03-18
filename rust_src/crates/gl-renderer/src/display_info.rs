@@ -1,8 +1,10 @@
 pub use emacs::display_info::DisplayInfoRef;
 use libc;
-use std::{collections::HashMap, ptr};
+use std::collections::HashMap;
+use std::ptr;
 
-use emacs::{bindings::Emacs_GC, lisp::ExternalPtr};
+use emacs::bindings::Emacs_GC;
+use emacs::lisp::ExternalPtr;
 
 use crate::fringe::FringeBitmap;
 

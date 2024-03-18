@@ -1,4 +1,5 @@
-use libc::{c_int, size_t};
+use libc::c_int;
+use libc::size_t;
 
 #[no_mangle]
 pub extern "C" fn rust_count_trailing_zero_bits(val: size_t) -> c_int {

@@ -6,39 +6,54 @@ use emacs::bindings::terminal;
 use emacs::multibyte::LispStringRef;
 use emacs::terminal::TerminalRef;
 use lisp_macros::lisp_fn;
+use std::cmp::max;
+use std::ffi::CString;
 use std::ptr;
-use std::{cmp::max, ffi::CString};
 
 use crate::frame::FrameExtGlRendererCommon;
 use webrender::api::units::LayoutPoint;
 use webrender::api::units::LayoutRect;
 
+use crate::cursor::draw_bar_cursor;
+use crate::cursor::draw_filled_cursor;
+use crate::cursor::draw_hollow_box_cursor;
 use crate::fringe::get_or_create_fringe_bitmap;
-use crate::{
-    cursor::{draw_bar_cursor, draw_filled_cursor, draw_hollow_box_cursor},
-    image::WrPixmap,
-    util::HandyDandyRectBuilder,
-};
-use emacs::color::{color_to_xcolor, lookup_color_by_name_or_hex, pixel_to_color};
-use font::{FontInfo, FontInfoRef};
+use crate::image::WrPixmap;
+use crate::util::HandyDandyRectBuilder;
+use emacs::color::color_to_xcolor;
+use emacs::color::lookup_color_by_name_or_hex;
+use emacs::color::pixel_to_color;
+use font::FontInfo;
+use font::FontInfoRef;
 
-use emacs::{
-    bindings::{
-        block_input, display_and_set_cursor, draw_window_fringes, face_id, glyph_row_area,
-        gui_clear_cursor, gui_draw_right_divider, gui_draw_vertical_border, image, run,
-        unblock_input,
-    },
-    bindings::{
-        draw_fringe_bitmap_params, fontset_from_font, glyph_row, glyph_string, text_cursor_kinds,
-        Emacs_Color, Emacs_Pixmap, Fprovide,
-    },
-    display_traits::GlyphStringRef,
-    font::LispFontRef,
-    frame::{Frame, FrameRef},
-    globals::{Qnil, Qwr},
-    lisp::LispObject,
-    window::{LispWindowRef, Lisp_Window},
-};
+use emacs::bindings::block_input;
+use emacs::bindings::display_and_set_cursor;
+use emacs::bindings::draw_fringe_bitmap_params;
+use emacs::bindings::draw_window_fringes;
+use emacs::bindings::face_id;
+use emacs::bindings::fontset_from_font;
+use emacs::bindings::glyph_row;
+use emacs::bindings::glyph_row_area;
+use emacs::bindings::glyph_string;
+use emacs::bindings::gui_clear_cursor;
+use emacs::bindings::gui_draw_right_divider;
+use emacs::bindings::gui_draw_vertical_border;
+use emacs::bindings::image;
+use emacs::bindings::run;
+use emacs::bindings::text_cursor_kinds;
+use emacs::bindings::unblock_input;
+use emacs::bindings::Emacs_Color;
+use emacs::bindings::Emacs_Pixmap;
+use emacs::bindings::Fprovide;
+use emacs::display_traits::GlyphStringRef;
+use emacs::font::LispFontRef;
+use emacs::frame::Frame;
+use emacs::frame::FrameRef;
+use emacs::globals::Qnil;
+use emacs::globals::Qwr;
+use emacs::lisp::LispObject;
+use emacs::window::LispWindowRef;
+use emacs::window::Lisp_Window;
 
 #[allow(unused_variables)]
 #[no_mangle]
@@ -526,7 +541,8 @@ pub fn wr_api_capture(path: LispStringRef, bits_raw: LispObject, start_sequence:
     #[cfg(feature = "capture")]
     {
         use emacs::frame::window_frame_live_or_selected;
-        use std::fs::{create_dir_all, File};
+        use std::fs::create_dir_all;
+        use std::fs::File;
         use std::io::Write;
 
         let path = std::path::PathBuf::from(path.to_utf8());

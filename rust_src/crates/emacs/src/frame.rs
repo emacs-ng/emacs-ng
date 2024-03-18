@@ -1,16 +1,27 @@
 //! Generic frame functions.
-use crate::{
-    bindings::{
-        adjust_frame_size, change_frame_size, face, face_id, frame, frame_dimension,
-        init_frame_faces, pvec_type, store_frame_param, update_face_from_frame_parameter, Fassq,
-        Fselected_frame, Lisp_Type, Vframe_list,
-    },
-    globals::{Qframe_live_p, Qframep, Qnil},
-    lisp::{ExternalPtr, LispObject},
-    list::{LispConsCircularChecks, LispConsEndChecks},
-    vector::LispVectorlikeRef,
-    window::LispWindowRef,
-};
+use crate::bindings::adjust_frame_size;
+use crate::bindings::change_frame_size;
+use crate::bindings::face;
+use crate::bindings::face_id;
+use crate::bindings::frame;
+use crate::bindings::frame_dimension;
+use crate::bindings::init_frame_faces;
+use crate::bindings::pvec_type;
+use crate::bindings::store_frame_param;
+use crate::bindings::update_face_from_frame_parameter;
+use crate::bindings::Fassq;
+use crate::bindings::Fselected_frame;
+use crate::bindings::Lisp_Type;
+use crate::bindings::Vframe_list;
+use crate::globals::Qframe_live_p;
+use crate::globals::Qframep;
+use crate::globals::Qnil;
+use crate::lisp::ExternalPtr;
+use crate::lisp::LispObject;
+use crate::list::LispConsCircularChecks;
+use crate::list::LispConsEndChecks;
+use crate::vector::LispVectorlikeRef;
+use crate::window::LispWindowRef;
 
 #[cfg(feature = "window-system")]
 use {

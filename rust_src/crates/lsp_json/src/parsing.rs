@@ -1,32 +1,90 @@
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::io::{BufReader, BufWriter, Result};
-use std::process::{Child, Command, Stdio};
+use std::io::BufReader;
+use std::io::BufWriter;
+use std::io::Result;
+use std::process::Child;
+use std::process::Command;
+use std::process::Stdio;
 use std::thread;
 
-use lsp_server::{Message, Notification, Request, RequestId, Response};
-use serde_json::{map::Map, Value};
+use lsp_server::Message;
+use lsp_server::Notification;
+use lsp_server::Request;
+use lsp_server::RequestId;
+use lsp_server::Response;
+use serde_json::map::Map;
+use serde_json::Value;
 
-use ng_async::ng_async::{to_owned_userdata, EmacsPipe, PipeDataOption, UserData};
+use ng_async::ng_async::to_owned_userdata;
+use ng_async::ng_async::EmacsPipe;
+use ng_async::ng_async::PipeDataOption;
+use ng_async::ng_async::UserData;
 
 use emacs::lisp::LispObject;
-use emacs::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
+use emacs::list::LispCons;
+use emacs::list::LispConsCircularChecks;
+use emacs::list::LispConsEndChecks;
 use emacs::multibyte::LispStringRef;
 use lisp_macros::lisp_fn;
 
-use emacs::bindings::{
-    check_integer_range, hash_hash_t, hash_lookup_get_hash, hash_put, intmax_t, make_fixed_natnum,
-    make_float, make_int, make_string_from_utf8, make_uint, make_vector, plist_get, plist_put,
-    Fcons, Fintern, Flist, Fmake_hash_table, Fnreverse, Fprocess_plist, Fset_process_plist, AREF,
-    ASET, ASIZE, FLOATP, HASH_KEY, HASH_TABLE_P, HASH_TABLE_SIZE, HASH_VALUE, INTEGERP, STRINGP,
-    SYMBOLP, SYMBOL_NAME, VECTORP, XFLOAT_DATA, XHASH_TABLE,
-};
+use emacs::bindings::check_integer_range;
+use emacs::bindings::hash_hash_t;
+use emacs::bindings::hash_lookup_get_hash;
+use emacs::bindings::hash_put;
+use emacs::bindings::intmax_t;
+use emacs::bindings::make_fixed_natnum;
+use emacs::bindings::make_float;
+use emacs::bindings::make_int;
+use emacs::bindings::make_string_from_utf8;
+use emacs::bindings::make_uint;
+use emacs::bindings::make_vector;
+use emacs::bindings::plist_get;
+use emacs::bindings::plist_put;
+use emacs::bindings::Fcons;
+use emacs::bindings::Fintern;
+use emacs::bindings::Flist;
+use emacs::bindings::Fmake_hash_table;
+use emacs::bindings::Fnreverse;
+use emacs::bindings::Fprocess_plist;
+use emacs::bindings::Fset_process_plist;
+use emacs::bindings::AREF;
+use emacs::bindings::ASET;
+use emacs::bindings::ASIZE;
+use emacs::bindings::FLOATP;
+use emacs::bindings::HASH_KEY;
+use emacs::bindings::HASH_TABLE_P;
+use emacs::bindings::HASH_TABLE_SIZE;
+use emacs::bindings::HASH_VALUE;
+use emacs::bindings::INTEGERP;
+use emacs::bindings::STRINGP;
+use emacs::bindings::SYMBOLP;
+use emacs::bindings::SYMBOL_NAME;
+use emacs::bindings::VECTORP;
+use emacs::bindings::XFLOAT_DATA;
+use emacs::bindings::XHASH_TABLE;
 
-use emacs::globals::{
-    QCarray_type, QCfalse, QCfalse_object, QCjson_config, QCnull, QCnull_object, QCobject_type,
-    QCser_false_object, QCser_null_object, QCsize, QCtest, Qalist, Qarray, Qequal, Qhash_table,
-    Qlist, Qnil, Qplist, Qplistp, Qt, Qunbound,
-};
+use emacs::globals::QCarray_type;
+use emacs::globals::QCfalse;
+use emacs::globals::QCfalse_object;
+use emacs::globals::QCjson_config;
+use emacs::globals::QCnull;
+use emacs::globals::QCnull_object;
+use emacs::globals::QCobject_type;
+use emacs::globals::QCser_false_object;
+use emacs::globals::QCser_null_object;
+use emacs::globals::QCsize;
+use emacs::globals::QCtest;
+use emacs::globals::Qalist;
+use emacs::globals::Qarray;
+use emacs::globals::Qequal;
+use emacs::globals::Qhash_table;
+use emacs::globals::Qlist;
+use emacs::globals::Qnil;
+use emacs::globals::Qplist;
+use emacs::globals::Qplistp;
+use emacs::globals::Qt;
+use emacs::globals::Qunbound;
 
 const ID: &str = "id";
 const RESULT: &str = "result";

@@ -1,6 +1,7 @@
 extern crate ng_bindgen;
 
-use ng_bindgen::{generate_crate_exports, BuildError};
+use ng_bindgen::generate_crate_exports;
+use ng_bindgen::BuildError;
 
 fn main() {
     // TODO watch relevent files to re rerun, rs files under src?

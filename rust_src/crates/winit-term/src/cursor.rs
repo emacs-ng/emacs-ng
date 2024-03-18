@@ -1,6 +1,7 @@
 use winit::window::CursorIcon;
 
-use emacs::bindings::{winit_output, Emacs_Cursor};
+use emacs::bindings::winit_output;
+use emacs::bindings::Emacs_Cursor;
 
 pub fn winit_to_emacs_cursor(cursor: CursorIcon) -> Emacs_Cursor {
     // 0 for No_Cursor

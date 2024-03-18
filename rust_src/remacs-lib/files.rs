@@ -1,14 +1,28 @@
 use errno;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
+use std::ffi::CString;
 use std::io;
 
-use libc::{self, c_char, c_int, EEXIST, EINVAL};
+use libc::c_char;
+use libc::c_int;
+use libc::EEXIST;
+use libc::EINVAL;
+use libc::{self};
 
 #[cfg(unix)]
-use libc::{open, O_CLOEXEC, O_CREAT, O_EXCL, O_RDWR};
+use libc::open;
+#[cfg(unix)]
+use libc::O_CLOEXEC;
+#[cfg(unix)]
+use libc::O_CREAT;
+#[cfg(unix)]
+use libc::O_EXCL;
+#[cfg(unix)]
+use libc::O_RDWR;
 
-use rand::{rngs::OsRng, RngCore};
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 #[cfg(windows)]
 extern "C" {
