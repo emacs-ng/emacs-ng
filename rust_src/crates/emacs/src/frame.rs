@@ -23,7 +23,7 @@ use crate::list::LispConsEndChecks;
 use crate::vector::LispVectorlikeRef;
 use crate::window::LispWindowRef;
 
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 use {
     crate::bindings::{gui_default_parameter, resource_types, vertical_scroll_bar_type},
     crate::display_info::DisplayInfoRef,
@@ -62,11 +62,11 @@ impl FrameRef {
     }
 
     pub fn has_tooltip(self) -> bool {
-        #[cfg(feature = "window-system")]
+        #[cfg(have_window_system)]
         {
             self.tooltip()
         }
-        #[cfg(not(feature = "window-system"))]
+        #[cfg(not(have_window_system))]
         {
             false
         }
@@ -77,16 +77,16 @@ impl FrameRef {
     }
 
     pub fn vertical_scroll_bar_type(self) -> u32 {
-        #[cfg(feature = "window-system")]
+        #[cfg(have_window_system)]
         {
-            (*self).vertical_scroll_bar_type()
+            return (*self).vertical_scroll_bar_type();
         }
-        #[cfg(not(feature = "window-system"))]
+        #[cfg(not(have_window_system))]
         0
     }
 
     pub fn scroll_bar_area_width(self) -> i32 {
-        #[cfg(feature = "window-system")]
+        #[cfg(have_window_system)]
         {
             match self.vertical_scroll_bar_type() {
                 vertical_scroll_bar_type::vertical_scroll_bar_left
@@ -96,14 +96,14 @@ impl FrameRef {
                 _ => 0,
             }
         }
-        #[cfg(not(feature = "window-system"))]
+        #[cfg(not(have_window_system))]
         {
             0
         }
     }
 
     pub fn horizontal_scroll_bar_height(self) -> i32 {
-        #[cfg(feature = "window-system")]
+        #[cfg(have_window_system)]
         {
             if self.horizontal_scroll_bars() {
                 self.config_scroll_bar_height
@@ -111,7 +111,7 @@ impl FrameRef {
                 0
             }
         }
-        #[cfg(not(feature = "window-system"))]
+        #[cfg(not(have_window_system))]
         {
             0
         }
@@ -151,7 +151,7 @@ impl FrameRef {
         }
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn gui_default_parameter(
         mut self,
         alist: LispObject,
@@ -223,7 +223,7 @@ impl FrameRef {
     }
 
     #[allow(unreachable_code)]
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn output(&self) -> OutputRef {
         #[cfg(feature = "window-system-pgtk")]
         return OutputRef::new(unsafe { self.output_data.pgtk });
@@ -232,37 +232,37 @@ impl FrameRef {
         unimplemented!();
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn font(&self) -> FontRef {
         FontRef::new(self.output().font as *mut _)
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn fontset(&self) -> i32 {
         self.output().fontset
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn set_font(&mut self, mut font: FontRef) {
         self.output().font = font.as_mut();
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn set_fontset(&mut self, fontset: i32) {
         self.output().fontset = fontset;
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn display_info(&self) -> DisplayInfoRef {
         self.output().display_info()
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn set_display_info(&mut self, mut dpyinfo: DisplayInfoRef) {
         self.output().display_info = dpyinfo.as_mut();
     }
 
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn terminal(&self) -> TerminalRef {
         return TerminalRef::new(self.terminal);
     }

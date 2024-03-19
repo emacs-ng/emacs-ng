@@ -16,7 +16,7 @@ use crate::vector::LispVectorlikeRef;
 
 pub type TerminalRef = ExternalPtr<terminal>;
 
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 use crate::display_info::DisplayInfoRef;
 
 impl TerminalRef {
@@ -33,7 +33,7 @@ impl TerminalRef {
     }
 
     #[allow(unreachable_code)]
-    #[cfg(feature = "window-system")]
+    #[cfg(have_window_system)]
     pub fn display_info(self) -> DisplayInfoRef {
         #[cfg(feature = "window-system-pgtk")]
         return DisplayInfoRef::new(unsafe { self.display_info.pgtk });

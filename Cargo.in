@@ -14,11 +14,11 @@ gdkwayland-sys = "0.18"
 gdkx11-sys = "0.18"
 parking_lot = "0.12"
 fxhash = "0.2"
-raw-window-handle = "0.5"
+raw-window-handle = "0.6"
 image = "0.24"
 cfg_aliases = "0.2"
 gleam = "0.15"
-winit = { version = "0.29", default-features = false, features = ["rwh_05"]}
+winit = { version = "0.29", default-features = false, features = ["rwh_06"]}
 arboard = "3.3"
 euclid = "0.22"
 lazy_static = "1.4"
@@ -101,49 +101,28 @@ crate-type = ["staticlib"]
 path = "rust_src/lib.rs"
 
 [features]
-default = [
-  @CARGO_DEFAULT_FEATURES@
-  @CARGO_CHECKING_FEATURES@
-]
+default = [@CARGO_DEFAULT_FEATURES@]
 
 # Compile with C xml2 library support.
 use-xml2 = []
-# Use a window system
-window-system = ["emacs/window-system"]
-# Use the x11 window system
-window-system-x11 = ["window-system", "emacs/window-system-x"]
-# Use the nextstep window system
-window-system-nextstep = ["window-system", "emacs/window-system-ns"]
-# Use the w32 window system
-window-system-w32 = ["window-system", "emacs/window-system-w32"]
-# Use the haiku window system
-window-system-haiku = ["window-system", "emacs/window-system-haiku"]
-# Use the pgtk window system
-window-system-pgtk = [
-  "window-system",
-  "emacs/window-system-pgtk",
-  @PGTK_EXTRA_FEATURES@
-]
+window-system-x11 = ["emacs/window-system-x11"]
+window-system-nextstep = ["emacs/window-system-nextstep"]
+window-system-w32=["emacs/window-system-w32"]
+window-system-haiku=["emacs/window-system-haiku"]
+window-system-pgtk=["emacs/window-system-pgtk", "emacs/gtk3"]
+window-system-android=["emacs/window-system-android"]
+window-system-winit = ["emacs/window-system-winit",
+"dep:winit-term",
+  "ng-bindgen/window-system-winit",
+  "webrender",]
 # Build with git2rs support
 libgit = ["git", "ng-bindgen/libgit"]
 # Use the webrender
-gl-renderer = [
+webrender = [
   "dep:font",
+  "emacs/webrender",
   "ng-bindgen/gl-renderer",
   "dep:gl-renderer",
-]
-# Use the winit window system on Wayland
-window-system-winit = [
-  "dep:winit-term",
-  "ng-bindgen/window-system-winit",
-  "window-system",
-  "gl-renderer",
-  "emacs/window-system-winit",
-]
-# Use the winit window system with support for X11
-window-system-winit-with-x11 = [
-  "window-system-winit",
-  "emacs/x11",
 ]
 # Treat warnings as a build error on Travis.
 strict = []
@@ -160,8 +139,17 @@ profiling = ["gl-renderer?/profiling"]
 # fontconfig font dirs patch
 [patch.crates-io.font-loader]
 git = "https://github.com/declantsien/rust-font-loader.git"
-# rev = "0a53c767463e13346221ad23fa6dd50cd787cd72"
 rev = "9e1776052d906f6cd3b78aa701ffb2d657877830"
+
+# surfman raw-window-handle 0.6
+[patch.crates-io.surfman]
+git = "https://github.com/declantsien/surfman.git"
+rev = "51ac8db9f4584bcad9d8223103386bd05c5f2048"
+
+# glutin raw-window-handle 0.6
+[patch.crates-io.glutin]
+git = "https://github.com/declantsien/glutin.git"
+rev = "92a5ab0cc907ab3e1095ec6a09356aff8d93ade8"
 
 # unreleased webp has_animation patch
 [patch.crates-io.image]

@@ -39,9 +39,6 @@ AC_CHECK_PROGS([CARGO], [cargo])
 test -z "$CARGO" &&
       AC_MSG_ERROR([CARGO is required])
 
-CARGO_CHECKING_FEATURES=""
-CARGO_DEFAULT_FEATURES=""
-
 if test "$XCONFIGURE" = "android"; then
   # configure is being called recursively to configure Emacs for
   # Android!
@@ -796,7 +793,6 @@ AS_IF([test "$with_android" = no || test -n "$XCONFIGURE"],[
   if test x$ac_glyphs_debug != x ; then
     AC_DEFINE([GLYPH_DEBUG], [1],
   [Define this to enable glyphs debugging code.])
-    CARGO_CHECKING_FEATURES="${CARGO_CHECKING_FEATURES}\"glyph-debug\", "
   fi
 ],[AS_IF([test "x$ac_enable_checking" != x],
     [android_enable_checking=yes
@@ -814,7 +810,6 @@ AC_ARG_ENABLE([profiling],
 [ac_enable_profiling="${enableval}"],[])
 if test x$ac_enable_profiling != x ; then
    PROFILING_CFLAGS="-DPROFILING=1 -pg"
-   CARGO_CHECKING_FEATURES="${CARGO_CHECKING_FEATURES}\"profiling\", "
 else
    PROFILING_CFLAGS=
 fi
@@ -1998,7 +1993,9 @@ this option's value should be 'yes', 'surfman' or 'glutin'.
 	    ;;
 	  esac
 	  with_wr_gl=$val
-])
+],
+  [AS_IF([test "$with_winit" != "no"],
+   [with_wr_gl=surfman])])
 
 AC_SUBST([AM_DEFAULT_VERBOSITY])
 ARCH_INDEPENDENT_CONFIG_FILES([src/verbose.mk])
@@ -4761,8 +4758,9 @@ else
 fi
 if (test "${HAVE_X11}" = "yes" && test "${HAVE_FREETYPE}" = "yes" \
         || test "$window_system" = "pgtk" \
-        || test "${HAVE_W32}" = "yes") && test "${with_webrender}" != "yes" \
-	|| test "$REALLY_ANDROID" = "yes"; then
+        || test "${HAVE_W32}" = "yes" \
+	|| test "$REALLY_ANDROID" = "yes") \
+        && test "${with_webrender}" != "yes"; then
   if test "${with_harfbuzz}" != "no"; then
     EMACS_CHECK_MODULES([HARFBUZZ], [harfbuzz >= $harfbuzz_required_ver])
     AS_IF([test "$HAVE_HARFBUZZ" = "yes"],[
@@ -7886,11 +7884,13 @@ for opt in ACL BE_APP CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTING
  M17N_FLT MODULES NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PGTK PNG RSVG SECCOMP \
  SOUND SQLITE3 THREADS TIFF TOOLKIT_SCROLL_BARS TREE_SITTER \
  UNEXEC WEBP X11 XAW3D XDBE XFT XIM XINPUT2 XPM XWIDGETS X_TOOLKIT \
- ZLIB; do
+ ZLIB WEBRENDER WINIT; do
 
     case $opt in
       PDUMPER) val=${with_pdumper} ;;
       UNEXEC) val=${with_unexec} ;;
+      WEBRENDER) val=${with_webrender} ;;
+      WINIT) val=${with_winit} ;;
       GLIB) val=${emacs_cv_links_glib} ;;
       NOTIFY|ACL) eval val=\${${opt}_SUMMARY} ;;
       TOOLKIT_SCROLL_BARS|X_TOOLKIT) eval val=\${USE_$opt} ;;
@@ -7922,6 +7922,55 @@ for opt in ACL BE_APP CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTING
 done
 AC_DEFINE_UNQUOTED([EMACS_CONFIG_FEATURES], ["${emacs_config_features}"],
   [Summary of some of the main features enabled by configure.])
+
+CARGO_FEATURES=
+CARGO_DEFAULT_FEATURES=
+optsep=
+optsep2=
+for opt in libgit use-xml2 x11 nextstep w32 haiku pgtk webrender winit \
+    android emacs/x11 javascript glyph-debug profiling wr_gl ng-module; do
+    tmp=no
+    if test "${window_system}" = "$opt"; then
+	tmp=yes
+    fi
+    case $opt in
+      emacs/x11) val=${ac_enable_winit_x11} ;;
+      use-xml2) val=${HAVE_LIBXML2} ;;
+      ng-module) val=${HAVE_MODULES} ;;
+      glyph-debug) val=${ac_enable_glyphs_debug} ;;
+      profiling) val=${ac_enable_profiling} ;;
+      x11|w32|haiku|pgtk|winit|android|nextstep) val=${tmp} ;;
+      *) eval val=\${with_$opt} ;;
+    esac
+
+    case x$val in
+      xno|xnone|x) continue ;;
+    esac
+    case $opt in
+      x11|w32|haiku|winit|pgtk|android|nextstep) opt="window-system-${opt}" ;;
+      wr_gl)
+        if test "${window_system}" != "winit" ; then
+	   continue
+	fi
+        case $val in
+	  yes) opt=emacs/surfman ;;
+          surfman|glutin) opt=emacs/$val ;;
+          *) continue ;;
+        esac
+      ;;
+      emacs/x11)
+        if test "${window_system}" != "winit" ; then
+	   continue
+	fi
+      ;;
+    esac
+    AS_VAR_APPEND([CARGO_FEATURES], ["$optsep$opt"])
+    AS_VAR_APPEND([CARGO_DEFAULT_FEATURES], ["$optsep2\"$opt\""])
+    optsep=' '
+    optsep2=', '
+done
+AC_SUBST(CARGO_FEATURES)
+AC_SUBST(CARGO_DEFAULT_FEATURES)
 
 # This is just a printable representation of the shared user ID.
 android_shared_user=
@@ -8082,58 +8131,13 @@ AC_SUBST([SUBDIR_MAKEFILES_IN])
 SMALL_JA_DIC=$with_small_ja_dic
 AC_SUBST([SMALL_JA_DIC])
 
-PGTK_EXTRA_FEATURES=""
-if test "$HAVE_LIBXML2" = "yes"; then
-    CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"use-xml2\", "
-fi
-
-case "${window_system}" in
-    x11)
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-x11\", "
-    ;;
-    nextstep)
-	CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-nextstep\", "
-    ;;
-    w32)
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-w32\", "
-    ;;
-    winit)
-	if test X$ac_enable_winit_x11 != X ; then
-	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit-with-x11\", "
-	else
-	        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-winit\", "
-	fi
-	case "${with_wr_gl}" in
-	glutin ) CARGO_DEFAULT_FEATURES="\"emacs/glutin\", ${CARGO_DEFAULT_FEATURES}";;
-	* ) CARGO_DEFAULT_FEATURES="\"emacs/surfman\", ${CARGO_DEFAULT_FEATURES}";;
-	esac
-    ;;
-    pgtk)
-        CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"window-system-pgtk\", "
-	if test "${with_webrender}" = "yes" ; then
-	   PGTK_EXTRA_FEATURES="\"emacs/gtk3\", ${PGTK_EXTRA_FEATURES}"
-	   PGTK_EXTRA_FEATURES="\"gl-renderer\", ${PGTK_EXTRA_FEATURES}"
-	fi
-    ;;
-esac
-
-if test "$HAVE_LIBGIT" = "yes"; then
-   CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"libgit\", "
-fi
 if test "$HAVE_JAVASCRIPT" = "yes"; then
   AC_DEFINE(USE_JAVASCRIPT, 1, [Define to 1 if you want to use deno/javascript.])
-  CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"javascript\", "
-fi
-if test "${HAVE_MODULES}" = "yes"; then
-  CARGO_DEFAULT_FEATURES="${CARGO_DEFAULT_FEATURES}\"ng-module\", "
 fi
 
-AC_SUBST(CARGO_DEFAULT_FEATURES)
-AC_SUBST(CARGO_CHECKING_FEATURES)
-AC_SUBST(PGTK_EXTRA_FEATURES)
-AC_CONFIG_FILES([Cargo.toml:Cargo.in])
 dnl AC_CONFIG_FILES([$srcdir/.cargo/config:$srcdir/.cargo/config.in])
 AC_CONFIG_FILES([$srcdir/rust_src/crates/emacs/build.rs])
+AC_CONFIG_FILES([Cargo.toml:Cargo.in])
 
 dnl The following commands are run on the build system when building
 dnl Emacs.

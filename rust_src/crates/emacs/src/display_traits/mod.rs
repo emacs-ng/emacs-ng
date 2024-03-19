@@ -1,9 +1,9 @@
 // Interface definitions for display code.
-
 use crate::bindings::glyph;
 use crate::lisp::ExternalPtr;
+
 pub type GlyphRef = ExternalPtr<glyph>;
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 mod glyph_string;
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 pub use glyph_string::*;

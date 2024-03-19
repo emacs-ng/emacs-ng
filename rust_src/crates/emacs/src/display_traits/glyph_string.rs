@@ -4,7 +4,6 @@ use std::slice;
 use crate::bindings::composition_gstring_from_id;
 use crate::bindings::composition_hash_table;
 use crate::bindings::composition_method;
-use crate::bindings::glyph;
 use crate::bindings::glyph_string;
 use crate::bindings::hash_hash_t;
 use crate::bindings::hash_lookup_get_hash;
@@ -17,7 +16,6 @@ use crate::lisp::LispObject;
 pub type XChar2b = u32;
 
 pub type GlyphStringRef = ExternalPtr<glyph_string>;
-
 impl GlyphStringRef {
     pub fn get_chars(&self) -> &[XChar2b] {
         let len = self.nchars as usize;

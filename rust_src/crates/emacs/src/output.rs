@@ -1,12 +1,14 @@
 #[cfg(feature = "window-system-android")]
 pub use crate::bindings::android_output as Output;
-#[cfg(feature = "window-system-ns")]
+#[cfg(have_ns)]
 pub use crate::bindings::ns_output as Output;
-#[cfg(any(feature = "window-system-pgtk", feature = "window-system-winit"))]
-pub use crate::bindings::output as Output;
+#[cfg(have_pgtk)]
+pub use crate::bindings::pgtk_output as Output;
 #[cfg(feature = "window-system-w32")]
 pub use crate::bindings::w32_output as Output;
-#[cfg(feature = "window-system-x")]
+#[cfg(have_winit)]
+pub use crate::bindings::winit_output as Output;
+#[cfg(have_x11)]
 pub use crate::bindings::x_output as Output;
 
 use crate::display_info::DisplayInfoRef;

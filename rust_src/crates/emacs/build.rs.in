@@ -5,7 +5,9 @@ use cfg_aliases::cfg_aliases;
 use std::cmp::max;
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::BufRead;
+use std::io::BufReader;
+use std::io::Write;
 use std::mem::size_of;
 use std::path::Path;
 use std::path::PathBuf;
@@ -353,12 +355,20 @@ fn main() {
         x11_platform: { all(feature = "x11", free_unix, not(wasm), use_winit)},
         wayland_platform: { all(feature = "wayland", free_unix, not(wasm), use_winit) },
 
-        winit: { any(feature = "window-system-winit") },
-        pgtk: { all(feature = "window-system-pgtk", not(winit)) },
-        window_system: { any(winit, pgtk) },
+        // Emacs
+            use_webrender: { feature = "webrender"},
+        have_ntgui: { feature = "window-system-w32" },
+        have_pgtk: { feature = "window-system-pgtk" },
+        have_x11: { feature = "window-system-x11" },
+        have_ns: { feature = "window-system-nextstep" },
+        have_haiku: { feature = "window-system-haiku"},
+        have_android: { feature = "window-system-android" },
+        have_winit: { feature = "window-system-winit" },
+    surfman: { feature = "surfman" },
+        glutin: { feature = "glutin" },
+        gtk3: { all(feature = "gtk3", have_pgtk) },
+        have_window_system: {
+        any(have_ntgui, have_pgtk, have_x11, have_ns, have_haiku, have_android, have_winit)},
 
-        surfman: { all(feature = "surfman") },
-        glutin: { all(feature = "glutin") },
-        gtk3: { all(feature = "gtk3") },
     }
 }

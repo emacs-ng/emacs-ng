@@ -41,11 +41,11 @@ pub mod vector_macros;
 pub mod lisp;
 
 pub mod buffer;
-#[cfg(feature = "window-system")]
+#[cfg(use_webrender)]
 pub mod color;
 #[cfg(feature = "window-system")]
 pub mod composite;
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 pub mod display_info;
 pub mod display_traits;
 pub mod eval;
@@ -56,7 +56,7 @@ pub mod list;
 pub mod multibyte;
 pub mod number;
 pub mod obarray;
-#[cfg(feature = "window-system")]
+#[cfg(have_window_system)]
 pub mod output;
 pub mod process;
 pub mod string;
@@ -65,10 +65,10 @@ pub mod terminal;
 pub mod thread;
 pub mod vector;
 pub mod window;
-#[cfg(any(winit, pgtk))]
+#[cfg(all(any(have_winit, have_pgtk), use_webrender))]
 mod window_system;
 pub mod xdisp;
-#[cfg(any(winit, pgtk))]
+#[cfg(all(any(have_winit, have_pgtk), use_webrender))]
 pub use window_system::*;
 #[cfg(any(glutin, surfman, gtk3))]
 pub mod gfx {

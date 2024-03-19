@@ -1,10 +1,10 @@
-#[cfg(feature = "window-system-pgtk")]
+#[cfg(have_pgtk)]
 mod pgtk;
-#[cfg(feature = "window-system-pgtk")]
+#[cfg(have_pgtk)]
 pub use pgtk::*;
-#[cfg(feature = "window-system-winit")]
+#[cfg(have_winit)]
 mod winit;
-#[cfg(feature = "window-system-winit")]
+#[cfg(have_winit)]
 pub use winit::*;
 
 use crate::frame::FrameRef;
