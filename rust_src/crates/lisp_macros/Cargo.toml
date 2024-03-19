@@ -10,7 +10,7 @@ proc-macro = true
 
 [dependencies]
 quote = "0.6"
-syn = { version = "0.15.26", features = ["full"] }
+syn = { version = "0.15.44", features = ["full"] }
 lisp-util = { version = "0.1.0", path = "../lisp_util" }
 emacs = { version = "0.1.0", path = "../emacs" }
 regex.workspace = true
