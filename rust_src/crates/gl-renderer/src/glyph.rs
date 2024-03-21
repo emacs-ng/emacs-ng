@@ -321,42 +321,28 @@ impl WrGlyph for GlyphStringRef {
         let mut x = self.x() as u32;
 
         let y = self.ybase;
-        let mut width = 0;
 
         let cmp_from = self.cmp_from;
         let cmp_to = self.cmp_to;
 
-        let mut i = cmp_from;
-        let mut j = cmp_from;
-
         for n in cmp_from..cmp_to {
             let lglyph = lgstring.lgstring_glyph(n as u32);
             if lglyph.lglyph_adjustment().is_nil() {
-                width += lglyph.lglyph_width().xfixnum();
-            } else {
-                if j < i {
-                    composite_lglyph(lglyph, x as i32, y);
-                    x += width as u32;
+                composite_lglyph(lglyph, x as i32, y);
+                if self.face().overstrike() {
+                    composite_lglyph(lglyph, x as i32 + 1, y);
                 }
+                let glyph_pixel_width = lglyph.lglyph_width().xfixnum();
+                x += glyph_pixel_width as u32;
+            } else {
                 let xoff = lglyph.lglyph_xoff() as u32;
                 let yoff = lglyph.lglyph_yoff() as u32;
                 let wadjust = lglyph.lglyph_wadjust() as u32;
                 composite_lglyph(lglyph, x as i32 + xoff as i32, y + yoff as i32);
 
                 x += wadjust;
-                j = i + 1;
-                width = 0;
-            }
-            i = i + 1;
-        }
-        if j < i {
-            for n in j..i {
-                let lglyph = lgstring.lgstring_glyph(n as u32);
-                composite_lglyph(lglyph, x as i32, y);
-                x += width as u32;
             }
         }
-
         instances
     }
 }
