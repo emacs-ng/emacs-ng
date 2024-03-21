@@ -318,7 +318,7 @@ impl WrGlyph for GlyphStringRef {
             instances.push(glyph_instance);
         };
 
-        let mut x = self.x() as u32;
+        let mut x = self.x();
 
         let y = self.ybase;
 
@@ -328,17 +328,19 @@ impl WrGlyph for GlyphStringRef {
         for n in cmp_from..cmp_to {
             let lglyph = lgstring.lgstring_glyph(n as u32);
             if lglyph.lglyph_adjustment().is_nil() {
-                composite_lglyph(lglyph, x as i32, y);
+                composite_lglyph(lglyph, x, y);
                 if self.face().overstrike() {
-                    composite_lglyph(lglyph, x as i32 + 1, y);
+                    composite_lglyph(lglyph, x + 1, y);
                 }
-                let glyph_pixel_width = lglyph.lglyph_width().xfixnum();
-                x += glyph_pixel_width as u32;
+                let glyph_pixel_width = lglyph.lglyph_width().xfixnum() as i32;
+                x += glyph_pixel_width;
             } else {
-                let xoff = lglyph.lglyph_xoff() as u32;
-                let yoff = lglyph.lglyph_yoff() as u32;
-                let wadjust = lglyph.lglyph_wadjust() as u32;
-                composite_lglyph(lglyph, x as i32 + xoff as i32, y + yoff as i32);
+                let xoff = lglyph.lglyph_xoff() as i32;
+                let yoff = lglyph.lglyph_yoff() as i32;
+                let wadjust = lglyph.lglyph_wadjust() as i32;
+                if self.face().overstrike() {
+                    composite_lglyph(lglyph, x + xoff + 1, y + yoff);
+                }
 
                 x += wadjust;
             }
