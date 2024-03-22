@@ -8,12 +8,12 @@ use super::DrawGlyphsFace;
 #[cfg(use_webrender)]
 use super::EmacsGCRef;
 use super::FaceRef;
+use super::GlyphRowRef;
 use super::GlyphType;
 use crate::bindings::composition_gstring_from_id;
 use crate::bindings::composition_hash_table;
 use crate::bindings::composition_method;
 use crate::bindings::font_for_underline_metrics;
-use crate::bindings::glyph_row as GlyphRow;
 use crate::bindings::glyph_string;
 use crate::bindings::hash_hash_t;
 use crate::bindings::hash_lookup_get_hash;
@@ -32,8 +32,6 @@ use crate::lisp::ExternalPtr;
 use crate::lisp::LispObject;
 
 pub type XChar2b = u32;
-
-pub type GlyphRowRef = ExternalPtr<GlyphRow>;
 
 pub type GlyphStringRef = ExternalPtr<glyph_string>;
 impl GlyphStringRef {

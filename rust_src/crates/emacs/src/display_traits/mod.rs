@@ -12,6 +12,7 @@ use crate::bindings::resource_types;
 use crate::bindings::text_cursor_kinds;
 use crate::bindings::Emacs_GC as EmacsGC;
 
+use crate::bindings::glyph_row as GlyphRow;
 use crate::globals::Qalpha;
 use crate::globals::Qalpha_background;
 use crate::globals::Qauto_lower;
@@ -89,6 +90,7 @@ pub use face::*;
 
 pub type ImageCacheRef = ExternalPtr<ImageCache>;
 pub type EmacsGCRef = ExternalPtr<EmacsGC>;
+pub type GlyphRowRef = ExternalPtr<GlyphRow>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum GlyphType {

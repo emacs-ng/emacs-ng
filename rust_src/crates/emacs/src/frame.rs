@@ -283,6 +283,7 @@ impl FrameRef {
         }
     }
 
+    #[cfg(have_window_system)]
     pub fn gui_default_parameter_no_x_resource(
         mut self,
         alist: LispObject,
@@ -428,10 +429,12 @@ impl FrameRef {
         false
     }
 
+    #[cfg(have_window_system)]
     pub fn image_cache(self) -> ImageCacheRef {
         self.terminal().image_cache()
     }
 
+    #[cfg(have_window_system)]
     pub fn build(mut dpyinfo: DisplayInfoRef, params: LispObject) -> Self {
         let name = dpyinfo.gui_arg(params, FrameParam::Name);
 
