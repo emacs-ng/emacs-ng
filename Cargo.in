@@ -24,6 +24,8 @@ euclid = "0.22"
 lazy_static = "1.4"
 tokio = "1"
 regex = "1.10"
+syn = "2"
+proc-macro2 = "1.0"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"

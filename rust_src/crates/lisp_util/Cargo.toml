@@ -5,10 +5,11 @@ description = "Utility code for lisp_fn."
 edition = "2018"
 
 [dependencies]
-libc = "0.2.153"
+libc.workspace = true
 errno.workspace = true
-darling = "0.2"
-syn = { version = "0.11.11", features = ["full"] }
+darling = "0.20"
+proc-macro2.workspace = true
+syn = { workspace = true, features = ["full"] }
 
 [lib]
 path = "lib.rs"

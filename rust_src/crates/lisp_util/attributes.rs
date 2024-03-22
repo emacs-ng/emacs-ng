@@ -2,11 +2,14 @@
 
 use std::fmt::Display;
 
-use darling::FromMetaItem;
-use syn;
+use proc_macro2::TokenStream;
+use std::str::FromStr;
+
+use darling::ast::NestedMeta;
+use darling::FromMeta;
 
 /// Arguments of the lisp_fn attribute.
-#[derive(FromMetaItem, Default)]
+#[derive(FromMeta, Default)]
 struct LispFnArgsRaw {
     /// Desired Lisp name of the function.
     /// If not given, derived as the Rust name with "_" -> "-".
@@ -20,7 +23,7 @@ struct LispFnArgsRaw {
     /// If not given, all arguments are required for normal functions,
     /// and no arguments are required for MANY functions.
     #[darling(default)]
-    min: Option<String>,
+    min: Option<i16>,
     /// The interactive specification. This may be a normal prompt
     /// string, such as `"bBuffer: "` or an elisp form as a string.
     /// If the function is not interactive, this should be None.
@@ -41,12 +44,7 @@ impl LispFnArgsRaw {
                 .name
                 .unwrap_or_else(|| def_name.to_string().replace("_", "-")),
             c_name: self.c_name.unwrap_or_else(|| def_name.to_string()),
-            min: if let Some(s) = self.min {
-                s.parse()
-                    .map_err(|_| "invalid \"min\" number of arguments")?
-            } else {
-                def_min_args
-            },
+            min: self.min.unwrap_or(def_min_args),
             intspec: self.intspec,
             unevalled: if let Some(b) = self.unevalled {
                 b.parse().map_err(|_| "invalid \"unevalled\" argument")?
@@ -69,20 +67,11 @@ pub fn parse_lisp_fn<D>(src: &str, def_name: &D, def_min_args: i16) -> Result<Li
 where
     D: Display + ?Sized,
 {
-    if src.is_empty() || src == "#[lisp_fn]" {
-        // from_meta_item doesn't accept this simple form...
-        LispFnArgsRaw::default().convert(def_name, def_min_args)
-    } else {
-        // We either get a full "#[lisp_fn(...)]" line or just the parenthesized part
-        let src = if src.starts_with("#[") {
-            src.to_string()
-        } else {
-            format!("#[lisp_fn({})]", src)
-        };
-        syn::parse_outer_attr(&src)
-            .and_then(|v| LispFnArgsRaw::from_meta_item(&v.value).map_err(|e| e.to_string()))
-            .and_then(|v| v.convert(def_name, def_min_args))
-    }
+    TokenStream::from_str(&src)
+        .map_err(|e| e.to_string())
+        .and_then(|args| NestedMeta::parse_meta_list(args.into()).map_err(|e| e.to_string()))
+        .and_then(|v| LispFnArgsRaw::from_list(&v).map_err(|e| e.to_string()))
+        .and_then(|v| v.convert(def_name, def_min_args))
 }
 
 #[macro_export]

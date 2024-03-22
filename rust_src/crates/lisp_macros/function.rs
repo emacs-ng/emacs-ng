@@ -1,6 +1,20 @@
 use syn;
 
 use quote::quote;
+use syn::Abi;
+use syn::FnArg;
+use syn::Ident;
+use syn::Item;
+use syn::ItemFn;
+use syn::Pat;
+use syn::PatIdent;
+use syn::PatType;
+use syn::Receiver;
+use syn::Signature;
+use syn::Type;
+use syn::TypePath;
+use syn::TypeReference;
+use syn::TypeSlice;
 
 type Result<T> = ::std::result::Result<T, &'static str>;
 
@@ -22,46 +36,43 @@ impl LispFnType {
 
 pub struct Function {
     /// The function name
-    pub name: syn::Ident,
+    pub name: Ident,
 
     /// The argument type
     pub fntype: LispFnType,
 
     /// The function header
-    pub args: Vec<syn::Ident>,
+    pub args: Vec<Ident>,
 }
 
-pub fn parse(item: &syn::Item) -> Result<Function> {
-    match *item {
-        syn::Item::Fn(syn::ItemFn {
-            ref decl,
-            ref unsafety,
-            ref constness,
-            ref abi,
-            ref ident,
+pub fn parse(item: &Item) -> Result<Function> {
+    match item {
+        Item::Fn(ItemFn {
+            sig,
+            // ref decl,
             ..
         }) => {
-            if unsafety.is_some() {
+            if sig.unsafety.is_some() {
                 return Err("lisp functions cannot be `unsafe`");
             }
 
-            if constness.is_some() {
+            if sig.constness.is_some() {
                 return Err("lisp functions cannot be `const`");
             }
 
-            if !is_rust_abi(abi) {
+            if !is_rust_abi(&sig.abi) {
                 return Err("lisp functions can only use \"Rust\" ABI");
             }
 
-            let args = decl
+            let args = sig
                 .inputs
                 .iter()
                 .map(get_fn_arg_ident_ty)
                 .collect::<Result<_>>()?;
 
             Ok(Function {
-                name: ident.clone(),
-                fntype: parse_function_type(&decl)?,
+                name: sig.ident.clone(),
+                fntype: parse_function_type(&sig)?,
                 args: args,
             })
         }
@@ -69,30 +80,30 @@ pub fn parse(item: &syn::Item) -> Result<Function> {
     }
 }
 
-fn is_rust_abi(abi: &Option<syn::Abi>) -> bool {
+fn is_rust_abi(abi: &Option<Abi>) -> bool {
     match *abi {
-        Some(syn::Abi { name: Some(_), .. }) => false,
-        Some(syn::Abi { name: None, .. }) => true,
+        Some(Abi { name: Some(_), .. }) => false,
+        Some(Abi { name: None, .. }) => true,
         None => true,
     }
 }
 
-fn get_fn_arg_ident_ty(fn_arg: &syn::FnArg) -> Result<syn::Ident> {
-    match *fn_arg {
-        syn::FnArg::Captured(syn::ArgCaptured { ref pat, .. }) => match *pat {
-            syn::Pat::Ident(syn::PatIdent { ref ident, .. }) => Ok(ident.clone()),
+fn get_fn_arg_ident_ty(fn_arg: &FnArg) -> Result<Ident> {
+    match fn_arg {
+        FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
+            Pat::Ident(PatIdent { ref ident, .. }) => Ok(ident.clone()),
             _ => Err("invalid function argument"),
         },
         _ => Err("invalid function argument"),
     }
 }
 
-fn parse_function_type(fndecl: &syn::FnDecl) -> Result<LispFnType> {
+fn parse_function_type(fndecl: &Signature) -> Result<LispFnType> {
     let nargs = fndecl.inputs.len() as i16;
     for fnarg in &fndecl.inputs {
-        match *fnarg {
-            syn::FnArg::Captured(syn::ArgCaptured { ref ty, .. }) | syn::FnArg::Ignored(ref ty) => {
-                match parse_arg_type(ty) {
+        match fnarg {
+            FnArg::Typed(PatType { ty, .. }) | FnArg::Receiver(Receiver { ty, .. }) => {
+                match parse_arg_type(ty.as_ref()) {
                     ArgType::LispObject => {}
                     ArgType::LispObjectSlice => {
                         if fndecl.inputs.len() != 1 {
@@ -103,7 +114,6 @@ fn parse_function_type(fndecl: &syn::FnDecl) -> Result<LispFnType> {
                     ArgType::Other => {}
                 }
             }
-            _ => return Err("lisp functions cannot have `self` arguments"),
         }
     }
     Ok(LispFnType::Normal(nargs))
@@ -115,12 +125,12 @@ enum ArgType {
     Other,
 }
 
-fn parse_arg_type(fn_arg: &syn::Type) -> ArgType {
+fn parse_arg_type(fn_arg: &Type) -> ArgType {
     if is_lisp_object(fn_arg) {
         ArgType::LispObject
     } else {
         match *fn_arg {
-            syn::Type::Reference(syn::TypeReference {
+            Type::Reference(TypeReference {
                 elem: ref ty,
                 ref lifetime,
                 ..
@@ -129,7 +139,7 @@ fn parse_arg_type(fn_arg: &syn::Type) -> ArgType {
                     ArgType::Other
                 } else {
                     match **ty {
-                        syn::Type::Slice(syn::TypeSlice { elem: ref ty, .. }) => {
+                        Type::Slice(TypeSlice { elem: ref ty, .. }) => {
                             if is_lisp_object(&**ty) {
                                 ArgType::LispObjectSlice
                             } else {
@@ -145,9 +155,9 @@ fn parse_arg_type(fn_arg: &syn::Type) -> ArgType {
     }
 }
 
-fn is_lisp_object(ty: &syn::Type) -> bool {
+fn is_lisp_object(ty: &Type) -> bool {
     match *ty {
-        syn::Type::Path(syn::TypePath {
+        Type::Path(TypePath {
             qself: None,
             ref path,
         }) => {

@@ -137,6 +137,21 @@ pub unsafe extern "C" fn scan_rust_file(
 
             let nargs = args.len() / 2;
             let def_min_args = if has_many_args { 0 } else { nargs as i16 };
+            // FIXME using regex, removing the outter [list_fn(..)]
+            // or check out the way Rust turns source code into ast(tokenstream)
+            let mut attribute = attribute;
+            if attribute.starts_with("#[lisp_fn(") {
+                attribute = attribute.replace("#[lisp_fn(", "");
+            }
+            if attribute.starts_with("#[lisp_fn") {
+                attribute = attribute.replace("#[lisp_fn", "");
+            }
+            if attribute.ends_with(")]") {
+                attribute = attribute.replace(")]", "");
+            }
+            if attribute.ends_with("]") {
+                attribute = attribute.replace("]", "");
+            }
             let attr_props = parse_lisp_fn(&attribute, name, def_min_args)
                 .unwrap_or_else(|e| panic!("Invalid #[lisp_fn] macro ({}): {}", attribute, e));
 

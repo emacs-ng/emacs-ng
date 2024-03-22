@@ -199,8 +199,6 @@ impl<'a> quote::ToTokens for CByteLiteral<'a> {
 }
 
 fn concat_idents(lhs: &str, rhs: &str) -> syn::Ident {
-    syn::Ident::new(
-        format!("{}{}", lhs, rhs).as_str(),
-        quote::__rt::Span::call_site(),
-    )
+    use proc_macro2::Span;
+    syn::Ident::new(format!("{}{}", lhs, rhs).as_str(), Span::call_site())
 }
