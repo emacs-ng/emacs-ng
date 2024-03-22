@@ -432,7 +432,7 @@ TAGS: etags${EXEEXT} ${tagsfiles}
 cargo_manifest=$(rust_srcdir)/remacs-lib/Cargo.toml
 RUST_DEP-INFO=$(RUST_ARCHIVE:.a=.d)
 RUST_CARGO_FILES = $(sort $(shell find ${rust_srcdir}/remacs-lib -type f \
--name 'Cargo.*' -o -name "build.rs"))
+-name 'Cargo.*' -o -name "*.rs"))
 
 $(RUST_ARCHIVE) $(RUST_DEP-INFO): $(RUST_CARGO_FILES)
 	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
