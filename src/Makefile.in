@@ -752,7 +752,7 @@ $(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)
 	$(AM_V_GEN)$(MKDIR_P) $(etc)
 	$(AM_V_at)rm -f $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -d $(srcdir) \
-	  $(SOME_MACHINE_OBJECTS) $(doc_obj) > $(etc)/DOC
+	  $(SOME_MACHINE_OBJECTS) $(doc_obj) $(RUST_CRATES_SOURCES) > $(etc)/DOC
 
 $(libsrc)/make-docfile$(EXEEXT) $(libsrc)/make-fingerprint$(EXEEXT): \
   $(hostlib)/libgnu.a
