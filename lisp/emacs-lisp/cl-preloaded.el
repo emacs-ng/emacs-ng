@@ -328,7 +328,9 @@
           (:predicate (setq predicate val))
           (_ (error "Unknown keyword arg: %S" kw)))))
     `(progn
-       ,(if predicate `(put ',name 'cl-deftype-satisfies #',predicate))
+       ,(if predicate `(put ',name 'cl-deftype-satisfies #',predicate)
+          ;; (message "Missing predicate for: %S" name)
+          nil)
        (put ',name 'cl--class
             (built-in-class--make ',name ,docstring
                                   (mapcar (lambda (type)
@@ -339,8 +341,6 @@
                                           ',parents))))))
 
 ;; FIXME: Our type DAG has various quirks:
-;; - `subr' says it's a `compiled-function' but that's not true
-;;   for those subrs that are special forms!
 ;; - Some `keyword's are also `symbol-with-pos' but that's not reflected
 ;;   in the DAG.
 ;; - An OClosure can be an interpreted function or a `byte-code-function',
@@ -354,7 +354,8 @@
 (cl--define-built-in-type tree-sitter-compiled-query atom)
 (cl--define-built-in-type tree-sitter-node atom)
 (cl--define-built-in-type tree-sitter-parser atom)
-(cl--define-built-in-type user-ptr atom)
+(cl--define-built-in-type user-ptr atom
+  nil :predicate user-ptrp) ;; FIXME: Shouldn't it be called `user-ptr-p'?
 (cl--define-built-in-type font-object atom)
 (cl--define-built-in-type font-entity atom)
 (cl--define-built-in-type font-spec atom)
@@ -367,6 +368,7 @@
 (cl--define-built-in-type buffer atom)
 (cl--define-built-in-type window atom)
 (cl--define-built-in-type process atom)
+(cl--define-built-in-type finalizer atom)
 (cl--define-built-in-type window-configuration atom)
 (cl--define-built-in-type overlay atom)
 (cl--define-built-in-type number-or-marker atom
@@ -428,15 +430,17 @@ For this build of Emacs it's %dbit."
   "Abstract type of functions that have been compiled.")
 (cl--define-built-in-type byte-code-function (compiled-function)
   "Type of functions that have been byte-compiled.")
-(cl--define-built-in-type subr (compiled-function)
+(cl--define-built-in-type subr (atom)
   "Abstract type of functions compiled to machine code.")
 (cl--define-built-in-type module-function (function)
   "Type of functions provided via the module API.")
 (cl--define-built-in-type interpreted-function (function)
   "Type of functions that have not been compiled.")
-(cl--define-built-in-type subr-native-elisp (subr)
-  "Type of function that have been compiled by the native compiler.")
-(cl--define-built-in-type subr-primitive (subr)
+(cl--define-built-in-type special-form (subr)
+  "Type of the core syntactic elements of the Emacs Lisp language.")
+(cl--define-built-in-type subr-native-elisp (subr compiled-function)
+  "Type of functions that have been compiled by the native compiler.")
+(cl--define-built-in-type primitive-function (subr compiled-function)
   "Type of functions hand written in C.")
 
 (unless (cl--class-parents (cl--find-class 'cl-structure-object))

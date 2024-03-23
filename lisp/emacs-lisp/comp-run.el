@@ -233,8 +233,8 @@ display a message."
                        "`comp-files-queue' should be \".el\" files: %s"
                        source-file)
          when (or native-comp-always-compile
-                  load        ; Always compile when the compilation is
-                                        ; commanded for late load.
+                  load ; Always compile when the compilation is
+                       ; commanded for late load.
                   ;; Skip compilation if `comp-el-to-eln-filename' fails
                   ;; to find a writable directory.
                   (with-demoted-errors "Async compilation :%S"
@@ -256,6 +256,7 @@ display a message."
                                              load-path
                                              backtrace-line-length
                                              byte-compile-warnings
+                                             comp-sanitizer-emit
                                              ;; package-load-list
                                              ;; package-user-dir
                                              ;; package-directory-list

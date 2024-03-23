@@ -108,6 +108,12 @@ to your init:
 
 * Changes in Emacs 30.1
 
+** 'describe-function' now shows the type of the function object.
+The text used to say things like "car is is a built-in function"
+whereas it now says "car is a primitive-function" where "primitive-function"
+is the symbol returned by `cl-type-of` and you can click on it to get
+information about that type.
+
 ** 'advice-remove' is now an interactive command.
 When called interactively, 'advice-remove' now prompts for an advised
 function to the advice to remove.
@@ -290,6 +296,13 @@ should proceed with windows whose buffer was killed after the
 corresponding configuration or state was recorded.
 
 ** Tab Bars and Tab Lines
+
+---
+*** New user option 'tab-bar-select-restore-windows'.
+It defines what to do with windows whose buffer was killed
+since the tab was last selected.  By default it displays
+a placeholder buffer that provides information about the name
+of the killed buffer that was displayed in that window.
 
 ---
 *** New user option 'tab-bar-tab-name-format-functions'.
@@ -1640,6 +1653,21 @@ values.
 
 * Lisp Changes in Emacs 30.1
 
+** New function 'help-fns-function-name'.
+For named functions, it just returns the name and otherwise
+it returns a short "unique" string that identifies the function.
+In either case, the string is propertized so clicking on it gives
+further details.
+
+** New function 'cl-type-of'.
+This function is like 'type-of' except that it sometimes returns
+a more precise type.  For example, for nil and t it returns 'null'
+and 'boolean' respectively, instead of just 'symbol'.
+
+** New function `primitive-function-p`.
+This is like `subr-primitive-p` except that it returns t only if the
+argument is a function rather than a special-form.
+
 ** Built-in types have now corresponding classes.
 At the Lisp level, this means that things like (cl-find-class 'integer)
 will now return a class object, and at the UI level it means that
@@ -2180,6 +2208,15 @@ aforementioned functions:
 
     (and (arrayp executing-kbd-macro)
          (>= executing-kbd-macro-index (length executing-kbd-macro))))
+
++++
+** 'vtable-update-object' updates an existing object with just two arguments.
+It is now possible to update the representation of an object in a vtable
+by calling 'vtable-update-object' with just the vtable and the object as
+arguments.  (Previously the 'old-object' argument was required which, in
+this case, would mean repeating the object in the argument list.)  When
+replacing an object with a different one, passing both the new and old
+objects is still necessary.
 
 
 * Changes in Emacs 30.1 on Non-Free Operating Systems
