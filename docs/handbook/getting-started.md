@@ -44,7 +44,7 @@ We use bindgen to generate rust bindings for the functions defined in
 C. Those bindings are in the crate emacs and are used by other crates
 through importing them from the emacs crate.
 
-The crate ng-bindgen holds the code that is responsible for generating
+The crate codegen holds the code that is responsible for generating
 the bindings.
 
 There's an ongoing effort to explain how emacs-ng is built on top of

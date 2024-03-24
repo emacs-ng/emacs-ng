@@ -1,0 +1,20 @@
+[package]
+name = "lisp-async"
+description = "Emacs lisp async support"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+emacs-sys.path = "../emacs-sys"
+lisp-macros.path = "../lisp-macros"
+lisp-util.path = "../lisp-util"
+libc.workspace = true
+lazy_static.workspace = true
+crossbeam = "0.8"
+futures = "0.3"
+
+[build-dependencies]
+codegen = { path = "../codegen" }

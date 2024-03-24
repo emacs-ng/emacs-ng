@@ -77,47 +77,24 @@ javascript.rs.
 
 ## Generating rust bindings for C functions with bindgen
 
-The crate that calls bindgen is `ng-bindgen` which gets called in
-`src/Makefile.in`:
+The `emacs-sys` crate is the one calling `bindgen` which gets called
+from its build script `build.rs`.
 
-```
-DEFINITIONS_FILE=$(rust_srcdir)/crates/emacs/src/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/crates/emacs/src/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
-# macuvs.h has a rule to regenerate it which depends on emacs being
-# built. That creates a circular dependency which we can break by not
-# depending on it as this is not a file that changes under normal
-# operation.
-$(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
-							$(rust_srcdir)/ng-bindgen/Cargo.toml \
-							$(rust_srcdir)/ng-bindgen/src/main.rs
-	$(MKDIR_P) $(dir $@)
-	RUSTFLAGS="$(RUSTFLAGS)" \
-	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/ng-bindgen/Cargo.toml -- $(basename $(notdir $@)) $@
-	touch $@
-```
-
-Only C functions are listed in `rust_src/wrapper.h` are considered.
+Only C functions are listed in `crates/emacs-sys/wrapper.h` are considered.
 We also blacklist several items and define them in rust(for different
 reasons).
 
 The bindings created in each build and can be found in the
-emacs crate. There are three files:
+`emacs-sys` crate `OUT_DIR`. There are three files:
 
 - bindings.rs: functions, structs, enums and more
 - defintions.rs: important types like `EmacsInt` and `USE_LSB_TAG`
 - globals.rs: `emacs_globals` and symbols (e.g. `Qnil`)
 
-We ignore these files in git, since they differ depending on the
-enabled features.
+## lisp-doc
 
-## remacs-lib(soon ng-docfile)
-
-This crate's purpose is currently only providing the function
-`scan_rust_file`. It contains(maybe we removed it by now) additional
-functionality that was used in remacs. Maybe we will use the content
-at some point again.
+This crate's purpose is only providing the function
+`scan_rust_file`.
 
 The function is called by `scan_file` in `make-docfile.c`. Besides
 extracting doc strings from elisp functions, we also use it to find,

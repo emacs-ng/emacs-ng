@@ -1,0 +1,20 @@
+[package]
+name = "lisp-doc"
+description = "Emacs lisp documentation support for Rust sources"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lisp-util.path = "../lisp-util"
+darling = "0.20"
+lazy_static.workspace = true
+libc.workspace = true
+regex.workspace = true
+
+[lib]
+path = "lib.rs"
+crate-type = ["staticlib", "rlib"]
+
+[features]
+# Treat warnings as a build error on Travis.
+strict = []

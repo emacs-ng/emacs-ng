@@ -61,17 +61,19 @@ MKDIR_P = @MKDIR_P@
 # linked with Emacs or is duplicated by the other stuff below.
 # LIBS = @LIBS@
 LIBOBJS = @LIBOBJS@
-EMACSNGLIB_NAME=@EMACSNGLIB_NAME@
 
-rust_srcdir=$(top_srcdir)/rust_src
+RUST_ARCHIVE_EXTENSION=@RUST_ARCHIVE_EXTENSION@
+LIBEMACSNG_ARCHIVE=libemacsng$(RUST_ARCHIVE_EXTENSION)
+
+crates_dir=$(top_srcdir)/crates
 # Crates that contain globals
-RUST_CRATES_SOURCES=$(rust_srcdir)/crates/js/src/*.rs \
-$(rust_srcdir)/crates/ng_async/src/*.rs \
-$(rust_srcdir)/crates/ng_module/src/*.rs \
-$(rust_srcdir)/crates/font/src/*.rs \
-$(rust_srcdir)/crates/gl-renderer/src/*.rs \
-$(rust_srcdir)/crates/winit-term/src/*.rs \
-$(rust_srcdir)/crates/lsp_json/src/*.rs
+RUST_CRATES_SOURCES=$(crates_dir)/js/src/*.rs \
+$(crates_dir)/lisp-async/src/*.rs \
+$(crates_dir)/ng-module/src/*.rs \
+$(crates_dir)/font/src/*.rs \
+$(crates_dir)/webrender/src/*.rs \
+$(crates_dir)/winit-term/src/*.rs \
+$(crates_dir)/lsp-json/src/*.rs
 lispsource = $(top_srcdir)/lisp
 lib = ../lib
 hostlib = $(top_builddir)/lib
@@ -370,8 +372,8 @@ LIBSELINUX_CFLAGS = @LIBSELINUX_CFLAGS@
 LIBGNUTLS_LIBS = @LIBGNUTLS_LIBS@
 LIBGNUTLS_CFLAGS = @LIBGNUTLS_CFLAGS@
 
-LIB_REMACS = @LIB_REMACS@
-REMACSLIB_CFLAGS = @REMACSLIB_CFLAGS@
+RUST_CFLAGS = @RUST_CFLAGS@
+RUST_LIBS = $(LIBEMACSNG_ARCHIVE) @RUST_DEPS@
 WEBRENDER_LIBS = @WEBRENDER_LIBS@
 WINIT_LIBS = @WINIT_LIBS@
 
@@ -455,8 +457,11 @@ CARGO_CLIPPY=@CARGO_CLIPPY@
 CARGO_DOC=@CARGO_DOC@
 CARGO_TEST=@CARGO_TEST@
 CARGO_RUN=@CARGO_RUN@
-CARGO_FEATURES = @CARGO_FEATURES@
-CARGO_FLAGS = @CARGO_FLAGS@ --features "${CARGO_FEATURES}"
+CARGO_FEATURES=@CARGO_FEATURES@
+CARGO_FLAGS=@CARGO_FLAGS@
+# additional cargo flags passed from command line
+# make CARGO_ADDITIONAL_FLAGS=--offline
+CARGO_ADDITIONAL_FLAGS=
 
 ifeq ($(findstring --release,$(CARGO_FLAGS)),--release)
 CARGO_BUILD_DIR=release
@@ -500,7 +505,7 @@ EMACS_CFLAGS=-Demacs $(MYCPPFLAGS) -I. -I$(srcdir) \
   $(LIBGNUTLS_CFLAGS) $(NOTIFY_CFLAGS) $(CAIRO_CFLAGS) \
   $(WERROR_CFLAGS) $(HAIKU_CFLAGS) $(XCOMPOSITE_CFLAGS) $(XSHAPE_CFLAGS) \
   $(ANDROID_BUILD_CFLAGS) $(GIF_CFLAGS) $(JPEG_CFLAGS) $(SQLITE3_CFLAGS) \
-  $(LIBGMP_CFLAGS) $(TIFF_CFLAGS) $(LIBSELINUX_CFLAGS) $(REMACSLIB_CFLAGS)
+  $(LIBGMP_CFLAGS) $(TIFF_CFLAGS) $(LIBSELINUX_CFLAGS) $(RUST_CFLAGS)
 ALL_CFLAGS = $(EMACS_CFLAGS) $(WARN_CFLAGS) $(CFLAGS)
 ALL_OBJC_CFLAGS = $(EMACS_CFLAGS) \
   $(filter-out $(NON_OBJC_CFLAGS),$(WARN_CFLAGS)) $(CFLAGS) \
@@ -579,7 +584,7 @@ otherobj= $(TERMCAP_OBJ) $(PRE_ALLOC_OBJ) $(GMALLOC_OBJ) $(RALLOC_OBJ) \
 ## All object files linked into temacs.  $(VMLIMIT_OBJ) should be first.
 ## (On MinGW, firstfile.o should be before vm-limit.o.)
 FIRSTFILE_OBJ=@FIRSTFILE_OBJ@
-ALLOBJS = $(FIRSTFILE_OBJ) $(VMLIMIT_OBJ) $(obj) -lemacsng $(otherobj)
+ALLOBJS = $(FIRSTFILE_OBJ) $(VMLIMIT_OBJ) $(obj) $(otherobj)
 
 # Must be first, before dep inclusion!
 ifneq ($(HAVE_BE_APP),yes)
@@ -664,7 +669,7 @@ LIBES = $(LIBS) $(W32_LIBS) $(LIBS_GNUSTEP) $(PGTK_LIBS) $(LIBX_BASE) $(LIBIMAGE
    $(NOTIFY_LIBS) $(LIB_MATH) $(LIBZ) $(LIBMODULES) $(LIBSYSTEMD_LIBS) \
    $(JSON_LIBS) $(LIBGMP) $(LIBGCCJIT_LIBS) $(XINPUT_LIBS) $(HAIKU_LIBS) \
    $(TREE_SITTER_LIBS) $(SQLITE3_LIBS) $(XCOMPOSITE_LIBS) $(XSHAPE_LIBS) \
-   $(ANDROID_LIBS) $(WINIT_LIBS) $(WEBRENDER_LIBS) $(LIB_REMACS)
+   $(ANDROID_LIBS) $(RUST_LIBS) $(WINIT_LIBS) $(WEBRENDER_LIBS)
 
 ## FORCE it so that admin/unidata can decide whether this file is
 ## up-to-date.  Although since charprop depends on bootstrap-emacs,
@@ -774,40 +779,25 @@ gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 
 globals.h: gl-stamp; @true
 
-rust_srcdir=$(top_srcdir)/rust_src
-RUSTFLAGS_FILE=$(top_srcdir)/target/.rustflags
-$(RUSTFLAGS_FILE) : FORCE
-	mkdir -p $(dir $@)
-	echo "$(CARGO_FLAGS) $(RUSTFLAGS)" > $@.tmp
-	diff -q $@ $@.tmp || cp $@.tmp $@
-	rm -f $@.tmp
-
 HEADERS=$(wildcard $(srcdir)/*.h)
 
-cargo_manifest=$(top_srcdir)/Cargo.toml
-LIBEMACSNG_ARCHIVE=$(top_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
-# Cargo dep-info: https://doc.rust-lang.org/cargo/reference/config.html#builddep-info-basedir
-LIBEMACSNG_DEP-INFO=$(LIBEMACSNG_ARCHIVE:.a=.d)
-# Cargo.toml,Cargo.lock,build.rs
-LIBEMACSNG_CARGO_FILES = $(sort $(shell find ${rust_srcdir} -type f \
--name 'Cargo.*' -o -name "build.rs"))
-
-$(LIBEMACSNG_ARCHIVE) $(LIBEMACSNG_DEP-INFO): FORCE
+$(LIBEMACSNG_ARCHIVE) : FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
+	$(CARGO_BUILD) $(CARGO_FLAGS) $(CARGO_ADDITIONAL_FLAGS) -p emacsng \
+	--features "$(CARGO_FEATURES)" \
 
 clippy:
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_CLIPPY) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
+	$(CARGO_CLIPPY) $(CARGO_FLAGS) -p emacsng
 
 .PHONY: clippy
 
 rustdoc:
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
-	$(CARGO_DOC) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
+	$(CARGO_DOC) $(CARGO_FLAGS) -p emacsng
 
 .PHONY: rustdoc
 
@@ -818,7 +808,7 @@ check check-maybe check-expensive:
 
 .PHONY: check check-maybe check-expensive
 
-$(ALLOBJS): globals.h
+$(ALLOBJS) $(LIBEMACSNG_ARCHIVE): globals.h
 
 LIBEGNU_ARCHIVE = $(lib)/lib$(if $(HYBRID_MALLOC),e)gnu.a
 
@@ -835,7 +825,7 @@ endif
 ## existence when setting Vinstallation_directory (FIXME?).
 ## This goes on to affect various things, and the emacs binary fails
 ## to start if Vinstallation_directory has the wrong value.
-temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(RUSTFLAGS_FILE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
+temacs$(EXEEXT): $(LIBXMENU) $(ALLOBJS) $(LIBEMACSNG_ARCHIVE) $(LIBEGNU_ARCHIVE) $(EMACSRES) \
   $(charsets) $(charscript) ${emoji-zwj} $(MAKE_PDUMPER_FINGERPRINT)
 ifeq ($(HAVE_BE_APP),yes)
 	$(AM_V_CXXLD)$(CXX) -o $@.tmp \
@@ -939,6 +929,8 @@ mostlyclean:
 	rm -f buildobj.h
 	rm -f globals.h gl-stamp
 	rm -f ./*.res ./*.tmp
+	$(CARGO_CLEAN) -p emacsng
+	rm ./libemacsng.*
 versionclean:
 	rm -f emacs$(EXEEXT) emacs-*.*.*[0-9]$(EXEEXT) emacs-*.*.*[0-9].pdmp
 	rm -f ../etc/DOC*

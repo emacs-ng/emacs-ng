@@ -1,0 +1,70 @@
+[package]
+name = "emacs-sys"
+description = "Bindings to Emacs's C API"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libc = "0.2.153"
+lazy_static = "1.4.0"
+log = "0.4"
+memoffset = "0.9"
+raw-window-handle = { workspace = true, optional = true }
+webrender_api = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+colors = { path = "../colors", optional = true }
+surfman = { version = "0.9", features = ["chains", "sm-angle", "sm-angle-default"] , optional = true}
+glutin = { version = "0.31", optional = true }
+gleam = { workspace = true, optional = true }
+winit = { workspace = true, optional = true}
+arboard = { workspace = true, optional = true}
+euclid.workspace = true
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+gtk-sys = { workspace = true, optional = true }
+gtk = { workspace = true, optional = true }
+x11-dl = { version = "2.21", optional = true }
+gdkwayland-sys = { workspace = true, optional = true }
+gdkx11-sys = { workspace = true, optional = true }
+gdk = { workspace = true, optional = true }
+gl_loader = { version = "0.1.2", optional = true }
+wayland-sys = {version = "0.31", features = ["client", "dlopen"]}
+x11 = { version = "2.21", features = ["xlib"], optional = true}
+
+[build-dependencies]
+bindgen = "0.69"
+regex.workspace = true
+libc = "0.2"
+cfg_aliases.workspace = true
+
+[features]
+glutin=["dep:glutin"]
+surfman=["dep:surfman"]
+x11 = [
+  "glutin?/glx",
+  "glutin?/x11",
+  "surfman?/sm-x11",
+  "dep:x11",
+  "winit?/x11",
+]
+wayland = [
+  "arboard/wayland-data-control",
+  "glutin?/egl",
+  "glutin?/wayland",
+  "winit?/wayland",
+  "winit?/wayland-dlopen",
+  "winit?/wayland-csd-adwaita",
+]
+gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
+webrender = ["dep:raw-window-handle", "dep:webrender_api", "dep:image", "dep:colors", "dep:gleam"]
+# window system
+window-system-x11=[]
+window-system-nextstep=[]
+window-system-w32=[]
+window-system-haiku=[]
+window-system-android=[]
+window-system-pgtk=["dep:gtk-sys", "dep:gtk", "dep:x11-dl", "dep:gdkwayland-sys", "dep:gdkx11-sys"]
+window-system-winit = ["dep:winit", "dep:arboard", "wayland", "webrender"]

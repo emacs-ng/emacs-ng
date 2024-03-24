@@ -1,0 +1,35 @@
+[package]
+name = "font"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+webrender_api.workspace = true
+emacs-sys.path = "../emacs-sys"
+log.workspace = true
+libc.workspace = true
+parking_lot.workspace = true
+fxhash.workspace = true
+
+[dependencies.swash]
+git = "https://github.com/declantsien/swash.git"
+branch = "webrender-fix"
+default-features = false
+
+[dependencies.font-index]
+git = "https://github.com/declantsien/font-index.git"
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+font-loader = "0.11"
+
+[lib]
+name = "font"
+path = "src/lib.rs"
+
+[features]
+no_std = []
+std = []
+[build-dependencies]
+codegen = { path = "../codegen" }

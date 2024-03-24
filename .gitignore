@@ -167,6 +167,7 @@ src/gl-stamp
 
 # Object files and debugging.
 *.a
+*.rlib
 *.dSYM/
 *.dll
 *.core
@@ -358,7 +359,6 @@ nix/_sources/.shake*
 nix/cachix-key.secrets
 build-aux/config.guess
 build-aux/config.sub
-/Cargo.toml
 
 # Seccomp filter files.
 lib-src/seccomp-filter.bpf

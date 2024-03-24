@@ -31,7 +31,7 @@ EMACSOPT = -batch --no-site-file --no-site-lisp
 
 CC=@CC@
 CXX=@CXX@
-CFLAGS=@CFLAGS@ @REMACSLIB_CFLAGS@
+CFLAGS=@CFLAGS@ @RUST_CFLAGS@
 CXXFLAGS=@CXXFLAGS@
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
@@ -41,13 +41,11 @@ CARGO_BUILD=@CARGO_BUILD@
 CARGO_CLEAN=@CARGO_CLEAN@
 CARGO_TEST=@CARGO_TEST@
 CARGO_FLAGS=@CARGO_FLAGS@
-REMACSLIB_NAME=@REMACSLIB_NAME@
-
-ifeq ($(findstring --release,$(CARGO_FLAGS)),--release)
-CARGO_BUILD_DIR=release
-else
-CARGO_BUILD_DIR=debug
-endif
+# additional cargo flags passed from command line
+# make CARGO_ADDITIONAL_FLAGS=--offline
+CARGO_ADDITIONAL_FLAGS=
+RUST_ARCHIVE_EXTENSION=@RUST_ARCHIVE_EXTENSION@
+LIBLISP_DOC_ARCHIVE=liblisp_doc$(RUST_ARCHIVE_EXTENSION)
 
 version=@version@
 ## Used in $archlibdir.
@@ -108,9 +106,6 @@ localstatedir=@localstatedir@
 # We use $(srcdir) explicitly in dependencies so as not to depend on VPATH.
 srcdir=@srcdir@
 VPATH=@srcdir@
-
-# Path to rust source files, relative to srcdir
-rust_srcdir=$(top_srcdir)/rust_src
 
 # Cross-compilation setup
 
@@ -199,8 +194,7 @@ SCRIPTS= rcs2log
 EXE_FILES = ${INSTALLABLES} ${UTILITIES} ${DONT_INSTALL}
 
 # Rust files to be linked as part of the executables
-RUST_ARCHIVE = $(top_srcdir)/target/$(CARGO_BUILD_DIR)/$(REMACSLIB_NAME)
-RUST_LIB = $(RUST_ARCHIVE) @RUST_DEPS@
+LIBS_RUST = $(LIBLISP_DOC_ARCHIVE) @RUST_DEPS@
 
 # Specify additional -D flags for movemail. Options:
 # -DMAIL_USE_FLOCK or -DMAIL_USE_LOCKF (use flock or lockf for file locking).
@@ -311,8 +305,8 @@ endif
 
 .PHONY: all need-blessmail maybe-blessmail
 
-LOADLIBES = ../lib/libgnu.a $(LIBS_SYSTEM) $(RUST_LIB)
-$(EXE_FILES): ../lib/libgnu.a $(RUST_ARCHIVE)
+LOADLIBES = ../lib/libgnu.a $(LIBS_SYSTEM) $(LIBS_RUST)
+$(EXE_FILES): ../lib/libgnu.a $(LIBLISP_DOC_ARCHIVE)
 
 ## Only used if we need blessmail, but no harm in always defining.
 ## This makes the actual blessmail executable.
@@ -404,8 +398,10 @@ uninstall:
 
 mostlyclean:
 	rm -f core ./*.o ./*.res
+	$(CARGO_CLEAN) -p lisp-doc
+	rm ./liblisp_doc.*
 
-clean: mostlyclean remacs-libclean
+clean: mostlyclean lisp-doc-clean
 	-rm -f seccomp-filter.bpf seccomp-filter.pfc seccomp-filter-exec.bpf seccomp-filter-exec.pfc
 	rm -f ${EXE_FILES}
 
@@ -429,21 +425,11 @@ TAGS: etags${EXEEXT} ${tagsfiles}
 ../lib/libgnu.a: $(config_h)
 	$(MAKE) -C ../lib all
 
-cargo_manifest=$(rust_srcdir)/remacs-lib/Cargo.toml
-RUST_DEP-INFO=$(RUST_ARCHIVE:.a=.d)
-RUST_CARGO_FILES = $(sort $(shell find ${rust_srcdir}/remacs-lib -type f \
--name 'Cargo.*' -o -name "*.rs"))
-
-$(RUST_ARCHIVE) $(RUST_DEP-INFO): $(RUST_CARGO_FILES)
-	CARGO_BUILD_DEP_INFO_BASEDIR=$(realpath $(top_srcdir)) \
+$(LIBLISP_DOC_ARCHIVE): FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" \
-	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path=$(cargo_manifest)
-	sed -i~ 's/rust_src\//..\/rust_src\//g' $(RUST_DEP-INFO)
+	$(CARGO_BUILD) $(CARGO_FLAGS) $(CARGO_ADDITIONAL_FLAGS) -p lisp-doc
 
-include $(RUST_DEP-INFO)
-
-remacs-libclean:
-	$(CARGO_CLEAN) --manifest-path=$(cargo_manifest)
+FORCE:
 
 regex.o: $(srcdir)/../src/regex.c $(srcdir)/../src/regex.h $(config_h)
 	$(AM_V_CC)$(CC) -c $(CPP_CFLAGS) $<
@@ -469,7 +455,7 @@ ebrowse${EXEEXT}: ${srcdir}/ebrowse.c ${srcdir}/../lib/min-max.h $(NTLIB) \
                    $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} -o $@ $< $(NTLIB) $(LOADLIBES)
 
-make-docfile${EXEEXT}: ${srcdir}/make-docfile.c $(NTLIB) $(config_h) $(RUST_ARCHIVE)
+make-docfile${EXEEXT}: ${srcdir}/make-docfile.c $(NTLIB) $(config_h) $(LIBLISP_DOC_ARCHIVE)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $< $(NTLIB) $(LOADLIBES) -o $@
 
 make-fingerprint${EXEEXT}: ${srcdir}/make-fingerprint.c $(NTLIB) $(config_h)

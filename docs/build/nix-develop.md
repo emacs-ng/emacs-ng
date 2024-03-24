@@ -178,8 +178,8 @@ Install direnv to Doom Emacs, Example
 ```toml
 [[commands]]
 name = ""
-command = "cargo build --manifest-path=./rust_src/ng-bindgen/Cargo.toml"
-help = "cargo build ng-bindgen"
+command = "cargo build --manifest-path=./crates/codegen/Cargo.toml"
+help = "cargo build codegen"
 category = "rust-build"
 ```
 

@@ -1,0 +1,19 @@
+[package]
+name = "lisp-util"
+version = "0.1.0"
+description = "Utility code for lisp_fn."
+edition = "2021"
+
+[dependencies]
+libc.workspace = true
+errno.workspace = true
+darling = "0.20"
+proc-macro2.workspace = true
+syn = { workspace = true, features = ["full"] }
+
+[lib]
+path = "lib.rs"
+
+[features]
+# Treat warnings as a build error on Travis.
+strict = []

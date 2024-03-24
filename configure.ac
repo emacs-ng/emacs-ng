@@ -7533,9 +7533,6 @@ LIBS=$SAVE_LIBS
 # Add Rust variables, libs and utilities
 
 RUSTFLAGS=$RUSTFLAGS
-
-AC_SUBST(RUSTFLAGS)
-
 CARGO="cargo"
 CARGO_BUILD="$CARGO build"
 CARGO_CLEAN="$CARGO clean"
@@ -7543,44 +7540,36 @@ CARGO_TEST="$CARGO test"
 CARGO_CLIPPY="$CARGO clippy"
 CARGO_RUN="$CARGO run"
 CARGO_DOC="$CARGO doc --all --open --document-private-items"
-
-AC_SUBST(CARGO_BUILD)
-AC_SUBST(CARGO_CLEAN)
-AC_SUBST(CARGO_CLIPPY)
-AC_SUBST(CARGO_RUN)
-AC_SUBST(CARGO_DOC)
-
 if test x$ac_enable_rust_debug != x ; then
 CARGO_FLAGS="$CARGO_FLAGS"
 else
 CARGO_FLAGS="$CARGO_FLAGS --release"
 fi
 CARGO_FLAGS="$CARGO_FLAGS -Zgitoxide=fetch -Zgit=shallow-deps,shallow-index"
-AC_SUBST(CARGO_FLAGS)
+CARGO_FLAGS="$CARGO_FLAGS --out-dir ./ -Z unstable-options"
 
+RUST_CFLAGS=
 case "${opsys}" in
   darwin) RUST_DEPS="-ldl -lm -lresolv -lstdc++"
-        REMACSLIB_NAME="libremacs_lib.a"
-        EMACSNGLIB_NAME="libemacsng.a"
-        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
+        RUST_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
   gnu*) RUST_DEPS="-ldl -lm -lrt -lstdc++"
-        REMACSLIB_NAME="libremacs_lib.a"
-        EMACSNGLIB_NAME="libemacsng.a"
-        REMACSLIB_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
+        RUST_CFLAGS="-pthread -DEMACS_EXTERN_INLINE" ;;
+esac
+case "$opsys" in
+  darwin)
+   RUST_DEPS="-ldl -lm -lresolv -lstdc++" ;;
+  gnu*)
+   RUST_DEPS="-ldl -lm -lrt -lstdc++" ;;
 esac
 
+RUST_ARCHIVE_EXTENSION=".a"
 if test "${HAVE_W32}" = "yes"; then
-    REMACSLIB_NAME="remacs_lib.lib"
-    EMACSNGLIB_NAME="libemacsng.lib"
+    RUST_ARCHIVE_EXTENSION=".lib"
     RUST_DEPS="$RUST_DEPS -lws2_32 -luserenv"
 
     # Windows fails linking in the 'cargo test' stage, skip for now.
     CARGO_TEST="true"
 fi
-
-LIB_REMACS="$RUST_DEPS"
-
-LDFLAGS_REMACS="-L../$srcdir/target/\${CARGO_BUILD_DIR}"
 
 # On macOS, rand crate needs '_SecRandomCopyBytes' symbol in Security framework.
 if test "${opsys}" = "darwin"; then
@@ -7589,12 +7578,17 @@ fi
 
 LDFLAGS="$LDFLAGS $LDFLAGS_REMACS"
 
-AC_SUBST(LIB_REMACS)
-AC_SUBST(RUST_DEPS)
-AC_SUBST(REMACSLIB_CFLAGS)
-AC_SUBST(REMACSLIB_NAME)
-AC_SUBST(EMACSNGLIB_NAME)
+AC_SUBST(CARGO_BUILD)
+AC_SUBST(CARGO_CLEAN)
+AC_SUBST(CARGO_CLIPPY)
+AC_SUBST(CARGO_DOC)
+AC_SUBST(CARGO_FLAGS)
+AC_SUBST(CARGO_RUN)
 AC_SUBST(CARGO_TEST)
+AC_SUBST(RUSTFLAGS)
+AC_SUBST(RUST_CFLAGS)
+AC_SUBST(RUST_ARCHIVE_EXTENSION)
+AC_SUBST(RUST_DEPS)
 
 # Set up libgmp on Android.  Make sure to override what gnulib has
 # found.
@@ -7876,7 +7870,7 @@ Configured for '${canonical}'.
   Should Emacs use mmap(2) for buffer allocation?         $use_mmap_for_buffers
   What window system should Emacs use?                    ${window_system}
   What toolkit should Emacs use?                          ${USE_X_TOOLKIT}
-  What libraries will lib-remacs link against?            ${RUST_DEPS}
+  What libraries will Rust link against?                  ${RUST_DEPS}
   Where do we find X Windows header files?                ${x_includes:-$emacs_standard_dirs}
   Where do we find X Windows libraries?                   ${x_libraries:-$emacs_standard_dirs}"])
 
@@ -7928,17 +7922,15 @@ AC_DEFINE_UNQUOTED([EMACS_CONFIG_FEATURES], ["${emacs_config_features}"],
   [Summary of some of the main features enabled by configure.])
 
 CARGO_FEATURES=
-CARGO_DEFAULT_FEATURES=
 optsep=
-optsep2=
 for opt in libgit use-xml2 x11 nextstep w32 haiku pgtk webrender winit \
-    android emacs/x11 javascript glyph-debug profiling wr_gl ng-module; do
+    android emacs-sys/x11 javascript glyph-debug profiling wr_gl ng-module; do
     tmp=no
     if test "${window_system}" = "$opt"; then
 	tmp=yes
     fi
     case $opt in
-      emacs/x11) val=${ac_enable_winit_x11} ;;
+      emacs-sys/x11) val=${ac_enable_winit_x11} ;;
       use-xml2) val=${HAVE_LIBXML2} ;;
       ng-module) val=${HAVE_MODULES} ;;
       glyph-debug) val=${ac_enable_glyphs_debug} ;;
@@ -7957,24 +7949,21 @@ for opt in libgit use-xml2 x11 nextstep w32 haiku pgtk webrender winit \
 	   continue
 	fi
         case $val in
-	  yes) opt=emacs/surfman ;;
-          surfman|glutin) opt=emacs/$val ;;
+	  yes) opt=emacs-sys/surfman ;;
+          surfman|glutin) opt=emacs-sys/$val ;;
           *) continue ;;
         esac
       ;;
-      emacs/x11)
+      emacs-sys/x11)
         if test "${window_system}" != "winit" ; then
 	   continue
 	fi
       ;;
     esac
     AS_VAR_APPEND([CARGO_FEATURES], ["$optsep$opt"])
-    AS_VAR_APPEND([CARGO_DEFAULT_FEATURES], ["$optsep2\"$opt\""])
     optsep=' '
-    optsep2=', '
 done
 AC_SUBST(CARGO_FEATURES)
-AC_SUBST(CARGO_DEFAULT_FEATURES)
 
 # This is just a printable representation of the shared user ID.
 android_shared_user=
@@ -8140,8 +8129,7 @@ if test "$HAVE_JAVASCRIPT" = "yes"; then
 fi
 
 dnl AC_CONFIG_FILES([$srcdir/.cargo/config:$srcdir/.cargo/config.in])
-AC_CONFIG_FILES([$srcdir/rust_src/crates/emacs/build.rs])
-AC_CONFIG_FILES([Cargo.toml:Cargo.in])
+AC_CONFIG_FILES([$srcdir/crates/emacs-sys/build.rs])
 
 dnl The following commands are run on the build system when building
 dnl Emacs.

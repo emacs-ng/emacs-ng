@@ -182,7 +182,7 @@
               (old.makeFlags or [])
               ++ [
                 "CARGO_HOME=source/cargo-vendor-dir/.cargo/" # nightly channel
-                "CARGO_FLAGS=--offline" # nightly channel
+                "CARGO_ADDITIONAL_FLAGS=--offline" # nightly channel
               ];
 
             #custom configure Flags Setting

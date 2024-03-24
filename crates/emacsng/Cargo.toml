@@ -1,0 +1,80 @@
+### Root package
+[package]
+authors = ["emacs-ng members"]
+name = "emacsng"
+description = "Experimental emacs fork"
+license = "GPL-3.0"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+libc = "0.2"
+lisp-doc.path = "../lisp-doc"
+emacs-sys.path = "../emacs-sys"
+lisp-util.path = "../lisp-util"
+lisp-macros.path = "../lisp-macros"
+lisp-async.path = "../lisp-async"
+lsp-json.path = "../lsp-json"
+git = { path = "../git", optional = true }
+font = { path = "../font", optional = true }
+ng-module = { path = "../ng-module", optional = true }
+js = { path = "../js", optional = true }
+winit-term = { path = "../winit-term", optional = true, default-features = false }
+webrender = { path = "../webrender", optional = true, default-features = false }
+
+clippy = { version = "*", optional = true }
+log.workspace = true
+tracing = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = [
+  "matchers",
+  "regex",
+  "once_cell",
+  "tracing",
+  "std",
+  "thread_local",
+  "env-filter"
+]
+
+[build-dependencies]
+codegen = { path = "../codegen" }
+
+[lib]
+crate-type = ["staticlib"]
+path = "./lib.rs"
+
+[features]
+
+# Compile with C xml2 library support.
+use-xml2 = []
+window-system-x11 = ["emacs-sys/window-system-x11"]
+window-system-nextstep = ["emacs-sys/window-system-nextstep"]
+window-system-w32=["emacs-sys/window-system-w32"]
+window-system-haiku=["emacs-sys/window-system-haiku"]
+window-system-pgtk=["emacs-sys/window-system-pgtk", "emacs-sys/gtk3"]
+window-system-android=["emacs-sys/window-system-android"]
+window-system-winit = ["emacs-sys/window-system-winit",
+"dep:winit-term",
+  "codegen/window-system-winit",
+  "webrender",]
+# Build with git2rs support
+libgit = ["git", "codegen/libgit"]
+# Use the webrender
+webrender = [
+  "dep:font",
+  "emacs-sys/webrender",
+  "codegen/webrender",
+  "dep:webrender",
+]
+# Treat warnings as a build error on Travis.
+strict = []
+# Use JavaScript and Deno
+javascript = ["dep:js", "codegen/javascript"]
+# Build with dynamic modules support's extensions.
+ng-module = ["dep:ng-module", "codegen/ng-module"]
+# Enable glyphs debugging code.
+glyph-debug = ["webrender?/capture"]
+profiling = ["webrender?/profiling"]
