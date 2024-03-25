@@ -1,0 +1,12 @@
+[package]
+name = "lisp-source"
+description = "Print lisp rust source files"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.1", features = ["derive"] }
+
+[dependencies.cargo-files-core]
+git = "https://github.com/declantsien/cargo-files.git"
+rev = "f062a2cd5560dcbd2451090813093506bdb45aa0"
