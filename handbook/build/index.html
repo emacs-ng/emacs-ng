@@ -658,8 +658,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#remacs-libsoon-ng-docfile" class="md-nav__link">
-    remacs-lib(soon ng-docfile)
+  <a href="#lisp-doc" class="md-nav__link">
+    lisp-doc
   </a>
   
 </li>
@@ -767,8 +767,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#remacs-libsoon-ng-docfile" class="md-nav__link">
-    remacs-lib(soon ng-docfile)
+  <a href="#lisp-doc" class="md-nav__link">
+    lisp-doc
   </a>
   
 </li>
@@ -846,41 +846,21 @@ that is located in the <code>out</code> directory of a crate.</p>
 <p>Here you can see the lisp functions that are defined by the file
 javascript.rs.</p>
 <h2 id="generating-rust-bindings-for-c-functions-with-bindgen">Generating rust bindings for C functions with bindgen<a class="headerlink" href="#generating-rust-bindings-for-c-functions-with-bindgen" title="Permanent link">#</a></h2>
-<p>The crate that calls bindgen is <code>ng-bindgen</code> which gets called in
-<code>src/Makefile.in</code>:</p>
-<div class="highlight"><pre><span></span><code>DEFINITIONS_FILE=$(rust_srcdir)/crates/emacs/src/definitions.rs
-BINDINGS_FILE=$(rust_srcdir)/crates/emacs/src/bindings.rs
-GLOBALS_FILE=$(rust_srcdir)/crates/emacs/src/globals.rs
-# macuvs.h has a rule to regenerate it which depends on emacs being
-# built. That creates a circular dependency which we can break by not
-# depending on it as this is not a file that changes under normal
-# operation.
-$(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(HEADERS)) $(rust_srcdir)/wrapper.h \
-                            $(rust_srcdir)/ng-bindgen/Cargo.toml \
-                            $(rust_srcdir)/ng-bindgen/src/main.rs
-    $(MKDIR_P) $(dir $@)
-    RUSTFLAGS=&quot;$(RUSTFLAGS)&quot; \
-    EMACS_CFLAGS=&quot;$(EMACS_CFLAGS)&quot; \
-    $(CARGO_RUN) --release --manifest-path=$(rust_srcdir)/ng-bindgen/Cargo.toml -- $(basename $(notdir $@)) $@
-    touch $@
-</code></pre></div>
-<p>Only C functions are listed in <code>rust_src/wrapper.h</code> are considered.
+<p>The <code>emacs-sys</code> crate is the one calling <code>bindgen</code> which gets called
+from its build script <code>build.rs</code>.</p>
+<p>Only C functions are listed in <code>crates/emacs-sys/wrapper.h</code> are considered.
 We also blacklist several items and define them in rust(for different
 reasons).</p>
 <p>The bindings created in each build and can be found in the
-emacs crate. There are three files:</p>
+<code>emacs-sys</code> crate <code>OUT_DIR</code>. There are three files:</p>
 <ul>
 <li>bindings.rs: functions, structs, enums and more</li>
 <li>defintions.rs: important types like <code>EmacsInt</code> and <code>USE_LSB_TAG</code></li>
 <li>globals.rs: <code>emacs_globals</code> and symbols (e.g. <code>Qnil</code>)</li>
 </ul>
-<p>We ignore these files in git, since they differ depending on the
-enabled features.</p>
-<h2 id="remacs-libsoon-ng-docfile">remacs-lib(soon ng-docfile)<a class="headerlink" href="#remacs-libsoon-ng-docfile" title="Permanent link">#</a></h2>
-<p>This crate's purpose is currently only providing the function
-<code>scan_rust_file</code>. It contains(maybe we removed it by now) additional
-functionality that was used in remacs. Maybe we will use the content
-at some point again.</p>
+<h2 id="lisp-doc">lisp-doc<a class="headerlink" href="#lisp-doc" title="Permanent link">#</a></h2>
+<p>This crate's purpose is only providing the function
+<code>scan_rust_file</code>.</p>
 <p>The function is called by <code>scan_file</code> in <code>make-docfile.c</code>. Besides
 extracting doc strings from elisp functions, we also use it to find,
 generate and add the lisp globals we defined in rust.</p>
@@ -912,7 +892,7 @@ generate and add the lisp globals we defined in rust.</p>
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 23, 2024</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">March 24, 2024</span>
     
   </small>
 </div>
