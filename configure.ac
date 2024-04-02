@@ -7546,7 +7546,7 @@ else
 CARGO_FLAGS="$CARGO_FLAGS --release"
 fi
 CARGO_FLAGS="$CARGO_FLAGS -Zgitoxide=fetch -Zgit=shallow-deps,shallow-index"
-CARGO_FLAGS="$CARGO_FLAGS --out-dir ./ -Z unstable-options"
+CARGO_FLAGS="$CARGO_FLAGS -Z unstable-options"
 
 RUST_CFLAGS=
 case "${opsys}" in
