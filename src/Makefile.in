@@ -930,7 +930,7 @@ mostlyclean:
 	rm -f globals.h gl-stamp
 	rm -f ./*.res ./*.tmp
 	$(CARGO_CLEAN) -p emacsng
-	rm ./libemacsng.*
+	rm -f ./libemacsng.*
 versionclean:
 	rm -f emacs$(EXEEXT) emacs-*.*.*[0-9]$(EXEEXT) emacs-*.*.*[0-9].pdmp
 	rm -f ../etc/DOC*

@@ -399,9 +399,9 @@ uninstall:
 mostlyclean:
 	rm -f core ./*.o ./*.res
 	$(CARGO_CLEAN) -p lisp-doc
-	rm ./liblisp_doc.*
+	rm -f ./liblisp_doc.*
 
-clean: mostlyclean lisp-doc-clean
+clean: mostlyclean
 	-rm -f seccomp-filter.bpf seccomp-filter.pfc seccomp-filter-exec.bpf seccomp-filter-exec.pfc
 	rm -f ${EXE_FILES}
 
