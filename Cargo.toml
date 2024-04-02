@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/*"]
 resolver = "2"
+default-members = ["crates/emacsng"]
 
 [workspace.dependencies]
 libc = "0.2"

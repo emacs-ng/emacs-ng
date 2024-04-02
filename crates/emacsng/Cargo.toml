@@ -58,23 +58,21 @@ window-system-pgtk=["emacs-sys/window-system-pgtk", "emacs-sys/gtk3"]
 window-system-android=["emacs-sys/window-system-android"]
 window-system-winit = ["emacs-sys/window-system-winit",
 "dep:winit-term",
-  "codegen/window-system-winit",
-  "webrender",]
+  "webrender"]
 # Build with git2rs support
-libgit = ["git", "codegen/libgit"]
+libgit = ["git"]
 # Use the webrender
 webrender = [
   "dep:font",
   "emacs-sys/webrender",
-  "codegen/webrender",
   "dep:webrender",
 ]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno
-javascript = ["dep:js", "codegen/javascript"]
+javascript = ["dep:js"]
 # Build with dynamic modules support's extensions.
-ng-module = ["dep:ng-module", "codegen/ng-module"]
+ng-module = ["dep:ng-module"]
 # Enable glyphs debugging code.
 glyph-debug = ["webrender?/capture"]
 profiling = ["webrender?/profiling"]

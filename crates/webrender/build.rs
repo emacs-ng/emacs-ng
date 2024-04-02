@@ -4,26 +4,8 @@ use cfg_aliases::cfg_aliases;
 use codegen::generate_crate_exports;
 use codegen::BuildError;
 
-fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=src/wrterm.rs");
-    println!("cargo:rerun-if-changed=src/term.rs");
-    println!("cargo:rerun-if-changed=src/event_loop.rs");
-    // TODO watch relevent files to re rerun, rs files under src?
-
-    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    if let Err(e) = generate_crate_exports(&path) {
-        match e {
-            BuildError::IOError(msg) => {
-                eprintln!("{}", msg);
-                std::process::exit(3);
-            }
-            BuildError::Lint(msg) => {
-                msg.fail(1);
-            }
-        }
-    }
-
+fn main() -> Result<(), BuildError> {
+    generate_crate_exports()?;
     // Setup cfg aliases
     cfg_aliases! {
         android_platform: { target_os = "android" },
@@ -37,4 +19,5 @@ fn main() {
         x11_platform: { all(feature = "x11", free_unix, not(wasm), use_winit)},
         wayland_platform: { all(feature = "wayland", free_unix, not(wasm), use_winit) },
     }
+    Ok(())
 }

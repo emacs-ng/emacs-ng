@@ -2,6 +2,7 @@
 name = "ng-module"
 version = "0.1.0"
 edition = "2021"
+build = "../codegen/etc/build.rs"
 
 [lib]
 path = "src/lib.rs"

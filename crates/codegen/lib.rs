@@ -1,5 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
+mod data;
+mod error;
+pub use data::packages_source;
+pub use data::with_enabled_crates;
+pub use data::with_root_crate;
+pub use data::Package;
+pub use error::BuildError;
 
 use std::env;
 use std::ffi::OsStr;
@@ -13,7 +20,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 
-use cargo_toml::Manifest;
 use regex::Regex;
 
 static C_NAME: &str = "c_name = \"";
@@ -27,6 +33,7 @@ macro_rules! fail_with_msg {
     }};
 }
 
+#[derive(Debug)]
 pub struct LintMsg {
     modname: String,
     lineno: u32,
@@ -44,23 +51,6 @@ impl LintMsg {
 
     pub fn fail(self, code: i32) -> ! {
         fail_with_msg!(code, self.modname, self.lineno, "{}", self.msg);
-    }
-}
-
-pub enum BuildError {
-    IOError(io::Error),
-    Lint(LintMsg),
-}
-
-impl From<io::Error> for BuildError {
-    fn from(e: io::Error) -> Self {
-        BuildError::IOError(e)
-    }
-}
-
-impl From<LintMsg> for BuildError {
-    fn from(e: LintMsg) -> Self {
-        BuildError::Lint(e)
     }
 }
 
@@ -369,29 +359,27 @@ pub fn env_var(name: &str) -> String {
     env::var(name).unwrap_or_else(|e| panic!("Could not find {} in environment: {}", name, e))
 }
 
-// What to ignore when walking the list of files
-fn ignore(path: &str, additional_ignored_paths: &Vec<&str>) -> bool {
-    path == ""
-        || path.starts_with('.')
-        || path == "lib.rs"
-        || additional_ignored_paths.contains(&path)
-}
-
 /// Find modules in PATH which should contain the src directory of a crate
-fn find_crate_modules(path: &PathBuf) -> Result<Vec<ModuleData>, BuildError> {
+fn find_crate_modules() -> Result<Vec<ModuleData>, BuildError> {
     let mut modules: Vec<ModuleData> = Vec::new();
-    let ignored_paths = vec!["lib.rs"];
+    with_root_crate(|root| {
+        let src_paths: Vec<PathBuf> = root
+            .targets
+            .iter()
+            .map(|t| t.src_path.clone().into_std_path_buf())
+            .collect();
+        let files = packages_source(vec![root]);
+        for path in files {
+            if src_paths.contains(&path) {
+                continue;
+            }
 
-    let in_path: PathBuf = path.iter().collect();
-    for entry in fs::read_dir(in_path)? {
-        let mod_path = entry?.path();
-
-        if !ignore(path_as_str(mod_path.file_name()), &ignored_paths) {
-            if let Some(mod_data) = handle_file(&mod_path)? {
+            if let Some(mod_data) = handle_file(&path)? {
                 modules.push(mod_data);
             }
         }
-    }
+        Ok(())
+    })?;
 
     Ok(modules)
 }
@@ -429,94 +417,19 @@ fn generate_crate_c_export_file(
     Ok(())
 }
 
-/// First we have to generate the include file for the main crate which
-/// will be stored in OUT_DIR. It only contains the rust_init_syms
-/// that runs the crates *_init_syms functions.
-pub fn generate_include_files(crates_dir: PathBuf) -> Result<(), BuildError> {
-    let out_path: PathBuf = [&env_var("OUT_DIR")].iter().collect();
-    let mut out_file = File::create(out_path.join("c_exports.rs"))?;
-
-    // Add main rust_init_syms function to the main c_exports file
-    write!(
-        out_file,
-        "#[no_mangle]\npub extern \"C\" fn rust_init_syms() {{\n"
-    )?;
-
-    // Iterate crates path and generate include files
-    for entry in fs::read_dir(crates_dir).unwrap() {
-        let crate_path = entry?.path();
-
-        if build_ignored_crates(&crate_path) {
-            continue;
-        };
-        // generate_crate_exports(&crate_path)?;
-        let crate_name = get_crate_name(&crate_path);
-
-        // Call a crate's init_syms function in the main c_exports file
-        let crate_init_syms = format!("{}::{}_init_syms();\n", crate_name, crate_name);
-        write!(out_file, "{}", crate_init_syms)?;
-    }
-
-    write!(out_file, "}}\n")?;
-
-    Ok(())
-}
-
-/// Return true when crate is supposed to be ignored.
-/// The list of ignored crates depends on the activated features.
-fn build_ignored_crates(path: &PathBuf) -> bool {
-    let mut ignored_crates = vec![
-        "lisp-util",
-        "lisp-macros",
-        "lisp-doc",
-        "emacs-sys",
-        "emacsng",
-        "colors",
-        "codegen",
-    ];
-
-    #[cfg(not(feature = "libgit"))]
-    ignored_crates.push("git");
-
-    #[cfg(not(feature = "javascript"))]
-    ignored_crates.push("js");
-
-    #[cfg(not(feature = "ng-module"))]
-    ignored_crates.push("ng-module");
-
-    #[cfg(not(feature = "webrender"))]
-    {
-        ignored_crates.push("webrender");
-        ignored_crates.push("font")
-    }
-
-    #[cfg(not(feature = "window-system-winit"))]
-    ignored_crates.push("winit-term");
-
-    let crate_path = path_as_str(path.file_name()).to_string();
-
-    for ignored in ignored_crates {
-        if ignored == crate_path {
-            return true;
-        }
-    }
-
-    false
-}
-
 /// Create c_exports.rs that holds a crate's generated bindings.
 /// We call generate_crate_c_export_file to add regular functions bindings
 /// and write_lisp_fns to create the include file for each module which holds
 /// the lisp_fns.
-pub fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
-    let modules = find_crate_modules(&path.join("src"))?;
+pub fn generate_crate_exports() -> Result<(), BuildError> {
+    let modules = find_crate_modules()?;
 
     let out_path: PathBuf = [&env_var("OUT_DIR")].iter().collect();
     let mut out_file = File::create(out_path.join("c_exports.rs"))?;
 
     generate_crate_c_export_file(&out_file, &modules)?;
 
-    let crate_name = get_crate_name(path);
+    let crate_name = get_crate_name()?;
     write!(
         out_file,
         "#[no_mangle]\npub extern \"C\" fn {}_init_syms() {{\n",
@@ -530,14 +443,17 @@ pub fn generate_crate_exports(path: &PathBuf) -> Result<(), BuildError> {
     Ok(())
 }
 
-fn get_crate_name(path: &PathBuf) -> String {
-    let manifest = Manifest::from_path(path.join("Cargo.toml")).unwrap();
-    match manifest.package {
-        Some(package) => package.name.replace('-', "_"),
-        None => path_as_str(path.file_name()).to_string(),
-    }
+fn get_crate_name() -> Result<String, BuildError> {
+    let mut name = String::new();
+    with_root_crate(|root| {
+        name = root.name.clone().replace("-", "_");
+        Ok(())
+    })?;
+
+    Ok(name)
 }
 
+/// TODO lisp export for nest modules, set the path same relative to out-dir
 /// Export lisp functions defined in rust by using the macro `export_lisp_fns`
 /// Add *_init_syms function of each module to the c_exports OUT_FILE
 fn write_lisp_fns(

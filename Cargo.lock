@@ -487,6 +487,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-files-core"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b06bb6f78f8a15e531658e68c288c0291c15026bd9f00ece26e3f2376153771e"
+dependencies = [
+ "cargo_metadata 0.18.1",
+ "dunce",
+ "proc-macro2",
+ "syn 2.0.53",
+ "thiserror",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -510,13 +523,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo_toml"
-version = "0.19.2"
+name = "cargo_metadata"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a98356df42a2eb1bd8f1793ae4ee4de48e384dd974ce5eac8eee802edb7492be"
+checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
 dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver",
  "serde",
- "toml 0.8.2",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -668,7 +685,8 @@ dependencies = [
 name = "codegen"
 version = "0.1.0"
 dependencies = [
- "cargo_toml",
+ "cargo-files-core",
+ "cargo_metadata 0.18.1",
  "clippy",
  "lazy_static",
  "libc",
@@ -954,6 +972,12 @@ name = "downcast-rs"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
+
+[[package]]
+name = "dunce"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
 
 [[package]]
 name = "either"
@@ -4096,7 +4120,7 @@ dependencies = [
  "anyhow",
  "askama",
  "camino",
- "cargo_metadata",
+ "cargo_metadata 0.15.4",
  "fs-err",
  "glob",
  "goblin",
@@ -4186,7 +4210,7 @@ checksum = "118448debffcb676ddbe8c5305fb933ab7e0123753e659a71dc4a693f8d9f23c"
 dependencies = [
  "anyhow",
  "camino",
- "cargo_metadata",
+ "cargo_metadata 0.15.4",
  "fs-err",
  "once_cell",
 ]
