@@ -1,4 +1,3 @@
-use std::cell::OnceCell;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -160,16 +159,9 @@ pub fn enabled_features() -> Result<Vec<String>, BuildError> {
     Ok(features)
 }
 
-pub fn packages_source(packages: Vec<&Package>) -> HashSet<PathBuf> {
-    use cargo_files_core::get_target_files;
-    use cargo_files_core::Target;
-
-    packages
-        .into_iter()
-        .fold(Vec::new(), |mut acc, p| {
-            acc.append(&mut p.targets.clone());
-            acc
-        })
+pub fn package_targets(package: &Package) -> Vec<&cargo_metadata::Target> {
+    package
+        .targets
         .iter()
         .filter(|t| {
             t.kind.get(0).map_or(false, |k| match k.as_str() {
@@ -177,12 +169,34 @@ pub fn packages_source(packages: Vec<&Package>) -> HashSet<PathBuf> {
                 _ => true,
             })
         })
+        .collect()
+}
+
+pub fn target_source(t: &cargo_metadata::Target) -> Result<HashSet<PathBuf>, BuildError> {
+    use cargo_files_core::get_target_files;
+    use cargo_files_core::Target;
+    let files = get_target_files(&Target::from_target(t))?;
+    Ok(files)
+}
+
+pub fn package_source(p: &Package) -> HashSet<PathBuf> {
+    let files = package_targets(p)
+        .into_iter()
         .fold(HashSet::new(), |mut all_files, t| {
-            match get_target_files(&Target::from_target(t)) {
+            match target_source(t) {
                 Ok(files) => all_files.extend(files),
-                _ => {}
+                Err(err) => eprintln!("Failed to get target source {err:?}"),
             };
 
             all_files
-        })
+        });
+    files
+}
+
+pub fn packages_source(packages: Vec<&Package>) -> HashSet<PathBuf> {
+    packages.into_iter().fold(HashSet::new(), |mut acc, p| {
+        let files = package_source(p);
+        acc.extend(files);
+        acc
+    })
 }

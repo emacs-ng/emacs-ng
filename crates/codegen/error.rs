@@ -10,6 +10,7 @@ pub enum BuildError {
     VarError(env::VarError),
     IOError(io::Error),
     Metadata(cargo_metadata::Error),
+    CargoFiles(cargo_files_core::Error),
     Parse(ParseIntError),
     Lint(LintMsg),
 }
@@ -33,6 +34,12 @@ impl From<cargo_metadata::Error> for BuildError {
 impl From<ParseIntError> for BuildError {
     fn from(e: ParseIntError) -> Self {
         BuildError::Parse(e)
+    }
+}
+
+impl From<cargo_files_core::Error> for BuildError {
+    fn from(e: cargo_files_core::Error) -> Self {
+        BuildError::CargoFiles(e)
     }
 }
 

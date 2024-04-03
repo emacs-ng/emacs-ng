@@ -687,11 +687,9 @@ version = "0.1.0"
 dependencies = [
  "cargo-files-core",
  "cargo_metadata 0.18.1",
- "clippy",
  "lazy_static",
  "libc",
  "regex",
- "tempfile",
 ]
 
 [[package]]

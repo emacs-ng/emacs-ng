@@ -6,15 +6,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clippy = { version = "*", optional = true }
 lazy_static = "1.4"
 libc = "0.2"
 regex = "1.10"
 cargo_metadata = { version = "0.18", optional = false }
 cargo-files-core = { version = "0.2", optional = false }
-
-[dev-dependencies]
-tempfile = "3.10"
 
 [lib]
 path = "lib.rs"

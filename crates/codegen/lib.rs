@@ -2,7 +2,9 @@
 extern crate lazy_static;
 mod data;
 mod error;
+use data::package_targets;
 pub use data::packages_source;
+use data::target_source;
 pub use data::with_enabled_crates;
 pub use data::with_root_crate;
 use data::with_root_crate_checked;
@@ -12,6 +14,7 @@ pub use error::BuildError;
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
+use std::fs::create_dir_all;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io;
@@ -55,35 +58,22 @@ impl LintMsg {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ModuleInfo {
     pub name: String,
     pub path: PathBuf,
 }
 
 impl ModuleInfo {
-    pub fn from_path(mod_path: &PathBuf) -> Option<ModuleInfo> {
-        // in order to parse correctly, determine where the code lives.
-        // For submodules that will be in a mod.rs file.
-        if mod_path.is_dir() {
-            let tmp = path_as_str(mod_path.file_name()).to_string();
-            let path = mod_path.join("mod.rs");
-            if path.is_file() {
-                return Some(ModuleInfo {
-                    path: path,
-                    name: tmp,
-                });
-            }
-        } else if let Some(ext) = mod_path.extension() {
-            if ext == "rs" {
-                return Some(ModuleInfo {
-                    path: mod_path.clone(),
-                    name: path_as_str(mod_path.file_stem()).to_string(),
-                });
-            }
-        }
+    pub fn from_path(mod_path: &PathBuf, base: &PathBuf) -> ModuleInfo {
+        let root = base.canonicalize().unwrap().parent().unwrap().to_path_buf();
+        let mut name = mod_path.strip_prefix(&root).unwrap().to_path_buf();
+        name.set_extension("");
 
-        None
+        return ModuleInfo {
+            path: mod_path.clone(),
+            name: name.to_string_lossy().to_string(),
+        };
     }
 }
 
@@ -329,25 +319,39 @@ fn get_function_name(line: &str) -> Option<String> {
     None
 }
 
-fn handle_file(mod_path: &PathBuf) -> Result<Option<ModuleData>, BuildError> {
-    if let Some(mod_info) = ModuleInfo::from_path(mod_path) {
-        let fp = match File::open(mod_info.path.clone()) {
-            Ok(f) => f,
-            Err(e) => {
-                return Err(io::Error::new(
-                    e.kind(),
-                    format!("Failed to open {}: {}", mod_info.path.to_string_lossy(), e),
-                )
-                .into());
-            }
-        };
+fn handle_target(t: &cargo_metadata::Target) -> Result<Vec<ModuleData>, BuildError> {
+    let mut mod_datas: Vec<ModuleData> = Vec::new();
+    let files = target_source(t)?;
 
-        let mut parser = ModuleParser::new(&mod_info);
-        let mod_data = parser.run(BufReader::new(fp))?;
-        Ok(Some(mod_data))
-    } else {
-        Ok(None)
+    for file in files {
+        //ignore the root module
+        if file == t.src_path {
+            continue;
+        }
+        let mod_data = handle_file(&file, &t.src_path.clone().into_std_path_buf())?;
+        mod_datas.push(mod_data);
     }
+
+    Ok(mod_datas)
+}
+
+fn handle_file(mod_path: &PathBuf, src_path: &PathBuf) -> Result<ModuleData, BuildError> {
+    let mod_info = ModuleInfo::from_path(mod_path, src_path);
+
+    let fp = match File::open(mod_info.path.clone()) {
+        Ok(f) => f,
+        Err(e) => {
+            return Err(io::Error::new(
+                e.kind(),
+                format!("Failed to open {}: {}", mod_info.path.to_string_lossy(), e),
+            )
+            .into());
+        }
+    };
+
+    let mut parser = ModuleParser::new(&mod_info);
+    let mod_data = parser.run(BufReader::new(fp))?;
+    Ok(mod_data)
 }
 
 // Transmute &OsStr to &str
@@ -364,20 +368,9 @@ pub fn env_var(name: &str) -> String {
 fn find_crate_modules() -> Result<Vec<ModuleData>, BuildError> {
     let mut modules: Vec<ModuleData> = Vec::new();
     with_root_crate_checked(|root| {
-        let src_paths: Vec<PathBuf> = root
-            .targets
-            .iter()
-            .map(|t| t.src_path.clone().into_std_path_buf())
-            .collect();
-        let files = packages_source(vec![root]);
-        for path in files {
-            if src_paths.contains(&path) {
-                continue;
-            }
-
-            if let Some(mod_data) = handle_file(&path)? {
-                modules.push(mod_data);
-            }
+        for (_, t) in package_targets(root).iter().enumerate() {
+            let mut files = handle_target(t)?;
+            modules.append(&mut files);
         }
         Ok(())
     })?;
@@ -399,7 +392,8 @@ fn generate_crate_c_export_file(
             write!(
                 out_file,
                 "pub use crate::{}::{};\n",
-                mod_data.info.name, func
+                mod_data.info.name.replace("/", "::"),
+                func
             )?;
         }
         for (cfg, func) in &mod_data.lisp_fns {
@@ -409,7 +403,8 @@ fn generate_crate_c_export_file(
             write!(
                 out_file,
                 "pub use crate::{}::F{};\n",
-                mod_data.info.name, func
+                mod_data.info.name.replace("/", "::"),
+                func
             )?;
         }
     }
@@ -436,7 +431,6 @@ pub fn generate_crate_exports() -> Result<(), BuildError> {
         crate_name
     )?;
     let _ = with_enabled_crates(|packages| {
-        println!("packages: {packages:?}");
         for package in packages {
             let crate_name = &package.name.replace('-', "_");
             // Call a crate's init_syms function in the main c_exports file
@@ -473,6 +467,10 @@ fn write_lisp_fns(
     for mod_data in modules {
         let exports_path: PathBuf = crate_path.join([&mod_data.info.name, "_exports.rs"].concat());
 
+        if let Some(dir) = exports_path.parent() {
+            create_dir_all(dir)?;
+        }
+
         // Start with a clean slate
         if exports_path.exists() {
             fs::remove_file(&exports_path)?;
@@ -495,7 +493,11 @@ fn write_lisp_fns(
                     .join(",\n    ")
             )?;
 
-            write!(out_file, "    {}::rust_init_syms();\n", mod_data.info.name)?;
+            write!(
+                out_file,
+                "    {}::rust_init_syms();\n",
+                mod_data.info.name.replace("/", "::")
+            )?;
         }
 
         // Add protected_statics
