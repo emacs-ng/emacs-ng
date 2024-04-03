@@ -6,23 +6,18 @@ description = "Experimental emacs fork"
 license = "GPL-3.0"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
+build = "../codegen/etc/build.rs"
 
 [dependencies]
 libc = "0.2"
-lisp-doc.path = "../lisp-doc"
 emacs-sys.path = "../emacs-sys"
-lisp-util.path = "../lisp-util"
-lisp-macros.path = "../lisp-macros"
 lisp-async.path = "../lisp-async"
 lsp-json.path = "../lsp-json"
 git = { path = "../git", optional = true }
-font = { path = "../font", optional = true }
 ng-module = { path = "../ng-module", optional = true }
 js = { path = "../js", optional = true }
-winit-term = { path = "../winit-term", optional = true, default-features = false }
-webrender = { path = "../webrender", optional = true, default-features = false }
-
+winit = { path = "../winit-term", optional = true, default-features = false }
+pgtk = { path = "../pgtk", optional = true, default-features = false }
 clippy = { version = "*", optional = true }
 log.workspace = true
 tracing = "0.1"
@@ -50,29 +45,21 @@ path = "./lib.rs"
 
 # Compile with C xml2 library support.
 use-xml2 = []
-window-system-x11 = ["emacs-sys/window-system-x11"]
-window-system-nextstep = ["emacs-sys/window-system-nextstep"]
-window-system-w32=["emacs-sys/window-system-w32"]
-window-system-haiku=["emacs-sys/window-system-haiku"]
-window-system-pgtk=["emacs-sys/window-system-pgtk", "emacs-sys/gtk3"]
-window-system-android=["emacs-sys/window-system-android"]
-window-system-winit = ["emacs-sys/window-system-winit",
-"dep:winit-term",
-  "webrender"]
+window-system-pgtk=["dep:pgtk"]
+wr_pgtk=["window-system-pgtk", "pgtk/webrender"]
+window-system-winit = ["dep:winit"]
 # Build with git2rs support
 libgit = ["git"]
-# Use the webrender
-webrender = [
-  "dep:font",
-  "emacs-sys/webrender",
-  "dep:webrender",
-]
 # Treat warnings as a build error on Travis.
 strict = []
 # Use JavaScript and Deno
 javascript = ["dep:js"]
 # Build with dynamic modules support's extensions.
 ng-module = ["dep:ng-module"]
+
 # Enable glyphs debugging code.
-glyph-debug = ["webrender?/capture"]
-profiling = ["webrender?/profiling"]
+# !!! Avoid using feature selection ? like below, the codegen
+# from lisp-util is not smart enought yet to figure out when winit
+# or pgtk should be enable or not
+# glyph-debug = ["winit?/capture", "pgtk?/capture"]
+# profiling = ["winit?/profiling", "pgtk?/profiling"]

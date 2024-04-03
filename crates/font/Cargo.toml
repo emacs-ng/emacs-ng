@@ -30,7 +30,10 @@ name = "font"
 path = "src/lib.rs"
 
 [features]
+window-system-pgtk=["emacs-sys/window-system-pgtk"]
+window-system-winit=["emacs-sys/window-system-winit"]
 no_std = []
 std = []
+
 [build-dependencies]
 codegen = { path = "../codegen" }

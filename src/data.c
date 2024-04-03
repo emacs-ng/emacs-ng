@@ -4055,14 +4055,14 @@ A is a bool vector, B is t or nil, and I is an index into A.  */)
 }
 
 
-void rust_init_syms(void);
+void emacsng_init_syms(void);
 
 void
 syms_of_data (void)
 {
   Lisp_Object error_tail, arith_tail, recursion_tail;
 
-  rust_init_syms();
+  emacsng_init_syms();
 
   DEFSYM (Qquote, "quote");
   DEFSYM (Qlambda, "lambda");

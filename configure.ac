@@ -7923,18 +7923,31 @@ AC_DEFINE_UNQUOTED([EMACS_CONFIG_FEATURES], ["${emacs_config_features}"],
 
 CARGO_FEATURES=
 optsep=
-for opt in libgit use-xml2 x11 nextstep w32 haiku pgtk webrender winit \
-    android emacs-sys/x11 javascript glyph-debug profiling wr_gl ng-module; do
+if test "${window_system}" = "winit" ; then
+   case $val in
+      yes|surfman) wr_use_surfman=yes ;;
+      glutin) wr_use_glutin=yes ;;
+      *) continue ;;
+   esac
+fi
+if test $window_system = pgtk && test "${with_webrender}" = "yes"; then
+    pgtk_use_wr=yes
+fi
+for opt in libgit use-xml2 pgtk winit winit/x11 javascript glyph-debug \
+    profiling winit/glutin winit/surfman wr_pgtk ng-module; do
     tmp=no
     if test "${window_system}" = "$opt"; then
 	tmp=yes
     fi
     case $opt in
-      emacs-sys/x11) val=${ac_enable_winit_x11} ;;
+      winit/x11) val=${ac_enable_winit_x11} ;;
       use-xml2) val=${HAVE_LIBXML2} ;;
       ng-module) val=${HAVE_MODULES} ;;
       glyph-debug) val=${ac_enable_glyphs_debug} ;;
       profiling) val=${ac_enable_profiling} ;;
+      winit/surfman) val=${wr_use_surfman} ;;
+      winit/glutin) val=${wr_use_glutin} ;;
+      wr_pgtk) val=${pgtk_use_wr} ;;
       x11|w32|haiku|pgtk|winit|android|nextstep) val=${tmp} ;;
       *) eval val=\${with_$opt} ;;
     esac
@@ -7944,17 +7957,8 @@ for opt in libgit use-xml2 x11 nextstep w32 haiku pgtk webrender winit \
     esac
     case $opt in
       x11|w32|haiku|winit|pgtk|android|nextstep) opt="window-system-${opt}" ;;
-      wr_gl)
-        if test "${window_system}" != "winit" ; then
-	   continue
-	fi
-        case $val in
-	  yes) opt=emacs-sys/surfman ;;
-          surfman|glutin) opt=emacs-sys/$val ;;
-          *) continue ;;
-        esac
-      ;;
-      emacs-sys/x11)
+      glyph-debug|profiling) opt="${window_system}/${opt}" ;;
+      winit/x11)
         if test "${window_system}" != "winit" ; then
 	   continue
 	fi

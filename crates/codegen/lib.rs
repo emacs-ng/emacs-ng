@@ -5,6 +5,7 @@ mod error;
 pub use data::packages_source;
 pub use data::with_enabled_crates;
 pub use data::with_root_crate;
+use data::with_root_crate_checked;
 pub use data::Package;
 pub use error::BuildError;
 
@@ -362,7 +363,7 @@ pub fn env_var(name: &str) -> String {
 /// Find modules in PATH which should contain the src directory of a crate
 fn find_crate_modules() -> Result<Vec<ModuleData>, BuildError> {
     let mut modules: Vec<ModuleData> = Vec::new();
-    with_root_crate(|root| {
+    with_root_crate_checked(|root| {
         let src_paths: Vec<PathBuf> = root
             .targets
             .iter()
@@ -423,7 +424,6 @@ fn generate_crate_c_export_file(
 /// the lisp_fns.
 pub fn generate_crate_exports() -> Result<(), BuildError> {
     let modules = find_crate_modules()?;
-
     let out_path: PathBuf = [&env_var("OUT_DIR")].iter().collect();
     let mut out_file = File::create(out_path.join("c_exports.rs"))?;
 
@@ -435,7 +435,16 @@ pub fn generate_crate_exports() -> Result<(), BuildError> {
         "#[no_mangle]\npub extern \"C\" fn {}_init_syms() {{\n",
         crate_name
     )?;
-
+    let _ = with_enabled_crates(|packages| {
+        println!("packages: {packages:?}");
+        for package in packages {
+            let crate_name = &package.name.replace('-', "_");
+            // Call a crate's init_syms function in the main c_exports file
+            let crate_init_syms = format!("    {}::{}_init_syms();\n", crate_name, crate_name);
+            write!(out_file, "{}", crate_init_syms)?
+        }
+        Ok(())
+    });
     write_lisp_fns(&out_path, &out_file, &modules)?;
 
     write!(out_file, "}}\n")?;
@@ -445,7 +454,7 @@ pub fn generate_crate_exports() -> Result<(), BuildError> {
 
 fn get_crate_name() -> Result<String, BuildError> {
     let mut name = String::new();
-    with_root_crate(|root| {
+    with_root_crate(|root, _| {
         name = root.name.clone().replace("-", "_");
         Ok(())
     })?;

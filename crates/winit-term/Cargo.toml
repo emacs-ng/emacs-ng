@@ -1,5 +1,5 @@
 [package]
-name = "winit-term"
+name = "winit"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
@@ -10,6 +10,7 @@ path = "src/lib.rs"
 [dependencies]
 emacs-sys = { path = "../emacs-sys", features = ["window-system-winit"] }
 lisp-macros = { path = "../lisp-macros" }
+webrender = { path = "../webrender", default-features = false }
 lisp-util = {  path = "../lisp-util" }
 font = {  path = "../font" }
 colors = {  path = "../colors" }
@@ -23,9 +24,18 @@ raw-window-handle.workspace = true
 winit.workspace = true
 spin_sleep = "1.2"
 
+
 [build-dependencies]
 codegen = { path = "../codegen" }
 cfg_aliases.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9"
+
+[features]
+glutin=["webrender/glutin"]
+surfman=["webrender/surfman"]
+x11=["emacs-sys/x11"]
+capture=["webrender/capture"]
+profiling=["webrender/profiling"]
+sw_compositor=["webrender/sw_compositor"]

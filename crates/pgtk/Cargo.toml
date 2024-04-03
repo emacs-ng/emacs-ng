@@ -1,0 +1,18 @@
+[package]
+name = "pgtk"
+version = "0.1.0"
+edition = "2021"
+build = "../codegen/etc/build.rs"
+
+[dependencies]
+emacs-sys = { path = "../emacs-sys", features = ["window-system-pgtk"] }
+webrender = { path = "../webrender", default-features = false, optional = true }
+
+[build-dependencies]
+codegen = { path = "../codegen" }
+
+[features]
+webrender = ["dep:webrender", "webrender/gtk3"]
+capture=["webrender?/capture"]
+profiling=["webrender?/profiling"]
+sw_compositor=["webrender?/sw_compositor"]
