@@ -2257,6 +2257,7 @@ dependencies = [
 name = "lisp-doc"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "darling",
  "lazy_static",
  "libc",

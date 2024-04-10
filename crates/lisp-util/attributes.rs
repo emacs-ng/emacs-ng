@@ -55,6 +55,7 @@ impl LispFnArgsRaw {
     }
 }
 
+#[derive(Debug)]
 pub struct LispFnArgs {
     pub name: String,
     pub c_name: String,

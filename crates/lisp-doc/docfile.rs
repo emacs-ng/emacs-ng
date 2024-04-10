@@ -6,6 +6,9 @@ use libc::c_char;
 use libc::c_int;
 use regex::Regex;
 
+use anyhow::format_err;
+use anyhow::Context;
+use anyhow::Result;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs::File;
@@ -46,9 +49,28 @@ pub unsafe extern "C" fn scan_rust_file(
     generate_globals: c_int,
     add_global_fp: AddGlobalFn,
 ) {
-    let add_global = add_global_fp.expect("Function pointer to 'add_global' method was null");
-    let filename = CStr::from_ptr(filename).to_str().unwrap();
-    let fp = BufReader::new(File::open(&*filename).unwrap());
+    match scan_rust_file1(filename, generate_globals, add_global_fp) {
+        Err(e) => eprintln!("scan rust file failed with error: {e:?}"),
+        _ => {}
+    };
+}
+
+pub fn scan_rust_file1(
+    filename: *const c_char,
+    generate_globals: c_int,
+    add_global_fp: AddGlobalFn,
+) -> Result<()> {
+    let add_global1 = add_global_fp.ok_or(format_err!("AddGlobalFn None"))?;
+    let add_global = |_type: c_int, name: *const c_char, value: c_int, svalue: *const c_char| {
+        unsafe { add_global1(_type, name, value, svalue) };
+    };
+    let filename = unsafe { CStr::from_ptr(filename) };
+    let filename = filename
+        .to_str()
+        .with_context(|| format!("Non utf8 filename {:?}", filename))?;
+    let fp = BufReader::new(
+        File::open(&*filename).with_context(|| format!("Failed to open file {:?}", &*filename))?,
+    );
 
     let mut in_docstring = false;
     let mut docstring = String::new();
@@ -60,7 +82,7 @@ pub unsafe extern "C" fn scan_rust_file(
     let mut in_lisp_fn = false;
 
     while let Some(line) = line_iter.next() {
-        let line = line.unwrap();
+        let line = line?;
         let line = line.trim();
 
         // Collect a whole docstring
@@ -116,7 +138,12 @@ pub unsafe extern "C" fn scan_rust_file(
             }
             let attribute = mem::replace(&mut attribute, String::new());
             let mut split = line.split('(');
-            let name = split.next().unwrap().split_whitespace().last().unwrap();
+            let name = split
+                .next()
+                .ok_or(format_err!("split.next none"))?
+                .split_whitespace()
+                .last()
+                .ok_or(format_err!("split whitespace last None"))?;
 
             if name.starts_with('$') {
                 // Macro; do not use it
@@ -124,11 +151,17 @@ pub unsafe extern "C" fn scan_rust_file(
             }
 
             // Read lines until the closing paren
-            let mut sig = split.next().unwrap().to_string();
+            let mut sig = split
+                .next()
+                .ok_or(format_err!("split.next none"))?
+                .to_string();
             while !sig.contains(')') {
-                sig.extend(line_iter.next().unwrap());
+                sig.extend(line_iter.next().ok_or(format_err!("split.next none"))?);
             }
-            let sig = sig.split(')').next().unwrap();
+            let sig = sig
+                .split(')')
+                .next()
+                .ok_or(format_err!("split.next none"))?;
             let has_many_args = sig.contains("&mut") || sig.contains("&[");
 
             // Split arg names and types
@@ -153,10 +186,11 @@ pub unsafe extern "C" fn scan_rust_file(
                 attribute = attribute.replace("]", "");
             }
             let attr_props = parse_lisp_fn(&attribute, name, def_min_args)
-                .unwrap_or_else(|e| panic!("Invalid #[lisp_fn] macro ({}): {}", attribute, e));
+                .map_err(|e| format_err!("Invalid #[lisp_fn] macro ({}): {}", attribute, e))?;
 
             if generate_globals != 0 {
-                let c_name_str = CString::new(format!("F{}", attr_props.c_name)).unwrap();
+                let c_name_str = CString::new(format!("F{}", attr_props.c_name))
+                    .with_context(|| format!("{:?} c_name is null", attr_props))?;
                 // -1 is MANY
                 // -2 is UNEVALLED
                 let maxargs = if has_many_args { -1 } else { nargs as c_int };
@@ -191,18 +225,22 @@ pub unsafe extern "C" fn scan_rust_file(
             }
         } else if line.starts_with("def_lisp_sym!(") {
             lazy_static! {
-                static ref RE: Regex = Regex::new(r#"def_lisp_sym!\((.+?),\s+"(.+?)"\);"#).unwrap();
+                static ref RE: Regex = Regex::new(r#"def_lisp_sym!\((.+?),\s+"(.+?)"\);"#)
+                    .map_err(|e| format_err!("Failed to create regext: {:?}", e))
+                    .unwrap();
             }
-            let caps = RE.captures(line).unwrap();
-            let name = CString::new(&caps[1]).unwrap();
-            let value = CString::new(&caps[2]).unwrap();
+            let caps = RE.captures(line).ok_or(format_err!("No Regex captures"))?;
+            let name = CString::new(&caps[1])?;
+            let value = CString::new(&caps[2])?;
             add_global(SYMBOL, name.as_ptr(), 0, value.as_ptr());
         } else if line.starts_with("defvar_") {
             // defvar_lisp!(f_Vpost_self_insert_hook, "post-self-insert-hook", Qnil);
             // defvar_kboard!(Vlast_command_, "last-command");
             lazy_static! {
                 static ref RE: Regex =
-                    Regex::new(r#"defvar_(.+?)!\((.+?),\s+"(.+?)"(?:,\s+(.+?))?\);"#).unwrap();
+                    Regex::new(r#"defvar_(.+?)!\((.+?),\s+"(.+?)"(?:,\s+(.+?))?\);"#)
+                        .map_err(|e| format_err!("Failed to create regext: {:?}", e))
+                        .unwrap();
             }
             for caps in RE.captures_iter(line) {
                 if generate_globals != 0 {
@@ -220,7 +258,7 @@ pub unsafe extern "C" fn scan_rust_file(
                     if kind != INVALID {
                         let field_name = &caps[2];
                         assert!(!field_name.starts_with("f_"));
-                        let field_name = CString::new(&caps[2]).unwrap();
+                        let field_name = CString::new(&caps[2])?;
                         add_global(kind, field_name.as_ptr(), 0, ptr::null());
                     }
                 } else {
@@ -230,5 +268,6 @@ pub unsafe extern "C" fn scan_rust_file(
             }
         }
     }
-    stdout().flush().unwrap();
+    stdout().flush()?;
+    Ok(())
 }
