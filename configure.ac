@@ -7969,6 +7969,12 @@ for opt in libgit use-xml2 pgtk winit winit/x11 javascript glyph-debug \
 done
 AC_SUBST(CARGO_FEATURES)
 
+dnl Rust sources which has Lisp symbols definitions
+AS_ECHO(["Collecting Rust sources..."])
+RUST_CRATES_SOURCES=`(cd crates/emacsng && ABS_TOP_SRCDIR=$OLDPWD cargo run -p codegen --bin print-source ${CARGO_FEATURES} 2>/dev/null)`
+AS_ECHO(["Collecting Rust sources...done"])
+AC_SUBST(RUST_CRATES_SOURCES)
+
 # This is just a printable representation of the shared user ID.
 android_shared_user=
 AS_IF([test -n "$with_shared_user_id"],[android_shared_user="($with_shared_user_id)"])

@@ -6,6 +6,7 @@ use data::package_targets;
 pub use data::packages_source;
 use data::target_source;
 pub use data::with_enabled_crates;
+pub use data::with_enabled_crates_all;
 pub use data::with_root_crate;
 use data::with_root_crate_checked;
 pub use data::Package;

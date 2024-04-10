@@ -67,13 +67,7 @@ LIBEMACSNG_ARCHIVE=libemacsng$(RUST_ARCHIVE_EXTENSION)
 
 crates_dir=$(top_srcdir)/crates
 # Crates that contain globals
-RUST_CRATES_SOURCES=$(crates_dir)/js/src/*.rs \
-$(crates_dir)/lisp-async/src/*.rs \
-$(crates_dir)/ng-module/src/*.rs \
-$(crates_dir)/font/src/*.rs \
-$(crates_dir)/webrender/src/*.rs \
-$(crates_dir)/winit-term/src/*.rs \
-$(crates_dir)/lsp-json/src/*.rs
+RUST_CRATES_SOURCES=@RUST_CRATES_SOURCES@
 lispsource = $(top_srcdir)/lisp
 lib = ../lib
 hostlib = $(top_builddir)/lib
@@ -753,7 +747,7 @@ endif
 ## for the first time, this prevents any variation between configurations
 ## in the contents of the DOC file.
 ##
-$(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj)
+$(etc)/DOC: $(libsrc)/make-docfile$(EXEEXT) $(doc_obj) $(RUST_CRATES_SOURCES)
 	$(AM_V_GEN)$(MKDIR_P) $(etc)
 	$(AM_V_at)rm -f $(etc)/DOC
 	$(AM_V_at)$(libsrc)/make-docfile -d $(srcdir) \

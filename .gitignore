@@ -359,6 +359,7 @@ nix/_sources/.shake*
 nix/cachix-key.secrets
 build-aux/config.guess
 build-aux/config.sub
+src/.RUST_CRATES_SOURCES
 
 # Seccomp filter files.
 lib-src/seccomp-filter.bpf

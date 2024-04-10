@@ -685,11 +685,13 @@ dependencies = [
 name = "codegen"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cargo-files-core",
  "cargo_metadata 0.18.1",
  "lazy_static",
  "libc",
  "regex",
+ "thiserror",
 ]
 
 [[package]]

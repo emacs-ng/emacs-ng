@@ -4,21 +4,22 @@ use std::num::ParseIntError;
 
 use super::LintMsg;
 use std::io;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum BuildError {
-    VarError(env::VarError),
+    #[error("Var error {var:?}: {error:?}")]
+    VarError { var: String, error: env::VarError },
+    #[error("{0}")]
     IOError(io::Error),
+    #[error("{0}")]
     Metadata(cargo_metadata::Error),
+    #[error("{0}")]
     CargoFiles(cargo_files_core::Error),
+    #[error("{0}")]
     Parse(ParseIntError),
+    #[error("{0:?}")]
     Lint(LintMsg),
-}
-
-impl From<env::VarError> for BuildError {
-    fn from(e: env::VarError) -> Self {
-        BuildError::VarError(e)
-    }
 }
 
 impl From<io::Error> for BuildError {
