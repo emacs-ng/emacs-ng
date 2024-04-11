@@ -759,9 +759,11 @@ $(libsrc)/make-docfile$(EXEEXT) $(libsrc)/make-fingerprint$(EXEEXT): \
 
 buildobj.h: Makefile
 	$(AM_V_GEN)for i in $(ALLOBJS); do \
-	  echo "$$i" | sed 's,.*/,,; s/\.obj$$/\.o/; s/^/"/; s/$$/",/' \
+	  echo "$$i" | sed 's,.*/,,; s/\.obj$$/\.o/; s/^/"/; s/$$/",/'\
 	    || exit; \
 	done >$@.tmp
+	$(AM_V_GEN)for i in $(RUST_CRATES_SOURCES); do \
+	  echo "\"$$i\"," >> $@.tmp;done; \
 	$(AM_V_at)mv $@.tmp $@
 
 GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m) $(RUST_CRATES_SOURCES)

@@ -38,6 +38,25 @@ type AddGlobalFn = ::std::option::Option<
     unsafe extern "C" fn(c_int, *const c_char, c_int, *const c_char) -> *const (),
 >;
 
+#[macro_export]
+macro_rules! printf {
+    ($str:expr) => {{
+        let c_str = CString::new($str).unwrap();
+        let str_ptr = c_str.as_ptr() as *const ::libc::c_char;
+        unsafe {
+            libc::printf(str_ptr);
+        }
+    }};
+    ($fmtstr:expr, $($arg:expr),*) => {{
+        let formatted = format!($fmtstr, $($arg),*);
+        let c_str = CString::new(formatted).unwrap();
+        let str_ptr = c_str.as_ptr() as *const ::libc::c_char;
+        unsafe {
+            libc::printf(str_ptr);
+        }
+    }};
+}
+
 /// This function is called by lib-src/scan_file and runs with make-docfile
 /// in src/Makefile.
 /// We have to ensure that all necessary rust paths will be considered to
@@ -218,9 +237,11 @@ pub fn scan_rust_file1(
                     docstring_usage.push(')');
                 }
                 // Print contents for docfile to stdout
-                print!(
+                printf!(
                     "\x1fF{}\n{}\n(fn{}",
-                    attr_props.name, docstring, docstring_usage
+                    attr_props.name,
+                    docstring,
+                    docstring_usage
                 );
             }
         } else if line.starts_with("def_lisp_sym!(") {
@@ -263,11 +284,10 @@ pub fn scan_rust_file1(
                     }
                 } else {
                     let lisp_name = &caps[3];
-                    print!("\x1fV{}\n{}", lisp_name, docstring)
+                    printf!("\x1fV{}\n{}", lisp_name, docstring)
                 }
             }
         }
     }
-    stdout().flush()?;
     Ok(())
 }

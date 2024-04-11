@@ -297,12 +297,16 @@ TYPE should be nil to find a function, or `defvar' to find a variable."
     (goto-char (point-min))
     (unless (re-search-forward
 	     (if type
-		 (concat "DEFVAR[A-Z_]*[ \t\n]*([ \t\n]*\""
-			 (regexp-quote (symbol-name fun-or-var))
-			 "\"")
-	       (concat "DEFUN[ \t\n]*([ \t\n]*\""
-		       (regexp-quote (subr-name (advice--cd*r fun-or-var)))
-		       "\""))
+                 (if (string-equal (file-name-extension file) "rs")
+                     (regexp-quote (replace-regexp-in-string "-" "_" (symbol-name fun-or-var)))
+		   (concat "DEFVAR[A-Z_]*[ \t\n]*([ \t\n]*\""
+			   (regexp-quote (symbol-name fun-or-var))
+			   "\""))
+               (if (string-equal (file-name-extension file) "rs")
+                   (regexp-quote (replace-regexp-in-string "-" "_" (subr-name (advice--cd*r fun-or-var))))
+                 (concat "DEFUN[ \t\n]*([ \t\n]*\""
+	                 (regexp-quote (subr-name (advice--cd*r fun-or-var)))
+	                 "\"")))
 	     nil t)
       (error "Can't find source for %s" fun-or-var))
     (cons (current-buffer) (match-beginning 0))))
@@ -406,7 +410,7 @@ The search is done in the source for library LIBRARY."
   ;; that defines something else.
   (while (and (symbolp symbol) (get symbol 'definition-name))
     (setq symbol (get symbol 'definition-name)))
-  (if (string-match "\\`src/\\(.*\\.\\(c\\|m\\)\\)\\'" library)
+  (if (string-match "\\`src/\\(.*\\.\\(c\\|m\\|rs\\)\\)\\'" library)
       (find-function-C-source symbol (match-string 1 library) type)
     (when (string-match "\\.el\\(c\\)\\'" library)
       (setq library (substring library 0 (match-beginning 1))))
