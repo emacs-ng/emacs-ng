@@ -4901,6 +4901,7 @@ dependencies = [
  "lisp-macros",
  "lisp-util",
  "log",
+ "nix",
  "raw-window-handle",
  "spin_sleep",
  "webrender 0.1.0",

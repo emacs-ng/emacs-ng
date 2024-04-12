@@ -2,7 +2,6 @@ use super::frame::FrameExtWinit;
 use crate::input::InputProcessor;
 use crate::winit_set_background_color;
 use crate::winit_set_cursor_color;
-use emacs_sys::bindings::add_keyboard_wait_descriptor;
 use emacs_sys::bindings::block_input;
 use emacs_sys::bindings::check_int_nonnegative;
 use emacs_sys::bindings::gl_clear_under_internal_border;
@@ -28,8 +27,12 @@ use emacs_sys::bindings::wr_scroll_run;
 use emacs_sys::bindings::wr_update_end;
 use emacs_sys::bindings::wr_update_window_begin;
 use emacs_sys::bindings::wr_update_window_end;
+use emacs_sys::current_winit_data;
 use emacs_sys::globals::Qinternal_border_width;
 use emacs_sys::terminal::TerminalRef;
+use libc::fd_set;
+use libc::sigset_t;
+use libc::timespec;
 use std::ptr;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -231,7 +234,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
     let mut display_info = terminal.display_info();
 
     let mut count = 0;
-    let mut handle_event = |e: Event<i32>| {
+    let mut handle_event = |e: &Event<i32>| {
         match e {
             Event::WindowEvent {
                 window_id, event, ..
@@ -239,7 +242,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                 let frame = all_frames().find(|f| {
                     return f
                         .winit_data()
-                        .and_then(|d| d.window.as_ref().and_then(|w| Some(w.id() == window_id)))
+                        .and_then(|d| d.window.as_ref().and_then(|w| Some(w.id() == *window_id)))
                         .unwrap_or(false);
                 });
 
@@ -253,7 +256,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
 
                 match event {
                     WindowEvent::RedrawRequested => {}
-                    WindowEvent::ModifiersChanged(modifiers) => {
+                    &WindowEvent::ModifiersChanged(modifiers) => {
                         let _ = InputProcessor::handle_modifiers_changed(modifiers.state());
                     }
 
@@ -285,7 +288,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         }
                     },
 
-                    WindowEvent::MouseInput { state, button, .. } => {
+                    &WindowEvent::MouseInput { state, button, .. } => {
                         if let Some(mut iev) =
                             InputProcessor::handle_mouse_pressed(button, state, lframe)
                         {
@@ -294,7 +297,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         }
                     }
 
-                    WindowEvent::MouseWheel { delta, phase, .. } => {
+                    &WindowEvent::MouseWheel { delta, phase, .. } => {
                         if let Some(mut iev) =
                             InputProcessor::handle_mouse_wheel_scrolled(delta, phase, lframe)
                         {
@@ -305,7 +308,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         frame.set_mouse_moved(false);
                     }
 
-                    WindowEvent::CursorMoved { position, .. } => {
+                    &WindowEvent::CursorMoved { position, .. } => {
                         unsafe {
                             note_mouse_highlight(
                                 frame.as_mut(),
@@ -319,7 +322,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         frame.set_mouse_moved(true);
                     }
 
-                    WindowEvent::Focused(is_focused) => {
+                    &WindowEvent::Focused(is_focused) => {
                         let mut top_frame = lframe.as_frame().unwrap();
 
                         let focus_frame = if !top_frame.focus_frame.eq(Qnil) {
@@ -345,7 +348,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         count += 1;
                     }
 
-                    WindowEvent::Resized(size) => {
+                    &WindowEvent::Resized(size) => {
                         let scale_factor = frame.scale_factor();
                         let size = DeviceIntSize::new(
                             (size.width as f64 / scale_factor).round() as i32,
@@ -354,7 +357,7 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
                         frame.handle_size_change(size, scale_factor);
                     }
 
-                    WindowEvent::ScaleFactorChanged {
+                    &WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         inner_size_writer: _,
                     } => {
@@ -378,48 +381,13 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
         }
     };
 
-    let status = terminal.winit_data().and_then(|mut d| {
-        let status = d.event_loop.pump_events(Some(Duration::ZERO), |e, _elwt| {
-            if let Event::WindowEvent { event, .. } = &e {
-                // Print only Window events to reduce noise
-                log::trace!("{event:?}");
-            }
-
-            match e {
-                Event::AboutToWait => {
-                    all_frames().for_each(|f| {
-                        let _ = f
-                            .winit_data()
-                            .map(|d| d.window.as_ref().map(|w| w.request_redraw()));
-                    });
-                    spin_sleep::sleep(Duration::from_millis(8));
-                }
-                Event::WindowEvent {
-                    event, window_id, ..
-                } => match event {
-                    WindowEvent::Resized(_)
-                    | WindowEvent::KeyboardInput { .. }
-                    | WindowEvent::ModifiersChanged(_)
-                    | WindowEvent::MouseInput { .. }
-                    | WindowEvent::CursorMoved { .. }
-                    | WindowEvent::ThemeChanged(_)
-                    | WindowEvent::Focused(_)
-                    | WindowEvent::MouseWheel { .. }
-                    | WindowEvent::RedrawRequested
-                    | WindowEvent::CloseRequested => {
-                        handle_event(Event::WindowEvent { window_id, event });
-                    }
-                    _ => {}
-                },
-                Event::UserEvent(_nfds) => {}
-                _ => {}
-            }
-        });
-        Some(status)
+    let _ = current_winit_data().and_then(|mut d| {
+        for e in &d.pending_events {
+            handle_event(e);
+        }
+        d.pending_events.clear();
+        Some(())
     });
-    if let Some(PumpStatus::Exit(_exit_code)) = status {
-        // break 'main ExitCode::from(exit_code as u8);
-    }
 
     count
 }
@@ -713,11 +681,9 @@ extern "C" fn winit_set_parent_frame(f: *mut Frame, value: LispObject, old_value
         FrameRef::from(f).store_param(Qparent_frame, old_value);
         error!("Invalid specification of `parent-frame'");
     }
-    println!("new child frame {value:?}, old {old_value:?}");
 
     let p = FrameRef::from(value);
     let f = FrameRef::from(f);
-    println!("frame {:?}", LispObject::from(f));
 
     if p != f {
         unsafe { block_input() };
@@ -789,6 +755,94 @@ extern "C" fn winit_delete_terminal(terminal: *mut terminal) {
     terminal.free_winit_data();
 }
 
+fn winit_pump_events() -> Vec<Event<i32>> {
+    current_winit_data().map_or(Vec::new(), |mut d| {
+        let mut pending_events: Vec<Event<i32>> = Vec::new();
+        let mut add_event = |e: Event<i32>| {
+            pending_events.push(e);
+        };
+        let status = d.event_loop.pump_events(Some(Duration::ZERO), |e, _elwt| {
+            if let Event::WindowEvent { event, .. } = &e {
+                // Print only Window events to reduce noise
+                log::trace!("{event:?}");
+            }
+
+            match e {
+                Event::AboutToWait => {
+                    all_frames().for_each(|f| {
+                        let _ = f
+                            .winit_data()
+                            .map(|d| d.window.as_ref().map(|w| w.request_redraw()));
+                    });
+                    spin_sleep::sleep(Duration::from_millis(8));
+                }
+                Event::WindowEvent {
+                    event, window_id, ..
+                } => match event {
+                    WindowEvent::Resized(_)
+                    | WindowEvent::KeyboardInput { .. }
+                    | WindowEvent::ModifiersChanged(_)
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::CursorMoved { .. }
+                    | WindowEvent::ThemeChanged(_)
+                    | WindowEvent::Focused(_)
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::RedrawRequested
+                    | WindowEvent::CloseRequested => {
+                        add_event(Event::WindowEvent { window_id, event });
+                    }
+                    _ => {}
+                },
+                Event::UserEvent(_nfds) => {}
+                _ => {}
+            }
+        });
+        if let Some(PumpStatus::Exit(_exit_code)) = Some(status) {
+            // break 'main ExitCode::from(exit_code as u8);
+        }
+        pending_events
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn winit_select(
+    nfds: i32,
+    readfds: *mut fd_set,
+    writefds: *mut fd_set,
+    _exceptfds: *mut fd_set,
+    timeout: *mut timespec,
+    _sigmask: *mut sigset_t,
+) -> i32 {
+    use nix::sys::signal::Signal;
+    use nix::sys::signal::{self};
+
+    let mut pending_events = winit_pump_events();
+    if pending_events.len() > 0 {
+        let _ = current_winit_data().and_then(|mut d| {
+            d.pending_events.append(&mut pending_events);
+            Some(())
+        });
+
+        // notify emacs's code that a keyboard event arrived.
+        match signal::raise(Signal::SIGIO) {
+            Ok(_) => {}
+            Err(err) => log::error!("sigio err: {err:?}"),
+        };
+    }
+
+    return unsafe {
+        emacs_sys::bindings::thread_select(
+            Some(libc::pselect),
+            nfds,
+            readfds,
+            writefds,
+            _exceptfds,
+            timeout,
+            _sigmask,
+        )
+    };
+}
+
 pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     log::info!("Winit term init");
 
@@ -796,30 +850,12 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
     let mut terminal = winit_create_terminal(dpyinfo_ref);
 
-    fn register_io_fd(fd: std::os::fd::RawFd) {
-        unsafe {
-            add_keyboard_wait_descriptor(fd);
-            libc::fcntl(fd, libc::F_SETOWN, libc::getpid());
-        }
-    }
-
     // baud_rate is the value computed from fileno (tty->input)
     // Hardcode the value for now
     unsafe { emacs_sys::bindings::init_baud_rate(38400) };
     // Fset_input_interrupt_mode (Qnil);
 
-    //TODO add support for macOS/windows for interrupt_input
     let fd = emacs_sys::display_descriptor(terminal.raw_display_handle().unwrap());
-
-    #[cfg(free_unix)]
-    {
-        use std::os::fd::AsRawFd;
-        terminal
-            .winit_data()
-            .map(|d| register_io_fd(d.event_loop.as_raw_fd()));
-    }
-    #[cfg(not(free_unix))]
-    register_io_fd(fd);
 
     unsafe {
         if interrupt_input {

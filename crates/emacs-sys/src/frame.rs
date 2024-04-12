@@ -350,13 +350,13 @@ impl FrameRef {
     }
 
     pub fn set_undecorated_(mut self, undecorated: bool) {
-        if cfg!(window_system) {
+        if cfg!(have_window_system) {
             self.set_undecorated(undecorated);
         }
     }
 
     pub fn set_override_redirect_(mut self, override_redirect: bool) {
-        if cfg!(window_system) {
+        if cfg!(have_window_system) {
             self.set_override_redirect(override_redirect);
         }
     }
@@ -419,9 +419,9 @@ impl FrameRef {
     }
 
     pub fn is_current_window_system(&self) -> bool {
-        if cfg!(winit) {
+        if cfg!(have_winit) {
             return self.output_method() == crate::bindings::output_method::output_winit;
-        } else if cfg!(pgtk) {
+        } else if cfg!(have_pgtk) {
             return self.output_method() == crate::bindings::output_method::output_pgtk;
         }
         false

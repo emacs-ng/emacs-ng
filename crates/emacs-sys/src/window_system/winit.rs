@@ -12,6 +12,7 @@ use webrender_api::ColorF;
 use winit::dpi::PhysicalPosition;
 use winit::dpi::PhysicalSize;
 use winit::dpi::Position;
+use winit::event::Event;
 use winit::event_loop::DeviceEvents;
 use winit::event_loop::EventLoop;
 use winit::event_loop::EventLoopBuilder;
@@ -50,6 +51,13 @@ pub struct WinitTermData {
     pub focus_frame: FrameRef,
     pub clipboard: Clipboard,
     pub event_loop: EventLoop<i32>,
+    pub pending_events: Vec<Event<i32>>,
+}
+
+pub fn current_winit_data() -> Option<WinitTermDataRef> {
+    crate::frame::all_frames()
+        .find(|f| f.is_current_window_system())
+        .and_then(|f| f.terminal().winit_data())
 }
 
 impl Default for WinitTermData {
@@ -65,6 +73,7 @@ impl Default for WinitTermData {
             focus_frame: FrameRef::new(ptr::null_mut()),
             event_loop,
             clipboard,
+            pending_events: Vec::new(),
         }
     }
 }
