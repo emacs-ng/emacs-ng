@@ -20,8 +20,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 package org.gnu.emacs;
 
 import java.lang.IllegalStateException;
+
 import java.util.List;
 import java.util.ArrayList;
+
+import java.util.concurrent.TimeUnit;
 
 import android.app.Activity;
 
@@ -31,6 +34,7 @@ import android.content.Intent;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 
 import android.util.Log;
 
@@ -46,7 +50,7 @@ import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 
 public class EmacsActivity extends Activity
-  implements EmacsWindowAttachmentManager.WindowConsumer,
+  implements EmacsWindowManager.WindowConsumer,
   ViewTreeObserver.OnGlobalLayoutListener
 {
   public static final String TAG = "EmacsActivity";
@@ -78,13 +82,16 @@ public class EmacsActivity extends Activity
   /* The last context menu to be closed.  */
   private static Menu lastClosedMenu;
 
+  /* The time of the most recent call to onStop.  */
+  private static long timeOfLastInteraction;
+
   static
   {
     focusedActivities = new ArrayList<EmacsActivity> ();
   };
 
   public static void
-  invalidateFocus1 (EmacsWindow window)
+  invalidateFocus1 (EmacsWindow window, boolean resetWhenChildless)
   {
     if (window.view.isFocused ())
       focusedWindow = window;
@@ -92,7 +99,18 @@ public class EmacsActivity extends Activity
     synchronized (window.children)
       {
 	for (EmacsWindow child : window.children)
-	  invalidateFocus1 (child);
+	  invalidateFocus1 (child, false);
+
+	/* If no focused window was previously detected among WINDOW's
+	   children and RESETWHENCHILDLESS is set (implying it is a
+	   toplevel window), request that it be focused, to avoid
+	   creating a situation where no windows exist focused or can be
+	   transferred the input focus by user action.  */
+	if (focusedWindow == null && resetWhenChildless)
+	  {
+	    window.view.requestFocus ();
+	    focusedWindow = window;
+	  }
       }
   }
 
@@ -110,7 +128,7 @@ public class EmacsActivity extends Activity
     for (EmacsActivity activity : focusedActivities)
       {
 	if (activity.window != null)
-	  invalidateFocus1 (activity.window);
+	  invalidateFocus1 (activity.window, focusedWindow == null);
       }
 
     /* Send focus in- and out- events to the previous and current
@@ -189,6 +207,18 @@ public class EmacsActivity extends Activity
   public final void
   destroy ()
   {
+    if (window != null)
+      {
+	/* Clear the window's pointer to this activity and remove the
+	   window's view.  */
+	window.setConsumer (null);
+
+	/* The window can't be iconified any longer.  */
+	window.noticeDeiconified ();
+	layout.removeView (window.view);
+	window = null;
+      }
+
     finish ();
   }
 
@@ -200,7 +230,7 @@ public class EmacsActivity extends Activity
   }
 
   @Override
-  public final void
+  public void
   onCreate (Bundle savedInstanceState)
   {
     FrameLayout.LayoutParams params;
@@ -231,7 +261,7 @@ public class EmacsActivity extends Activity
     EmacsService.startEmacsService (this);
 
     /* Add this activity to the list of available activities.  */
-    EmacsWindowAttachmentManager.MANAGER.registerWindowConsumer (this);
+    EmacsWindowManager.MANAGER.registerWindowConsumer (this);
 
     /* Start observing global layout changes between Jelly Bean and Q.
        This is required to restore the fullscreen state whenever the
@@ -262,17 +292,62 @@ public class EmacsActivity extends Activity
 
   @Override
   public final void
+  onStop ()
+  {
+    timeOfLastInteraction = SystemClock.elapsedRealtime ();
+
+    super.onStop ();
+  }
+
+  /* Return whether the task is being finished in response to explicit
+     user action.  That is to say, Activity.isFinished, but as
+     documented.  */
+
+  public final boolean
+  isReallyFinishing ()
+  {
+    long atime, dtime;
+    int hours;
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+      return isFinishing ();
+
+    /* When the number of tasks retained in the recents list exceeds a
+       threshold, Android 7 and later so destroy activities in trimming
+       them from recents on the expiry of a timeout that isFinishing
+       returns true, in direct contradiction to the documentation.  This
+       timeout is generally 6 hours, but admits of customization by
+       individual system distributors, so to err on the side of the
+       caution, the timeout Emacs applies is a more conservative figure
+       of 4 hours.  */
+
+    if (timeOfLastInteraction == 0)
+      return isFinishing ();
+
+    atime = timeOfLastInteraction;
+
+    /* Compare atime with the current system time.  */
+    dtime = SystemClock.elapsedRealtime () - atime;
+    if (dtime + 1000000 < TimeUnit.HOURS.toMillis (4))
+      return isFinishing ();
+
+    return false;
+  }
+
+  @Override
+  public final void
   onDestroy ()
   {
-    EmacsWindowAttachmentManager manager;
-    boolean isMultitask;
+    EmacsWindowManager manager;
+    boolean isMultitask, reallyFinishing;
 
-    manager = EmacsWindowAttachmentManager.MANAGER;
+    manager = EmacsWindowManager.MANAGER;
 
     /* The activity will die shortly hereafter.  If there is a window
        attached, close it now.  */
     isMultitask = this instanceof EmacsMultitaskActivity;
-    manager.removeWindowConsumer (this, isMultitask || isFinishing ());
+    reallyFinishing = isReallyFinishing ();
+    manager.removeWindowConsumer (this, isMultitask || reallyFinishing);
     focusedActivities.remove (this);
     invalidateFocus (2);
 
@@ -320,7 +395,7 @@ public class EmacsActivity extends Activity
   {
     isPaused = true;
 
-    EmacsWindowAttachmentManager.MANAGER.noticeIconified (this);
+    EmacsWindowManager.MANAGER.noticeIconified (this);
     super.onPause ();
   }
 
@@ -329,8 +404,9 @@ public class EmacsActivity extends Activity
   onResume ()
   {
     isPaused = false;
+    timeOfLastInteraction = 0;
 
-    EmacsWindowAttachmentManager.MANAGER.noticeDeiconified (this);
+    EmacsWindowManager.MANAGER.noticeDeiconified (this);
     super.onResume ();
   }
 
@@ -474,6 +550,14 @@ public class EmacsActivity extends Activity
 
     EmacsNative.sendNotificationAction (tag, action);
   }
+
+  @Override
+  public long
+  getAttachmentToken ()
+  {
+    return -1; /* This is overridden by EmacsMultitaskActivity.  */
+  }
+
 
 
   @Override

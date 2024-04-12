@@ -4004,17 +4004,19 @@ erc-cmd-FOO, this returns a string /FOO."
       command-name)))
 
 (defun erc-process-input-line (line &optional force no-command)
-  "Translate LINE to an RFC1459 command and send it based.
-Returns non-nil if the command is actually sent to the server, and nil
-otherwise.
-
-If the command in the LINE is not bound as a function `erc-cmd-<COMMAND>',
-it is passed to `erc-cmd-default'.  If LINE is not a command (i.e. doesn't
-start with /<COMMAND>) then it is sent as a message.
-
-An optional FORCE argument forces sending the line when flood
-protection is in effect.  The optional NO-COMMAND argument prohibits
-this function from interpreting the line as a command."
+  "Dispatch a slash-command or chat-input handler from user-input LINE.
+If simplistic validation fails, print an error and return nil.
+Otherwise, defer to an appropriate handler.  For \"slash\" commands,
+like \"/JOIN\", expect a handler, like `erc-cmd-JOIN', to return non-nil
+if LINE is fit for echoing as a command line when executing scripts.
+For normal chat input, expect a handler to return non-nil if a message
+was successfully processed as an outgoing \"PRIVMSG\".  If LINE is a
+slash command, and ERC can't find a corresponding handler of the form
+`erc-cmd-<COMMAND>', pass LINE to `erc-cmd-default', treating it as a
+catch-all handler.  Otherwise, for normal chat input, pass LINE and the
+boolean argument FORCE to `erc-send-input-line-function'.  With a
+non-nil NO-COMMAND, always treat LINE as normal chat input rather than a
+slash command."
   (let ((command-list (erc-extract-command-from-line line)))
     (if (and command-list
              (not no-command))
@@ -4189,8 +4191,11 @@ If there's no letter spec, the input is interpreted as a number of seconds.
 
 If input is blank, this function returns nil.  Otherwise it
 returns the time spec converted to a number of seconds."
-  (let ((period (string-trim
-                 (read-string prompt nil 'erc--read-time-period-history))))
+  (erc--decode-time-period
+   (string-trim (read-string prompt nil 'erc--read-time-period-history))))
+
+(defun erc--decode-time-period (period)
+  (progn ; unprogn on next major refactor
     (cond
      ;; Blank input.
      ((zerop (length period))
@@ -4221,36 +4226,76 @@ returns the time spec converted to a number of seconds."
           (user-error "%s is not a valid time period" period))
         (decoded-time-period time))))))
 
-(defun erc-cmd-IGNORE (&optional user)
-  "Ignore USER.  This should be a regexp matching nick!user@host.
-If no USER argument is specified, list the contents of `erc-ignore-list'."
+(defun erc--format-time-period (secs)
+  "Return a string with hour/minute/second labels for duration in SECS."
+  (let* ((hours (floor secs 3600))
+         (minutes (floor (mod secs 3600) 60))
+         (seconds (mod secs 60)))
+    (cond ((>= secs 3600) (format "%dh%dm%ds" hours minutes (floor seconds)))
+          ((>= secs 60) (format "%dm%ds" minutes (floor seconds)))
+          (t (format "%ds" (floor seconds))))))
+
+(defun erc--get-ignore-timer-args (inst)
+  ;; The `cl-struct' `pcase' pattern and `cl-struct-slot-value' emit
+  ;; warnings when compiling because `timer' is un-`:named'.
+  (when (and (timerp inst)
+             (eq (aref inst (cl-struct-slot-offset 'timer 'function))
+                 'erc--unignore-user))
+    (aref inst (cl-struct-slot-offset 'timer 'args))))
+
+(defun erc--find-ignore-timer (&rest args)
+  "Find an existing ignore timer."
+  (cl-find args timer-list :key #'erc--get-ignore-timer-args :test #'equal))
+
+(defun erc-cmd-IGNORE (&optional user timespec)
+  "Drop messages from senders, like nick!user@host, matching regexp USER.
+With human-readable TIMESPEC, ignore messages from matched senders for
+the specified duration, like \"20m\".  Without USER, list the contents
+of `erc-ignore-list'."
   (if user
-      (let ((quoted (regexp-quote user)))
+      (let ((quoted (regexp-quote user))
+            (prompt "Add a timeout? (Blank for no, or a time spec like 2h): ")
+            timeout msg)
         (when (and (not (string= user quoted))
                    (y-or-n-p (format "Use regexp-quoted form (%s) instead? "
                                      quoted)))
           (setq user quoted))
-        (let ((timeout
-               (erc--read-time-period
-                "Add a timeout? (Blank for no, or a time spec like 2h): "))
-              (buffer (current-buffer)))
+        (unless timespec
+          (setq timespec
+                (read-string prompt nil 'erc--read-time-period-history)))
+        (setq timeout (erc--decode-time-period (string-trim timespec))
+              msg (if timeout
+                      (format "Now ignoring %s for %s" user
+                              (erc--format-time-period timeout))
+                    (format "Now ignoring %s" user)))
+        (erc-with-server-buffer
           (when timeout
-            (run-at-time timeout nil
-                         (lambda ()
-                           (erc--unignore-user user buffer))))
-          (erc-display-message nil 'notice 'active
-                               (format "Now ignoring %s" user))
-          (erc-with-server-buffer (add-to-list 'erc-ignore-list user))))
+            (if-let ((existing (erc--find-ignore-timer user (current-buffer))))
+                (timer-set-time existing (timer-relative-time nil timeout))
+              (run-at-time timeout nil #'erc--unignore-user user
+                           (current-buffer))))
+          (erc-display-message nil 'notice 'active msg)
+          (cl-pushnew user erc-ignore-list :test #'equal)))
     (if (null (erc-with-server-buffer erc-ignore-list))
         (erc-display-message nil 'notice 'active "Ignore list is empty")
       (erc-display-message nil 'notice 'active "Ignore list:")
-      (mapc (lambda (item)
-              (erc-display-message nil 'notice 'active item))
-            (erc-with-server-buffer erc-ignore-list))))
+      (erc-with-server-buffer
+        (let ((seen (copy-sequence erc-ignore-list)))
+          (dolist (timer timer-list)
+            (when-let ((args (erc--get-ignore-timer-args timer))
+                       ((eq (current-buffer) (nth 1 args)))
+                       (user (car args))
+                       (delta (- (timer-until timer (current-time))))
+                       (duration (erc--format-time-period delta)))
+              (setq seen (delete user seen))
+              (erc-display-message nil 'notice 'active 'ignore-list
+                                   ?p user ?s duration)))
+          (dolist (pattern seen)
+            (erc-display-message nil 'notice 'active pattern))))))
   t)
 
 (defun erc-cmd-UNIGNORE (user)
-  "Remove the user specified in USER from the ignore list."
+  "Remove the first pattern in `erc-ignore-list' matching USER."
   (let ((ignored-nick (car (erc-with-server-buffer
                              (erc-member-ignore-case (regexp-quote user)
                                                      erc-ignore-list)))))
@@ -4262,16 +4307,18 @@ If no USER argument is specified, list the contents of `erc-ignore-list'."
         (erc-display-message nil 'notice 'active
                              (format "%s is not currently ignored!" user))))
     (when ignored-nick
-      (erc--unignore-user user (current-buffer))))
+      (erc--unignore-user ignored-nick (erc-server-buffer))))
   t)
 
 (defun erc--unignore-user (user buffer)
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
+      (cl-assert (erc--server-buffer-p))
       (erc-display-message nil 'notice 'active
                            (format "No longer ignoring %s" user))
-      (erc-with-server-buffer
-        (setq erc-ignore-list (delete user erc-ignore-list))))))
+      (setq erc-ignore-list (delete user erc-ignore-list))
+      (when-let ((existing (erc--find-ignore-timer user buffer)))
+        (cancel-timer existing)))))
 
 (defvar erc--pre-clear-functions nil
   "Abnormal hook run when truncating buffers.
@@ -8512,7 +8559,8 @@ and so on."
                     ((string-match "^%[Ss]$" esc) server)
                     ((string-match "^%[Nn]$" esc) nick)
                     ((string-match "^%\\(.\\)$" esc) (match-string 1 esc))
-                    (t (erc-log (format "BUG in erc-process-script-line: bad escape sequence: %S\n" esc))
+                    (t (erc-log (format "Bad escape sequence in %s: %S\n"
+                                        'erc-process-script-line esc))
                        (message "BUG IN ERC: esc=%S" esc)
                        "")))
         (setq line tail)
@@ -8530,37 +8578,6 @@ and so on."
                (insert-file-contents file)
                (buffer-string))))
     (erc-load-irc-script-lines (erc-split-multiline-safe str) force)))
-
-(defun erc-load-irc-script-lines (lines &optional force noexpand)
-  "Load IRC script LINES (a list of strings).
-
-If optional NOEXPAND is non-nil, do not expand script-specific
-sequences, process the lines verbatim.  Use this for multiline
-user input."
-  (let* ((cb (current-buffer))
-         (s "")
-         (sp (or (and (bound-and-true-p erc-command-indicator-mode)
-                      (fboundp 'erc-command-indicator)
-                      (erc-command-indicator))
-                 (erc-prompt)))
-         (args (and (boundp 'erc-script-args) erc-script-args)))
-    (if (and args (string-match "^ " args))
-        (setq args (substring args 1)))
-    ;; prepare the prompt string for echo
-    (erc-put-text-property 0 (length sp)
-                           'font-lock-face 'erc-command-indicator-face sp)
-    (while lines
-      (setq s (car lines))
-      (erc-log (concat "erc-load-script: CMD: " s))
-      (unless (string-match "^\\s-*$" s)
-        (let ((line (if noexpand s (erc-process-script-line s args))))
-          (if (and (erc-process-input-line line force)
-                   erc-script-echo)
-              (progn
-                (erc-put-text-property 0 (length line)
-                                       'font-lock-face 'erc-input-face line)
-                (erc-display-line (concat sp line) cb)))))
-      (setq lines (cdr lines)))))
 
 ;; authentication
 
@@ -9327,6 +9344,7 @@ SOFTP, only do so when defined as a variable."
     . "\n\n*** Connection failed!  Re-establishing connection...\n")
    (disconnected-noreconnect
     . "\n\n*** Connection failed!  Not re-establishing connection.\n")
+   (ignore-list . "%-8p %s")
    (reconnecting . "Reconnecting in %ms: attempt %i/%n ...")
    (reconnect-canceled . "Canceled %u reconnect timer with %cs to go...")
    (finished . "\n\n*** ERC finished ***\n")

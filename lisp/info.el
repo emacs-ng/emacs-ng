@@ -807,30 +807,28 @@ Select the window used, if it has been made."
 		  (get-buffer-create "*info*")))))
     (with-current-buffer buffer
       (unless (derived-mode-p 'Info-mode)
-	(Info-mode)))
+	(Info-mode))
 
-    (let* ((window
-	    (display-buffer buffer
-			    (if other-window
-				'(nil (inhibit-same-window . t))
-			      '(display-buffer-same-window)))))
-      (with-current-buffer buffer
-	(if file-or-node
-	    ;; If argument already contains parentheses, don't add another set
-	    ;; since the argument will then be parsed improperly.  This also
-	    ;; has the added benefit of allowing node names to be included
-	    ;; following the parenthesized filename.
-	    (Info-goto-node
-	     (if (and (stringp file-or-node) (string-match "(.*)" file-or-node))
-		 file-or-node
-               (concat "(" file-or-node ")")))
-	  (if (and (zerop (buffer-size))
-		   (null Info-history))
-	      ;; If we just created the Info buffer, go to the directory.
-	      (Info-directory))))
+      (if file-or-node
+	  ;; If argument already contains parentheses, don't add another set
+	  ;; since the argument will then be parsed improperly.  This also
+	  ;; has the added benefit of allowing node names to be included
+	  ;; following the parenthesized filename.
+	  (Info-goto-node
+	   (if (and (stringp file-or-node) (string-match "(.*)" file-or-node))
+	       file-or-node
+             (concat "(" file-or-node ")")))
+	(if (and (zerop (buffer-size))
+		 (null Info-history))
+	    ;; If we just created the Info buffer, go to the directory.
+	    (Info-directory))))
 
-      (when window
-	(select-window window)))))
+    (when-let ((window (display-buffer buffer
+			               (if other-window
+				           '(nil (inhibit-same-window . t))
+			                 '(display-buffer-same-window)))))
+      (select-window window))))
+
 
 ;;;###autoload (put 'info 'info-file (purecopy "emacs"))
 ;;;###autoload
@@ -2174,7 +2172,7 @@ If DIRECTION is `backward', search in the reverse direction."
                       (re-search-forward regexp nil t))
               (signal 'user-search-failed (list regexp))))))
 
-      (if (and bound (not found))
+      (if (and (or bound (not Info-current-subfile)) (not found))
           (signal 'user-search-failed (list regexp)))
 
       (unless (or found bound)
@@ -4063,8 +4061,8 @@ ERRORSTRING optional fourth argument, controls action on no match:
 		 (error "No %s around position %d" errorstring pos))))))))
 
 (defun Info-mouse-follow-nearest-node (click)
-  "\\<Info-mode-map>Follow a node reference near point.
-Like \\[Info-menu], \\[Info-follow-reference], \\[Info-next], \\[Info-prev] or \\[Info-up] command, depending on where you click.
+  "Follow a node reference near point.
+\\<Info-mode-map>Like \\[Info-menu], \\[Info-follow-reference], \\[Info-next], \\[Info-prev] or \\[Info-up] command, depending on where you click.
 At end of the node's text, moves to the next node, or up if none."
   (interactive "e" Info-mode)
   (mouse-set-point click)

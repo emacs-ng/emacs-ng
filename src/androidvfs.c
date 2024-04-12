@@ -4997,7 +4997,7 @@ android_saf_tree_name (struct android_vnode *vnode, char *name,
       root.vnode.type = ANDROID_VNODE_SAF_ROOT;
       root.vnode.flags = 0;
 
-      /* Find the authority from the URI.  */
+      /* Derive the authority from the URI.  */
 
       fill = (char *) vp->tree_uri;
 
@@ -5647,7 +5647,7 @@ android_saf_tree_opendir (struct android_vnode *vnode)
   dir->vdir.closedir = android_saf_tree_closedir;
   dir->vdir.dirfd = android_saf_tree_dirfd;
 
-  /* Find the authority from the URI.  */
+  /* Derive the authority from the URI.  */
 
   fill = (char *) vp->tree_uri;
 
@@ -6525,11 +6525,33 @@ NATIVE_NAME (ftruncate) (JNIEnv *env, jobject object, jint fd)
 
 
 /* Root vnode.  This vnode represents the root inode, and is a regular
-   Unix vnode with modifications to `name' that make it return asset
-   vnodes.  */
+   Unix vnode with modifications to `name' so that it returns asset and
+   content vnodes, and to `opendir', so that asset and content vnodes
+   are read from the root directory, whether or not Emacs holds rights
+   to access the underlying filesystem.  */
+
+struct android_root_vdir
+{
+  /* The directory function table.  */
+  struct android_vdir vdir;
+
+  /* The directory stream, or NULL if it could not be opened.  */
+  DIR *directory;
+
+  /* Index of the next directory to return in `special_vnodes'.  */
+  int index;
+};
+
+/* File descriptor for instances of the foregoing structure when the
+   true root is unavailable.  */
+static int root_fd = -1;
+
+/* Number of open instances referencing this file descriptor.  */
+static ptrdiff_t root_fd_references;
 
 static struct android_vnode *android_root_name (struct android_vnode *,
 						char *, size_t);
+static struct android_vdir *android_root_opendir (struct android_vnode *);
 
 /* Vector of VFS operations associated with Unix root filesystem VFS
    nodes.  */
@@ -6548,7 +6570,7 @@ static struct android_vops root_vfs_ops =
     android_unix_mkdir,
     android_unix_chmod,
     android_unix_readlink,
-    android_unix_opendir,
+    android_root_opendir,
   };
 
 /* Array of special named vnodes.  */
@@ -6674,6 +6696,92 @@ android_root_name (struct android_vnode *vnode, char *name,
 
   /* Otherwise, continue searching for a vnode normally.  */
   return android_unix_name (vnode, name, length);
+}
+
+static struct dirent *
+android_root_readdir (struct android_vdir *vdir)
+{
+  struct android_root_vdir *dir;
+  static struct dirent dirent, *p;
+
+  dir = (struct android_root_vdir *) vdir;
+  p   = dir->directory ? readdir (dir->directory) : NULL;
+
+  if (p || dir->index >= ARRAYELTS (special_vnodes))
+    return p;
+
+  dirent.d_ino = 0;
+  dirent.d_off = 0;
+  dirent.d_reclen = sizeof dirent;
+  dirent.d_type = DT_DIR;
+
+  /* No element in special_vnode must overflow dirent.d_name.  */
+  strcpy ((char *) &dirent.d_name,
+	  special_vnodes[dir->index++].name);
+  return &dirent;
+}
+
+static void
+android_root_closedir (struct android_vdir *vdir)
+{
+  struct android_root_vdir *dir;
+
+  dir = (struct android_root_vdir *) vdir;
+
+  if (dir->directory)
+    closedir (dir->directory);
+
+  if (root_fd_references--)
+    ;
+  else
+    {
+      /* Close root_fd, for which no references remain.  */
+      close (root_fd);
+      root_fd = -1;
+    }
+
+  xfree (vdir);
+}
+
+static int
+android_root_dirfd (struct android_vdir *vdir)
+{
+  eassert (root_fd != -1);
+  return root_fd;
+}
+
+static struct android_vdir *
+android_root_opendir (struct android_vnode *vnode)
+{
+  struct android_unix_vnode *vp;
+  struct android_root_vdir *dir;
+  DIR *directory;
+
+  /* Try to opendir the vnode.  */
+  vp = (struct android_unix_vnode *) vnode;
+
+  directory = opendir (vp->name);
+
+  /* Proceed with the remaining code if directory is nil, in which event
+     directory functions will simply forgo listing files inside the real
+     root directory.  */
+
+  dir = xmalloc (sizeof *dir);
+  dir->vdir.readdir = android_root_readdir;
+  dir->vdir.closedir = android_root_closedir;
+  dir->vdir.dirfd = android_root_dirfd;
+  dir->directory = directory;
+  dir->index = 0;
+
+  /* Allocate a temporary file descriptor for this ersatz root.  This is
+     required regardless of the value of DIRECTORY, as android_fstatat
+     and co. will not defer to the VFS layer if a directory file
+     descriptor is not known to be special.  */
+  if (root_fd < 0)
+    root_fd = open ("/dev/null", O_RDONLY | O_CLOEXEC);
+  root_fd_references++;
+
+  return &dir->vdir;
 }
 
 
@@ -7223,6 +7331,14 @@ android_fstatat_1 (int dirfd, const char *filename,
       return 0;
     }
 
+  /* /foo... */
+
+  if (root_fd >= 0 && dirfd == root_fd)
+    {
+      snprintf (buffer, size, "/%s", filename);
+      return 0;
+    }
+
   return 1;
 }
 
@@ -7700,8 +7816,58 @@ android_closedir (struct android_vdir *dirp)
 
 
 
+DEFUN ("android-relinquish-directory-access",
+       Fandroid_relinquish_directory_access,
+       Sandroid_relinquish_directory_access, 1, 1,
+       "DDirectory: ",
+       doc: /* Relinquish access to the provided directory.
+DIRECTORY must be an inferior directory to a subdirectory of
+/content/storage.  Once the command completes, the parent of DIRECTORY
+below that subdirectory from will cease to appear there, but no files
+will be removed.  */)
+  (Lisp_Object file)
+{
+  struct android_vnode *vp;
+  struct android_saf_tree_vnode *saf_tree;
+  jstring string;
+  jmethodID method;
+
+  if (android_get_current_api_level () < 21)
+    error ("Emacs can only access or relinquish application storage on"
+	   " Android 5.0 and later");
+
+  if (!android_init_gui)
+    return Qnil;
+
+  file = ENCODE_FILE (Fexpand_file_name (file, Qnil));
+  vp   = android_name_file (SSDATA (file));
+
+  if (vp->type != ANDROID_VNODE_SAF_TREE)
+    {
+      (*vp->ops->close) (vp);
+      signal_error ("Access to this directory cannot be relinquished",
+		    file);
+    }
+
+  saf_tree = (struct android_saf_tree_vnode *) vp;
+  string   = android_build_jstring (saf_tree->tree_uri);
+  method   = service_class.relinquish_uri_rights;
+  (*android_java_env)->CallNonvirtualVoidMethod (android_java_env,
+						 emacs_service,
+						 service_class.class,
+						 method, string);
+  (*vp->ops->close) (vp);
+  android_exception_check_1 (string);
+  ANDROID_DELETE_LOCAL_REF (string);
+  return Qnil;
+}
+
+
+
 void
 syms_of_androidvfs (void)
 {
   DEFSYM (Qandroid_jni, "android-jni");
+
+  defsubr (&Sandroid_relinquish_directory_access);
 }

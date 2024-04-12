@@ -1740,8 +1740,16 @@ see `dired-use-ls-dired' for more details.")
 	                      (file-expand-wildcards (cdr dir-wildcard))))
 	         (let ((beg (point)))
 	           (insert-directory f switches nil nil)
-	           ;; Re-align fields, if necessary.
-	           (dired-align-file beg (point))))))
+		   ;; `dired-align-file' doesn't fare well with dired
+		   ;; implementations that don't indent entries by one
+		   ;; column, which in all known implementations is
+		   ;; equivalent to not supporting `--dired'.
+		   (save-excursion
+		     (goto-char beg)
+		     (unless (looking-at " ")
+		       (insert " ")))
+		   ;; Re-align fields, if necessary.
+		   (dired-align-file beg (point))))))
 	    (t
              (insert-directory dir switches wildcard (not wildcard))))
       ;; Quote certain characters, unless ls quoted them for us.
@@ -2743,6 +2751,26 @@ Keybindings:
               '(dired-font-lock-keywords t nil nil beginning-of-line))
   (setq-local desktop-save-buffer 'dired-desktop-buffer-misc-data)
   (setq-local grep-read-files-function #'dired-grep-read-files)
+  (setq-local window-point-context-set-function
+              (lambda (w)
+                (with-current-buffer (window-buffer w)
+                  (let ((point (window-point w)))
+                    (save-excursion
+                      (goto-char point)
+                      (if-let ((f (dired-get-filename nil t)))
+                          `((dired-filename . ,f))
+                        `((position . ,(point)))))))))
+  (setq-local window-point-context-use-function
+              (lambda (w context)
+                (with-current-buffer (window-buffer w)
+                  (let ((point (window-point w)))
+                    (save-excursion
+                      (if-let ((f (alist-get 'dired-filename context)))
+                          (dired-goto-file f)
+                        (when-let ((p (alist-get 'position context)))
+                          (goto-char p)))
+                      (setq point (point)))
+                    (set-window-point w point)))))
   (setq dired-switches-alist nil)
   (hack-dir-local-variables-non-file-buffer) ; before sorting
   (dired-sort-other dired-actual-switches t)

@@ -112,6 +112,20 @@ the closest directory separators."
     (cons (or (cadr boundaries) 0)
           (or (cddr boundaries) (length suffix)))))
 
+(defun completion-base-suffix (start end collection predicate)
+  "Return suffix of completion of buffer text between START and END.
+COLLECTION and PREDICATE are, respectively, the completion's
+completion table and predicate, as in `completion-boundaries' (which see).
+Value is a substring of buffer text between point and END.  It is
+the completion suffix that follows the completion boundary."
+  (let ((suffix (buffer-substring (point) end)))
+    (substring
+     suffix
+     (cdr (completion-boundaries (buffer-substring start (point))
+                                 collection
+                                 predicate
+                                 suffix)))))
+
 (defun completion-metadata (string table pred)
   "Return the metadata of elements to complete at the end of STRING.
 This metadata is an alist.  Currently understood keys are:
@@ -2375,34 +2389,38 @@ This adds the face `completions-common-part' to the first
 It returns a list with font-lock properties applied to each element,
 and with BASE-SIZE appended as the last element."
   (when completions
-    (let ((com-str-len (- prefix-len (or base-size 0))))
-      (nconc
-       (mapcar
-        (lambda (elem)
-          (let ((str
-                 ;; Don't modify the string itself, but a copy, since the
-                 ;; string may be read-only or used for other purposes.
-                 ;; Furthermore, since `completions' may come from
-                 ;; display-completion-list, `elem' may be a list.
-                 (if (consp elem)
-                     (car (setq elem (cons (copy-sequence (car elem))
-                                           (cdr elem))))
-                   (setq elem (copy-sequence elem)))))
-            (font-lock-prepend-text-property
-             0
-             ;; If completion-boundaries returns incorrect
-             ;; values, all-completions may return strings
-             ;; that don't contain the prefix.
-             (min com-str-len (length str))
-             'face 'completions-common-part str)
-            (if (> (length str) com-str-len)
-                (font-lock-prepend-text-property com-str-len (1+ com-str-len)
-                                                 'face
-                                                 'completions-first-difference
-                                                 str)))
-          elem)
-        completions)
-       base-size))))
+    (let* ((com-str-len (- prefix-len (or base-size 0)))
+           (hilit-fn
+            (lambda (str)
+              (font-lock-prepend-text-property
+               0
+               ;; If completion-boundaries returns incorrect values,
+               ;; all-completions may return strings that don't contain
+               ;; the prefix.
+               (min com-str-len (length str))
+               'face 'completions-common-part str)
+              (when (> (length str) com-str-len)
+                (font-lock-prepend-text-property
+                 com-str-len (1+ com-str-len)
+                 'face 'completions-first-difference str))
+              str)))
+      (if completion-lazy-hilit
+          (setq completion-lazy-hilit-fn hilit-fn)
+        (setq completions
+              (mapcar
+               (lambda (elem)
+                 ;; Don't modify the string itself, but a copy, since
+                 ;; the string may be read-only or used for other
+                 ;; purposes.  Furthermore, since `completions' may come
+                 ;; from display-completion-list, `elem' may be a list.
+                 (funcall hilit-fn
+                          (if (consp elem)
+                              (car (setq elem (cons (copy-sequence (car elem))
+                                                    (cdr elem))))
+                            (setq elem (copy-sequence elem))))
+                 elem)
+               completions)))
+      (nconc completions base-size))))
 
 (defun display-completion-list (completions &optional common-substring group-fun)
   "Display the list of completions, COMPLETIONS, using `standard-output'.
@@ -2582,16 +2600,10 @@ The candidate will still be chosen by `choose-completion' unless
              (minibuffer-completion-base (substring string 0 base-size))
              (base-prefix (buffer-substring (minibuffer--completion-prompt-end)
                                             (+ start base-size)))
-             (base-suffix
-              (if (or (eq (alist-get 'category (cdr md)) 'file)
-                      completion-in-region-mode-predicate)
-                  (buffer-substring
-                   (save-excursion
-                     (if completion-in-region-mode-predicate
-                         (point)
-                       (or (search-forward "/" nil t) (point-max))))
-                   (point-max))
-                ""))
+             (base-suffix (concat (completion-base-suffix start end
+                                                          minibuffer-completion-table
+                                                          minibuffer-completion-predicate)
+                                  (buffer-substring end (point-max))))
              (all-md (completion--metadata (buffer-substring-no-properties
                                             start (point))
                                            base-size md
@@ -2693,7 +2705,11 @@ The candidate will still be chosen by `choose-completion' unless
                                        (delete-minibuffer-contents)
                                        (insert start choice)
                                        ;; Keep point after completion before suffix
-                                       (save-excursion (insert end)))
+                                       (save-excursion (insert
+                                                        (completion--merge-suffix
+                                                         choice
+                                                         (1- (length choice))
+                                                         end))))
                                    (unless (or (zerop (length prefix))
                                                (equal prefix
                                                       (buffer-substring-no-properties
@@ -3180,7 +3196,7 @@ and `RET' accepts the input typed into the minibuffer."
                    t))
         cmd))))
 
-(defun minibuffer-visible-completions-bind (binding)
+(defun minibuffer-visible-completions--bind (binding)
   "Use BINDING when completions are visible.
 Return an item that is enabled only when a window
 displaying the *Completions* buffer exists."
@@ -3190,12 +3206,12 @@ displaying the *Completions* buffer exists."
 
 (defvar-keymap minibuffer-visible-completions-map
   :doc "Local keymap for minibuffer input with visible completions."
-  "<left>"  (minibuffer-visible-completions-bind #'minibuffer-previous-completion)
-  "<right>" (minibuffer-visible-completions-bind #'minibuffer-next-completion)
-  "<up>"    (minibuffer-visible-completions-bind #'minibuffer-previous-line-completion)
-  "<down>"  (minibuffer-visible-completions-bind #'minibuffer-next-line-completion)
-  "RET"     (minibuffer-visible-completions-bind #'minibuffer-choose-completion-or-exit)
-  "C-g"     (minibuffer-visible-completions-bind #'minibuffer-hide-completions))
+  "<left>"  (minibuffer-visible-completions--bind #'minibuffer-previous-completion)
+  "<right>" (minibuffer-visible-completions--bind #'minibuffer-next-completion)
+  "<up>"    (minibuffer-visible-completions--bind #'minibuffer-previous-line-completion)
+  "<down>"  (minibuffer-visible-completions--bind #'minibuffer-next-line-completion)
+  "RET"     (minibuffer-visible-completions--bind #'minibuffer-choose-completion-or-exit)
+  "C-g"     (minibuffer-visible-completions--bind #'minibuffer-hide-completions))
 
 ;;; Completion tables.
 

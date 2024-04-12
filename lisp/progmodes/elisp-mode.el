@@ -2151,8 +2151,13 @@ Calls REPORT-FN directly."
                                  (point-max)))
                   collect (flymake-make-diagnostic
                            (current-buffer)
-                           (if (= beg end) (1- beg) beg)
-                           end
+                           (if (= beg end)
+                               (max (1- beg) (point-min))
+                             beg)
+                           (if (= beg end)
+                               (min (max beg (1+ (point-min)))
+                                    (point-max))
+                             end)
                            level
                            string)))))))
 
@@ -2169,6 +2174,8 @@ directory of the buffer being compiled, and nothing else.")
                                   (dolist (path x t) (unless (stringp path)
                                                        (throw 'tag nil)))))))
 
+(defvar bytecomp--inhibit-lexical-cookie-warning)
+
 ;;;###autoload
 (defun elisp-flymake-byte-compile (report-fn &rest _args)
   "A Flymake backend for elisp byte compilation.
@@ -2184,7 +2191,13 @@ current buffer state and calls REPORT-FN when done."
     (save-restriction
       (widen)
       (write-region (point-min) (point-max) temp-file nil 'nomessage))
-    (let* ((output-buffer (generate-new-buffer " *elisp-flymake-byte-compile*")))
+    (let* ((output-buffer (generate-new-buffer " *elisp-flymake-byte-compile*"))
+           ;; Hack: suppress warning about missing lexical cookie in
+           ;; *scratch* buffers.
+           (warning-suppression-opt
+            (and (derived-mode-p 'lisp-interaction-mode)
+                 '("--eval"
+                   "(setq bytecomp--inhibit-lexical-cookie-warning t)"))))
       (setq
        elisp-flymake--byte-compile-process
        (make-process
@@ -2196,6 +2209,7 @@ current buffer state and calls REPORT-FN when done."
                    ;; "--eval" "(setq load-prefer-newer t)" ; for testing
                    ,@(mapcan (lambda (path) (list "-L" path))
                              elisp-flymake-byte-compile-load-path)
+                   ,@warning-suppression-opt
                    "-f" "elisp-flymake--batch-compile-for-flymake"
                    ,temp-file)
         :connection-type 'pipe

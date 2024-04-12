@@ -19,6 +19,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 package org.gnu.emacs;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -45,9 +46,11 @@ import android.view.KeyEvent;
 import android.view.inputmethod.CursorAnchorInfo;
 import android.view.inputmethod.ExtractedText;
 
+import android.app.AlarmManager;
 import android.app.Notification;
-import android.app.NotificationManager;
 import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 
 import android.content.ClipboardManager;
@@ -111,9 +114,10 @@ public final class EmacsService extends Service
   private ContentResolver resolver;
 
   /* Keep this in synch with androidgui.h.  */
-  public static final int IC_MODE_NULL   = 0;
-  public static final int IC_MODE_ACTION = 1;
-  public static final int IC_MODE_TEXT   = 2;
+  public static final int IC_MODE_NULL     = 0;
+  public static final int IC_MODE_ACTION   = 1;
+  public static final int IC_MODE_TEXT     = 2;
+  public static final int IC_MODE_PASSWORD = 3;
 
   /* Display metrics used by font backends.  */
   public DisplayMetrics metrics;
@@ -178,11 +182,11 @@ public final class EmacsService extends Service
 	manager = (NotificationManager) tem;
 	infoBlurb = ("This notification is displayed to keep Emacs"
 		     + " running while it is in the background.  You"
-		     + " may disable it if you want;"
+		     + " may disable it if you wish;"
 		     + " see (emacs)Android Environment.");
 	channel
 	  = new NotificationChannel ("emacs", "Emacs Background Service",
-				     NotificationManager.IMPORTANCE_DEFAULT);
+				     NotificationManager.IMPORTANCE_LOW);
 	manager.createNotificationChannel (channel);
 	notification = (new Notification.Builder (this, "emacs")
 			.setContentTitle ("Emacs")
@@ -383,6 +387,23 @@ public final class EmacsService extends Service
     EmacsService.<Void>syncRunnable (task);
   }
 
+  public void
+  getLocationInWindow (final EmacsView view, final int[] coordinates)
+  {
+    FutureTask<Void> task;
+
+    task = new FutureTask<Void> (new Callable<Void> () {
+	public Void
+	call ()
+	{
+	  view.getLocationInWindow (coordinates);
+	  return null;
+	}
+      });
+
+    EmacsService.<Void>syncRunnable (task);
+  }
+
 
 
   public static void
@@ -490,7 +511,7 @@ public final class EmacsService extends Service
 
     if (window == null)
       /* Just return all the windows without a parent.  */
-      windowList = EmacsWindowAttachmentManager.MANAGER.copyWindows ();
+      windowList = EmacsWindowManager.MANAGER.copyWindows ();
     else
       windowList = window.children;
 
@@ -723,11 +744,29 @@ public final class EmacsService extends Service
   restartEmacs ()
   {
     Intent intent;
+    PendingIntent pending;
+    AlarmManager manager;
 
     intent = new Intent (this, EmacsActivity.class);
     intent.addFlags (Intent.FLAG_ACTIVITY_NEW_TASK
 		     | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-    startActivity (intent);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+      startActivity (intent);
+    else
+      {
+	/* Experimentation has established that Android 4.3 and earlier
+	   versions do not attempt to recreate a process when it crashes
+	   immediately after requesting that an intent for itself be
+	   started.  Schedule an intent to start some time after Emacs
+	   exits instead.  */
+
+	pending = PendingIntent.getActivity (this, 0, intent, 0);
+	manager = (AlarmManager) getSystemService (Context.ALARM_SERVICE);
+	manager.set (AlarmManager.RTC, System.currentTimeMillis () + 100,
+		     pending);
+      }
+
     System.exit (0);
   }
 
@@ -1041,17 +1080,46 @@ public final class EmacsService extends Service
   getDisplayNameHash (String string)
   {
     byte[] encoded;
+    ByteArrayOutputStream stream;
+    int i, ch;
 
-    try
+    /* Much of the VFS code expects file names to be encoded as modified
+       UTF-8 data, but Android's JNI implementation produces (while not
+       accepting!) regular UTF-8 sequences for all characters, even
+       non-Emoji ones.  With no documentation to this effect, save for
+       two comments nestled in the source code of the Java virtual
+       machine, it is not sound to assume that this behavior will not be
+       revised in future or modified releases of Android, and as such,
+       encode STRING into modified UTF-8 by hand, to protect against
+       future changes in this respect.  */
+
+    stream = new ByteArrayOutputStream ();
+
+    for (i = 0; i < string.length (); ++i)
       {
-	encoded = string.getBytes ("UTF-8");
-	return EmacsNative.displayNameHash (encoded);
+	ch = string.charAt (i);
+
+	if (ch != 0 && ch <= 127)
+	  stream.write (ch);
+	else if (ch <= 2047)
+	  {
+	    stream.write (0xc0 | (0x1f & (ch >> 6)));
+	    stream.write (0x80 | (0x3f & ch));
+	  }
+	else
+	  {
+	    stream.write (0xe0 | (0x0f & (ch >> 12)));
+	    stream.write (0x80 | (0x3f & (ch >> 6)));
+	    stream.write (0x80 | (0x3f & ch));
+	  }
       }
-    catch (UnsupportedEncodingException exception)
-      {
-	/* This should be impossible.  */
-	return "error";
-      }
+
+    encoded = stream.toByteArray ();
+
+    /* Closing a ByteArrayOutputStream has no effect.
+       encoded.close ();  */
+
+    return EmacsNative.displayNameHash (encoded);
   }
 
   /* Build a content file name for URI.
@@ -1920,6 +1988,21 @@ public final class EmacsService extends Service
       }
 
     return false;
+  }
+
+  /* Relinquish authorization for read and write access to the provided
+     URI, which is generally a reference to a directory tree.  */
+
+  public void
+  relinquishUriRights (String uri)
+  {
+    Uri uri1;
+    int flags;
+
+    uri1 = Uri.parse (uri);
+    flags = (Intent.FLAG_GRANT_READ_URI_PERMISSION
+	     | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+    resolver.releasePersistableUriPermission (uri1, flags);
   }
 
 

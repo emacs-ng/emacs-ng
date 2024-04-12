@@ -98,6 +98,12 @@ JAVA_FILES := $(filter-out $(RESOURCE_FILE),$(JAVA_FILES))
 ANDROID_MIN_SDK := @ANDROID_MIN_SDK@
 APK_NAME := emacs-$(version)-$(ANDROID_MIN_SDK)-$(ANDROID_ABI).apk
 
+# Whether or not the bundle is to be debuggable.
+ANDROID_DEBUGGABLE := @ANDROID_DEBUGGABLE@
+
+# Whether or not $(D8) is in fact the name of the `r8' optimizer binary.
+IS_D8_R8 := @IS_D8_R8@
+
 # How this stuff works.
 
 # emacs.apk depends on emacs.apk-in, which is simply a ZIP archive
@@ -256,25 +262,25 @@ install_temp/assets/build_info: install_temp
 
 emacs.apk-in: install_temp install_temp/assets/directory-tree  \
   AndroidManifest.xml install_temp/assets/version	       \
-  install_temp/assets/build_info
-# Package everything.  Specifying the assets on this command line is
-# necessary for AAssetManager_getNextFileName to work on old versions
-# of Android.  Make sure not to generate R.java, as it's already been
-# generated.
+  install_temp/assets/build_info classes.dex
+# Package everything.  Redirect the generated R.java to install_temp, as
+# it must already have been generated as a prerequisite of
+# classes.dex's.
 	$(AM_V_AAPT) $(AAPT) p -I "$(ANDROID_JAR)" -F $@   \
 	  -f -M AndroidManifest.xml $(AAPT_ASSET_ARGS)	   \
 	  -A install_temp/assets			   \
 	  -S $(top_srcdir)/java/res -J install_temp
+	$(AM_V_SILENT) $(AAPT) a $@ classes.dex
 	$(AM_V_SILENT) pushd install_temp &> /dev/null;	\
 	  $(AAPT) add ../$@ `find lib -type f`;		\
 	popd &> /dev/null
 	$(AM_V_SILENT) rm -rf install_temp
 
 # Makefile itself.
-.PRECIOUS: $(top_srcdir)/config.status Makefile
-$(top_srcdir)/config.status: $(top_srcdir)/configure.ac $(top_srcdir)/m4/*.m4
+.PRECIOUS: $(top_builddir)/config.status Makefile
+$(top_builddir)/config.status: $(top_srcdir)/configure.ac $(top_srcdir)/m4/*.m4
 	$(MAKE) -C $(dir $@) $(notdir $@)
-Makefile: $(top_srcdir)/config.status $(top_srcdir)/java/Makefile.in
+Makefile: $(top_builddir)/config.status $(top_srcdir)/java/Makefile.in
 	$(MAKE) -C .. java/$@
 
 # AndroidManifest.xml:
@@ -299,10 +305,14 @@ $(CLASS_FILES) &: $(JAVA_FILES)
 # N.B. that find must be called all over again in case javac generated
 # nested classes.
 
-classes.dex: $(CLASS_FILES)
+classes.dex: $(CLASS_FILES) $(if $(IS_D8_R8), $(srcdir)/proguard.conf)
 	$(AM_V_D8) $(D8) --classpath $(ANDROID_JAR)		\
 	  $(subst $$,\$$,$(shell find $(srcdir) -type f		\
-	    -name *.class)) --output $(builddir)
+	    -name *.class)) --output $(builddir)		\
+	  --min-api $(ANDROID_MIN_SDK)				\
+	  $(if $(filter false,$(ANDROID_DEBUGGABLE)),--release, \
+                --debug) \
+	  $(if $(IS_D8_R8),--pg-conf $(srcdir)/proguard.conf)
 
 # When emacs.keystore expires, regenerate it with:
 #
@@ -311,10 +321,9 @@ classes.dex: $(CLASS_FILES)
 
 .PHONY: clean maintainer-clean
 
-$(APK_NAME): classes.dex emacs.apk-in $(srcdir)/emacs.keystore
+$(APK_NAME): emacs.apk-in $(srcdir)/emacs.keystore
 	$(AM_V_GEN)
 	$(AM_V_SILENT) cp -f emacs.apk-in $@.unaligned
-	$(AM_V_SILENT) $(AAPT) add $@.unaligned classes.dex
 	$(AM_V_SILENT) $(JARSIGNER) $(SIGN_EMACS) $@.unaligned "Emacs keystore"
 	$(AM_V_SILENT) $(ZIPALIGN) -f 4 $@.unaligned $@
 # Signing must happen after alignment!

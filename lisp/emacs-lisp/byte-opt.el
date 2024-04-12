@@ -482,9 +482,6 @@ There can be multiple entries for the same NAME if it has several aliases.")
          (push name byte-optimize--dynamic-vars)
          `(,fn ,name . ,optimized-rest)))
 
-      (`(,(pred byte-code-function-p) . ,exps)
-       (cons fn (mapcar #'byte-optimize-form exps)))
-
       ((guard (when for-effect
 		(if-let ((tmp (byte-opt--fget fn 'side-effect-free)))
 		    (or byte-compile-delete-errors
@@ -1775,7 +1772,7 @@ See Info node `(elisp) Integer Basics'."
          string-version-lessp
          substring substring-no-properties
          sxhash-eq sxhash-eql sxhash-equal sxhash-equal-including-properties
-         take vconcat
+         take value< vconcat
          ;; frame.c
          frame-ancestor-p frame-bottom-divider-width frame-char-height
          frame-char-width frame-child-frame-border-width frame-focus
@@ -1976,7 +1973,7 @@ See Info node `(elisp) Integer Basics'."
          hash-table-p identity length length< length=
          length> member memq memql nth nthcdr proper-list-p rassoc rassq
          safe-length string-bytes string-distance string-equal string-lessp
-         string-search string-version-lessp take
+         string-search string-version-lessp take value<
          ;; search.c
          regexp-quote
          ;; syntax.c

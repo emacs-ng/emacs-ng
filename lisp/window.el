@@ -7856,6 +7856,10 @@ Action alist entries are:
     window that was selected before calling this function will remain
     selected regardless of which windows were selected afterwards within
     this command.
+ `category' -- If the caller of `display-buffer' passes an alist entry
+   `(category . symbol)' in its action argument, then you can match
+   the displayed buffer by using the same category in the condition
+   part of `display-buffer-alist' entries.
 
 The entries `window-height', `window-width', `window-size' and
 `preserve-size' are applied only when the window used for
@@ -8919,7 +8923,8 @@ currently selected window; otherwise it will be displayed in
 another window."
   (pop-to-buffer buffer display-buffer--same-window-action norecord))
 
-(defcustom display-comint-buffer-action display-buffer--same-window-action
+(defcustom display-comint-buffer-action
+  (append display-buffer--same-window-action '((category . comint)))
   "`display-buffer' action for displaying comint buffers."
   :type display-buffer--action-custom-type
   :risky t
@@ -8927,14 +8932,25 @@ another window."
   :group 'windows
   :group 'comint)
 
+(make-obsolete-variable
+ 'display-comint-buffer-action
+ "use a `(category . comint)' condition in `display-buffer-alist'."
+ "30.1")
+
 (defcustom display-tex-shell-buffer-action '(display-buffer-in-previous-window
-                                             (inhibit-same-window . t))
+                                             (inhibit-same-window . t)
+                                             (category . tex-shell))
   "`display-buffer' action for displaying TeX shell buffers."
   :type display-buffer--action-custom-type
   :risky t
   :version "29.1"
   :group 'windows
   :group 'tex-run)
+
+(make-obsolete-variable
+ 'display-tex-shell-buffer-action
+ "use a `(category . tex-shell)' condition in `display-buffer-alist'."
+ "30.1")
 
 (defun read-buffer-to-switch (prompt)
   "Read the name of a buffer to switch to, prompting with PROMPT.
@@ -10834,6 +10850,79 @@ displaying that processes's buffer."
                 (set-process-window-size process (cdr size) (car size))))))))))
 
 (add-hook 'window-configuration-change-hook 'window--adjust-process-windows)
+
+
+;;; Window point context
+
+(defun window-point-context-set ()
+  "Set context near the window point.
+Call function specified by `window-point-context-set-function' for every
+live window on the selected frame with that window as sole argument.
+The function called is supposed to return a context of the window's point
+that can be later used as argument for `window-point-context-use-function'.
+Remember the returned context in the window parameter `context'."
+  (walk-windows
+   (lambda (w)
+     (when-let ((fn (buffer-local-value 'window-point-context-set-function
+                                        (window-buffer w)))
+                ((functionp fn))
+                (context (funcall fn w)))
+       (set-window-parameter
+        w 'context (cons (buffer-name (window-buffer w)) context))))
+   'nomini))
+
+(defun window-point-context-use ()
+  "Use context to relocate the window point.
+Call function specified by `window-point-context-use-function' to move the
+window point according to the previously saved context.  For every live
+window on the selected frame this function is called with two arguments:
+the window and the context data structure saved by
+`window-point-context-set-function' in the window parameter `context'.
+The function called is supposed to set the window point to the location
+found by the provided context."
+  (walk-windows
+   (lambda (w)
+     (when-let ((fn (buffer-local-value 'window-point-context-use-function
+                                        (window-buffer w)))
+                ((functionp fn))
+                (context (window-parameter w 'context))
+                ((equal (buffer-name (window-buffer w)) (car context))))
+       (funcall fn w (cdr context))
+       (set-window-parameter w 'context nil)))
+   'nomini))
+
+(add-to-list 'window-persistent-parameters '(context . writable))
+
+(defun window-point-context-set-default-function (w)
+  "Set context of file buffers to the front and rear strings."
+  (with-current-buffer (window-buffer w)
+    (when buffer-file-name
+      (let ((point (window-point w)))
+        `((front-context-string
+           . ,(buffer-substring-no-properties
+               point (min (+ point 16) (point-max))))
+          (rear-context-string
+           . ,(buffer-substring-no-properties
+               point (max (- point 16) (point-min)))))))))
+
+(defun window-point-context-use-default-function (w context)
+  "Restore context of file buffers by the front and rear strings."
+  (with-current-buffer (window-buffer w)
+    (let ((point (window-point w)))
+      (save-excursion
+        (goto-char point)
+        (when-let ((f (alist-get 'front-context-string context))
+                   ((search-forward f (point-max) t)))
+          (goto-char (match-beginning 0))
+          (when-let ((r (alist-get 'rear-context-string context))
+                     ((search-backward r (point-min) t)))
+            (goto-char (match-end 0))
+            (setq point (point)))))
+      (set-window-point w point))))
+
+(defvar window-point-context-set-function 'window-point-context-set-default-function)
+(defvar window-point-context-use-function 'window-point-context-use-default-function)
+
 
 ;; Some of these are in tutorial--default-keys, so update that if you
 ;; change these.

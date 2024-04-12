@@ -224,8 +224,8 @@
   (index-table nil :type hash-table)
   (tag nil :type symbol) ;Placed in cl-tag-slot.  Holds the struct-class object.
   (type nil :type (memq (vector list)))
-  (named nil :type bool)
-  (print nil :type bool)
+  (named nil :type boolean)
+  (print nil :type boolean)
   (children-sym nil :type symbol) ;This sym's value holds the tags of children.
   )
 
@@ -260,7 +260,7 @@
 (cl-defstruct (cl--class
                (:constructor nil)
                (:copier nil))
-  "Type of descriptors for any kind of structure-like data."
+  "Abstract supertype of all type descriptors."
   ;; Intended to be shared between defstruct and defclass.
   (name nil :type symbol)               ;The type name.
   (docstring nil :type string)
@@ -303,9 +303,12 @@
 
 (cl-defstruct (built-in-class
                (:include cl--class)
+               (:noinline t)
                (:constructor nil)
                (:constructor built-in-class--make (name docstring parents))
                (:copier nil))
+  "Type descriptors for built-in types.
+The `slots' (and hence `index-table') are currently unused."
   )
 
 (defmacro cl--define-built-in-type (name parents &optional docstring &rest slots)
@@ -347,6 +350,14 @@
 ;;   so the DAG of OClosure types is "orthogonal" to the distinction
 ;;   between interpreted and compiled functions.
 
+(defun cl-functionp (object)
+  "Return non-nil if OBJECT is a member of type `function'.
+This is like `functionp' except that it returns nil for all lists and symbols,
+regardless if `funcall' would accept to call them."
+  (memq (cl-type-of object)
+        '(primitive-function subr-native-elisp module-function
+          interpreted-function byte-code-function)))
+
 (cl--define-built-in-type t nil "Abstract supertype of everything.")
 (cl--define-built-in-type atom t "Abstract supertype of anything but cons cells."
                           :predicate atom)
@@ -354,8 +365,10 @@
 (cl--define-built-in-type tree-sitter-compiled-query atom)
 (cl--define-built-in-type tree-sitter-node atom)
 (cl--define-built-in-type tree-sitter-parser atom)
-(cl--define-built-in-type user-ptr atom
-  nil :predicate user-ptrp) ;; FIXME: Shouldn't it be called `user-ptr-p'?
+(when (fboundp 'user-ptrp)
+  (cl--define-built-in-type user-ptr atom nil
+                            ;; FIXME: Shouldn't it be called `user-ptr-p'?
+                            :predicate user-ptrp))
 (cl--define-built-in-type font-object atom)
 (cl--define-built-in-type font-entity atom)
 (cl--define-built-in-type font-spec atom)
@@ -404,8 +417,6 @@
 The size depends on the Emacs version and compilation options.
 For this build of Emacs it's %dbit."
           (1+ (logb (1+ most-positive-fixnum)))))
-(cl--define-built-in-type keyword (symbol)
-  "Type of those symbols whose first char is `:'.")
 (cl--define-built-in-type boolean (symbol)
   "Type of the canonical boolean values, i.e. either nil or t.")
 (cl--define-built-in-type symbol-with-pos (symbol)
@@ -425,7 +436,12 @@ For this build of Emacs it's %dbit."
   ;; Example of slots we could document.
   (car car) (cdr cdr))
 (cl--define-built-in-type function (atom)
-  "Abstract supertype of function values.")
+  "Abstract supertype of function values."
+  ;; FIXME: Historically, (cl-typep FOO 'function) called `functionp',
+  ;; so while `cl-functionp' would be the more correct predicate, it
+  ;; would breaks existing code :-(
+  ;; :predicate cl-functionp
+  )
 (cl--define-built-in-type compiled-function (function)
   "Abstract type of functions that have been compiled.")
 (cl--define-built-in-type byte-code-function (compiled-function)

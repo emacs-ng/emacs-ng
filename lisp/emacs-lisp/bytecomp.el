@@ -2149,6 +2149,8 @@ If compilation is needed, this functions returns the result of
                 (cons tempfile target-file))
         (rename-file tempfile target-file t)))))
 
+(defvar bytecomp--inhibit-lexical-cookie-warning nil)
+
 ;;;###autoload
 (defun byte-compile-file (filename &optional load)
   "Compile a file of Lisp code named FILENAME into a file of byte code.
@@ -2234,7 +2236,8 @@ See also `emacs-lisp-byte-compile-and-load'."
         (setq buffer-read-only nil
               filename buffer-file-name))
       ;; Don't inherit lexical-binding from caller (bug#12938).
-      (unless (local-variable-p 'lexical-binding)
+      (unless (or (local-variable-p 'lexical-binding)
+                  bytecomp--inhibit-lexical-cookie-warning)
         (let ((byte-compile-current-buffer (current-buffer)))
           (displaying-byte-compile-warnings
            (byte-compile-warn-x
@@ -3402,8 +3405,8 @@ lambda-expression."
 				       (t "."))))
           (let ((mutargs (function-get (car form) 'mutates-arguments)))
             (when mutargs
-              (dolist (idx (if (eq mutargs 'all-but-last)
-                               (number-sequence 1 (- (length form) 2))
+              (dolist (idx (if (symbolp mutargs)
+                               (funcall mutargs form)
                              mutargs))
                 (let ((arg (nth idx form)))
                   (when (and (or (and (eq (car-safe arg) 'quote)
@@ -3445,6 +3448,7 @@ lambda-expression."
                ((and (or sef (function-get (car form) 'important-return-value))
                      ;; Don't warn for arguments to `ignore'.
                      (not (eq byte-compile--for-effect 'for-effect-no-warn))
+                     (bytecomp--actually-important-return-value-p form)
                      (byte-compile-warning-enabled-p
                       'ignored-return-value (car form)))
                 (byte-compile-warn-x
@@ -3471,6 +3475,17 @@ lambda-expression."
       (if byte-compile--for-effect
           (byte-compile-discard)))))
 
+(defun bytecomp--sort-call-in-place-p (form)
+  (or (= (length form) 3)                  ; old-style
+      (plist-get (cddr form) :in-place)))  ; new-style
+
+(defun bytecomp--actually-important-return-value-p (form)
+  "Whether FORM is really a call with a return value that should not go unused.
+This assumes the function has the `important-return-value' property."
+  (cond ((eq (car form) 'sort)
+         (not (bytecomp--sort-call-in-place-p form)))
+        (t t)))
+
 (let ((important-return-value-fns
        '(
          ;; These functions are side-effect-free except for the
@@ -3478,9 +3493,11 @@ lambda-expression."
          mapcar mapcan mapconcat
          assoc plist-get plist-member
 
-         ;; It's safe to ignore the value of `sort' and `nreverse'
+         ;; It's safe to ignore the value of `nreverse'
          ;; when used on arrays, but most calls pass lists.
-         nreverse sort
+         nreverse
+
+         sort      ; special handling (non-destructive calls only)
 
          match-data
 
@@ -3492,18 +3509,27 @@ lambda-expression."
   (dolist (fn important-return-value-fns)
     (put fn 'important-return-value t)))
 
+(defun bytecomp--mutargs-nconc (form)
+  ;; For `nconc', all arguments but the last are mutated.
+  (number-sequence 1 (- (length form) 2)))
+
+(defun bytecomp--mutargs-sort (form)
+  ;; For `sort', the first argument is mutated if the call is in-place.
+  (and (bytecomp--sort-call-in-place-p form) '(1)))
+
 (let ((mutating-fns
        ;; FIXME: Should there be a function declaration for this?
        ;;
        ;; (FUNC . ARGS) means that FUNC mutates arguments whose indices are
-       ;; in the list ARGS, starting at 1, or all but the last argument if
-       ;; ARGS is `all-but-last'.
+       ;; in the list ARGS, starting at 1.  ARGS can also be a function
+       ;; taking the function call form as argument and returning the
+       ;; list of indices.
        '(
          (setcar 1) (setcdr 1) (aset 1)
          (nreverse 1)
-         (nconc . all-but-last)
+         (nconc . bytecomp--mutargs-nconc)
          (nbutlast 1) (ntake 2)
-         (sort 1)
+         (sort  . bytecomp--mutargs-sort)
          (delq 2) (delete 2)
          (delete-dups 1) (delete-consecutive-dups 1)
          (plist-put 1)

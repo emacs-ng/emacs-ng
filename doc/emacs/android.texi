@@ -299,8 +299,8 @@ on some proprietary versions of Android.
 @cindex /content/storage directory, Android
 
   Android 5.0 introduces a new sort of program, the ``document
-provider'': these programs are small programs that provide access to
-their own files outside both the asset manager and the Unix
+provider'': these programs are small services that provide access to
+their own files independently of the asset manager and the Unix
 filesystem.  Emacs supports accessing files and directories they
 provide, placing their files within the directory
 @file{/content/storage}.
@@ -311,12 +311,15 @@ first request the right to access it.  This is done by running the
 command (@pxref{M-x}) @code{android-request-directory-access}, which
 displays a file selection dialog.
 
-  If a directory is selected within this dialog, its contents are
+  If a directory is selected from this dialog, its contents are
 subsequently made available within a new directory named
-@file{/content/storage/@var{authority}/@var{id}}, where
-@var{authority} is the name of the document provider, and @var{id} is
-a unique identifier assigned to the directory by the document
-provider.
+@file{/content/storage/@var{authority}/@var{id}}, where @var{authority}
+is the name of the document provider, and @var{id} is a unique
+identifier assigned to the directory by the document provider.
+
+@findex android-relinquish-directory-access
+  Such a directory can be deleted once no longer required by providing
+its name to the command @code{android-relinquish-directory-access}.
 
   The same limitations applied to the @file{/assets} directory
 (@pxref{Android File System}) are applied when creating sub-processes
@@ -858,10 +861,24 @@ When the user closes the window created during application startup,
 and the window was not previously closed by the system in order to
 save resources, Emacs deletes any frame displayed within that window.
 
+However, on Android 7.0 and later, such frames are not deleted if the
+window is closed four or more hours after the window moves into the
+background, as the system automatically removes open windows once a
+certain period of inactivity elapses when the number of windows retained
+by the window manager surpasses a specific threshold, and window
+deletion by this mechanism is indistinguishable from window deletion by
+the user.  Emacs begins to ignore window deletion after two hours less
+than the default value of this threshold both to err on the side of
+caution, in case the system's record of inactivity and Emacs's disagree,
+and for the reason that this threshold is open to customization by OS
+distributors.
+
 @item
-When the user or the system closes any window created by Emacs on
-behalf of a specific frame, Emacs deletes the frame displayed within
-that window.
+When the user or the system closes any window created by Emacs on behalf
+of a specific frame, Emacs deletes the frame displayed within that
+window, unless the system is Android 5.0 or later, where such windows
+are treated identically to the window created at startup, albeit with no
+proviso regarding window inactivity.
 @end itemize
 
   When the system predates Android 5.0, the window manager will not

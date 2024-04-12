@@ -3467,13 +3467,19 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                '((base-char	. characterp) ;Could be subtype of `fixnum'.
                  (character	. natnump)    ;Could be subtype of `fixnum'.
                  (command	. commandp)   ;Subtype of closure & subr.
+                 (keyword	. keywordp)   ;Would need `keyword-with-pos`.
                  (natnum	. natnump)    ;Subtype of fixnum & bignum.
                  (real		. numberp)    ;Not clear where it would fit.
+                 ;; This one is redundant, but we keep it to silence a
+                 ;; warning during the early bootstrap when `cl-seq.el' gets
+                 ;; loaded before `cl-preloaded.el' is defined.
+                 (list		. listp)
                  ))
   (put type 'cl-deftype-satisfies pred))
 
 ;;;###autoload
 (define-inline cl-typep (val type)
+  "Return t if VAL is of type TYPE, nil otherwise."
   (inline-letevals (val)
     (pcase (inline-const-val type)
       ((and `(,name . ,args) (guard (get name 'cl-deftype-handler)))
