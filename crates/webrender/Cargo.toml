@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 emacs-sys = { path = "../emacs-sys", features = ["webrender"] }
-font.path = "../font"
+font = { path = "../font", default-features = false }
 lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 log.workspace = true
@@ -32,7 +32,8 @@ cfg_aliases.workspace = true
 core-foundation = "0.9"
 
 [features]
-window-system-pgtk=["emacs-sys/window-system-pgtk", "font/window-system-pgtk"]
+default = ["window-system-winit", "surfman"]
+window-system-pgtk=["emacs-sys/window-system-pgtk", "font/window-system-pgtk", "gtk3"]
 window-system-winit=["emacs-sys/window-system-winit", "font/window-system-winit"]
 glutin=["emacs-sys/glutin"]
 surfman=["emacs-sys/surfman"]

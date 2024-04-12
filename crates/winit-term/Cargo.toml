@@ -33,6 +33,7 @@ cfg_aliases.workspace = true
 core-foundation = "0.9"
 
 [features]
+default = ["surfman"]
 glutin=["webrender/glutin"]
 surfman=["webrender/surfman"]
 x11=["emacs-sys/x11"]

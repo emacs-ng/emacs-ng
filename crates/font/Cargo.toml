@@ -30,6 +30,7 @@ name = "font"
 path = "src/lib.rs"
 
 [features]
+default = ["window-system-winit"]
 window-system-pgtk=["emacs-sys/window-system-pgtk"]
 window-system-winit=["emacs-sys/window-system-winit"]
 no_std = []
