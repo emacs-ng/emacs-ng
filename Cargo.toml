@@ -16,7 +16,7 @@ lsp-json.path = "./crates/lsp-json"
 git = { path = "./crates/git", optional = true }
 ng-module = { path = "./crates/ng-module", optional = true }
 js = { path = "./crates/js", optional = true }
-winit = { path = "./crates/winit-term", optional = true, default-features = false }
+winit = { path = "./crates/winit", optional = true, default-features = false }
 pgtk = { path = "./crates/pgtk", optional = true, default-features = false }
 clippy = { version = "*", optional = true }
 log.workspace = true
