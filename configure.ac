@@ -7959,7 +7959,7 @@ AC_SUBST(CARGO_FEATURES)
 
 dnl Rust sources which has Lisp symbols definitions
 AS_ECHO(["Collecting Rust sources..."])
-RUST_CRATES_SOURCES=`(cd crates/emacsng && ABS_TOP_SRCDIR=$OLDPWD cargo run -p codegen --bin print-source ${CARGO_FEATURES} 2>/dev/null)`
+RUST_CRATES_SOURCES=`(ABS_TOP_SRCDIR=$(pwd) cargo run -p codegen --bin print-source ${CARGO_FEATURES} 2>/dev/null)`
 AS_ECHO(["Collecting Rust sources...done"])
 AC_SUBST(RUST_CRATES_SOURCES)
 

@@ -12,10 +12,8 @@ use anyhow::Result;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs::File;
-use std::io::stdout;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Write;
 use std::mem;
 use std::ptr;
 

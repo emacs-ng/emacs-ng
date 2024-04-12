@@ -1,7 +1,73 @@
+### Root package
+[package]
+authors = ["emacs-ng members"]
+name = "emacsng"
+description = "Experimental emacs fork"
+license = "GPL-3.0"
+version = "0.1.0"
+edition = "2021"
+build = "./crates/codegen/etc/build.rs"
+
+[dependencies]
+libc = "0.2"
+emacs-sys.path = "./crates/emacs-sys"
+lisp-async.path = "./crates/lisp-async"
+lsp-json.path = "./crates/lsp-json"
+git = { path = "./crates/git", optional = true }
+ng-module = { path = "./crates/ng-module", optional = true }
+js = { path = "./crates/js", optional = true }
+winit = { path = "./crates/winit-term", optional = true, default-features = false }
+pgtk = { path = "./crates/pgtk", optional = true, default-features = false }
+clippy = { version = "*", optional = true }
+log.workspace = true
+tracing = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = [
+  "matchers",
+  "regex",
+  "once_cell",
+  "tracing",
+  "std",
+  "thread_local",
+  "env-filter"
+]
+
+[build-dependencies]
+codegen = { path = "./crates/codegen" }
+
+[lib]
+crate-type = ["staticlib"]
+path = "./src/emacs.rs"
+
+[features]
+
+# Compile with C xml2 library support.
+use-xml2 = []
+window-system-pgtk=["dep:pgtk"]
+wr_pgtk=["window-system-pgtk", "pgtk/webrender"]
+window-system-winit = ["dep:winit"]
+# Build with git2rs support
+libgit = ["git"]
+# Treat warnings as a build error on Travis.
+strict = []
+# Use JavaScript and Deno
+javascript = ["dep:js"]
+# Build with dynamic modules support's extensions.
+ng-module = ["dep:ng-module"]
+
+# Enable glyphs debugging code.
+# !!! Avoid using feature selection ? like below, the codegen
+# from lisp-util is not smart enought yet to figure out when winit
+# or pgtk should be enable or not
+# glyph-debug = ["winit?/capture", "pgtk?/capture"]
+# profiling = ["winit?/profiling", "pgtk?/profiling"]
+
+### Workspace configurations
 [workspace]
 members = ["crates/*"]
 resolver = "2"
-default-members = ["crates/emacsng"]
 
 [workspace.dependencies]
 libc = "0.2"
