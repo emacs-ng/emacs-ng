@@ -8,7 +8,7 @@ set -x
 export PATH=$PATH:~/.cargo/bin
 
 echo "Checking formatting"
-cd "rust_src"
+
 cargo fmt -- --version
 
 cargo fmt --all -- --check
