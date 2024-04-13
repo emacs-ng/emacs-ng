@@ -148,7 +148,4 @@ struct wr_bitmap_record
   int height, width, depth;
 };
 
-extern Lisp_Object script_to_otf (Lisp_Object otf);
-extern Lisp_Object registry_to_otf (Lisp_Object reg);
-
 #endif /* EMACS_WRGUI_H */

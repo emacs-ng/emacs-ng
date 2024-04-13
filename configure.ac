@@ -7293,9 +7293,6 @@ if test "${HAVE_HARFBUZZ}" = "yes" ; then
   FONT_OBJ="$FONT_OBJ hbfont.o"
 fi
 
-if test "${with_webrender}" = "yes" ; then
-  FONT_OBJ="$FONT_OBJ wrfont.o"
-fi
 AC_SUBST([XMENU_OBJ])
 AC_SUBST([XOBJ])
 AC_SUBST([FONT_OBJ])
@@ -7959,7 +7956,7 @@ AC_SUBST(CARGO_FEATURES)
 
 dnl Rust sources which has Lisp symbols definitions
 AS_ECHO(["Collecting Rust sources..."])
-RUST_CRATES_SOURCES=`(ABS_TOP_SRCDIR=$(pwd) cargo run -p codegen --bin print-source ${CARGO_FEATURES} 2>/dev/null)`
+RUST_CRATES_SOURCES=`(ABS_TOP_SRCDIR=$(pwd) cargo run -p codegen --bin print-source ${CARGO_FEATURES})`
 AS_ECHO(["Collecting Rust sources...done"])
 AC_SUBST(RUST_CRATES_SOURCES)
 

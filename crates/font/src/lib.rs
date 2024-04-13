@@ -1,13 +1,18 @@
+#![feature(concat_idents)]
+
 #[macro_use]
 extern crate emacs_sys;
+extern crate lisp_macros;
+#[macro_use]
+extern crate lisp_util;
 
 mod cache;
+mod fns;
 
 use emacs_sys::bindings::assq_no_quit;
 use emacs_sys::bindings::font_put_extra;
+use emacs_sys::bindings::globals;
 use emacs_sys::bindings::make_fixnum;
-use emacs_sys::bindings::registry_to_otf;
-use emacs_sys::bindings::script_to_otf;
 use emacs_sys::bindings::AREF;
 use emacs_sys::bindings::CONSP;
 use emacs_sys::bindings::SYMBOLP;
@@ -295,7 +300,7 @@ impl From<LispFontLike> for OptionalScript {
                         let key = XCAR(tmp);
                         let val = XCDR(tmp);
                         if key.eq(QCscript) && SYMBOLP(val) {
-                            let otf_script = script_to_otf(val);
+                            let otf_script = Fscript_to_otf(val);
                             if otf_script.is_not_nil() {
                                 return Some(otf_script.into());
                             }
@@ -319,7 +324,8 @@ impl From<LispFontLike> for OptionalScript {
 
             let reg = spec_or_entity.aref(font_property_index::FONT_REGISTRY_INDEX);
             if reg.is_symbol() {
-                let otf_script = unsafe { registry_to_otf(reg) };
+                let script = Fregistry_to_script(reg);
+                let otf_script = Fscript_to_otf(script);
                 return Some(otf_script.into());
             }
 
@@ -671,7 +677,6 @@ extern "C" fn otf_capability(_font: *mut font) -> LispObject {
 pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObject {
     use core::ops::Range;
     use emacs_sys::bindings::font_metrics as FontMetrics;
-    use emacs_sys::bindings::globals;
     use emacs_sys::bindings::CHECK_FONT_GET_OBJECT;
     use emacs_sys::globals::QL2R;
     use emacs_sys::globals::QR2L;
