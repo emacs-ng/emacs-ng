@@ -116,7 +116,11 @@ decode_any_frame (register Lisp_Object frame)
 bool
 display_available (void)
 {
+#ifdef HAVE_WINIT
+  return winit_display_available();
+#else
   return x_display_list != NULL;
+#endif
 }
 #endif
 

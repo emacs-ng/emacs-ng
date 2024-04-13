@@ -205,6 +205,7 @@ impl LispObject {
 pub struct ExternalPtr<T>(*mut T);
 
 impl<T> Copy for ExternalPtr<T> {}
+unsafe impl<T> Send for ExternalPtr<T> {}
 
 // Derive fails for this type so do it manually
 impl<T> Clone for ExternalPtr<T> {

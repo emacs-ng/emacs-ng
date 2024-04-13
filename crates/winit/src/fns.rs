@@ -16,6 +16,7 @@ use font::register_swash_font_driver;
 use raw_window_handle::RawWindowHandle;
 use std::ffi::CString;
 use std::ptr;
+use std::sync::Mutex;
 use webrender_api::*;
 use winit::dpi::LogicalSize;
 
@@ -75,7 +76,33 @@ pub type DisplayRef = ExternalPtr<Display>;
 pub static tip_frame: LispObject = Qnil;
 
 #[no_mangle]
-pub static mut winit_display_list: DisplayInfoRef = DisplayInfoRef::new(ptr::null_mut());
+pub static WINIT_DISPLAY_LIST: Mutex<DisplayInfoRef> =
+    Mutex::new(DisplayInfoRef::new(ptr::null_mut()));
+
+fn winit_display_list() -> DisplayInfoRef {
+    let v = WINIT_DISPLAY_LIST.lock().map_or_else(
+        |e| {
+            log::error!("failed to read winit_display_list: {e:?}");
+            DisplayInfoRef::new(ptr::null_mut())
+        },
+        |v| v.clone(),
+    );
+    v
+}
+
+fn set_winit_display_list(dpyinfo: DisplayInfoRef) {
+    match WINIT_DISPLAY_LIST.lock().and_then(|mut v| Ok(*v = dpyinfo)) {
+        Err(e) => log::error!("failed to update winit_display_list: {e:?}"),
+        _ => {}
+    }
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn winit_display_available() -> bool {
+    let display = winit_display_list();
+    !display.is_null()
+}
 
 #[allow(unused_variables)]
 #[no_mangle]
@@ -148,11 +175,12 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
             return frame.display_info();
         }
 
-        if !unsafe { winit_display_list.is_null() } {
-            return unsafe { winit_display_list };
+        let winit_display_list = winit_display_list();
+        if !winit_display_list.is_null() {
+            return winit_display_list;
         }
 
-        error!("Webrender windows are not in use or not initialized");
+        error!("Winit frames are not in use or not initialized");
     }
 
     if let Some(terminal) = obj.as_terminal() {
@@ -167,7 +195,7 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
 
     if let Some(display_name) = obj.as_string() {
         let display_name = display_name.to_string();
-        let mut dpyinfo = unsafe { winit_display_list };
+        let mut dpyinfo = winit_display_list();
 
         while !dpyinfo.is_null() {
             if dpyinfo
@@ -186,8 +214,9 @@ pub extern "C" fn check_x_display_info(obj: LispObject) -> DisplayInfoRef {
 
         x_open_connection(obj, Qnil, Qnil);
 
-        if !unsafe { winit_display_list.is_null() } {
-            return unsafe { winit_display_list };
+        let winit_display_list = winit_display_list();
+        if !winit_display_list.is_null() {
+            return winit_display_list;
         }
 
         error!("Display on {} not responding.", display_name);
@@ -517,10 +546,8 @@ pub fn x_open_connection(
     let mut display_info = winit_term_init(display);
 
     // Put this display on the chain.
-    unsafe {
-        display_info.next = winit_display_list.as_mut();
-        winit_display_list = display_info;
-    }
+    display_info.next = winit_display_list().as_mut();
+    set_winit_display_list(display_info);
     Qnil
 }
 

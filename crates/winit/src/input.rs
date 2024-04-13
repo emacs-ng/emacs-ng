@@ -13,7 +13,8 @@ use emacs_sys::globals::Qt;
 use emacs_sys::lisp::LispObject;
 use emacs_sys::sys::EmacsModifiers::down_modifier;
 use emacs_sys::sys::EmacsModifiers::up_modifier;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
+use std::sync::Mutex;
 use winit::dpi::PhysicalPosition;
 use winit::event::ElementState;
 use winit::event::MouseButton;
@@ -23,22 +24,17 @@ use winit::keyboard::KeyCode;
 use winit::keyboard::ModifiersState;
 use winit::keyboard::PhysicalKey;
 
-static mut INPUT_STATE: OnceLock<InputProcessor> = OnceLock::new();
+static INPUT_STATE: LazyLock<Mutex<InputProcessor>> =
+    LazyLock::new(|| Mutex::new(InputProcessor::default()));
 impl InputProcessor {
-    pub fn global() -> &'static InputProcessor {
-        unsafe {
-            INPUT_STATE.get_or_init(|| {
-                log::trace!("INPUT_STATE is being created...");
-                InputProcessor {
-                    modifiers: ModifiersState::default(),
-                    total_delta: PhysicalPosition::new(0.0, 0.9),
-                }
-            })
-        }
-    }
-
     pub fn snapshot() -> InputProcessor {
-        Self::global().clone()
+        INPUT_STATE.lock().map_or_else(
+            |e| {
+                log::error!("Failed to snapshot INPUT_STATE {e:?}");
+                InputProcessor::default()
+            },
+            |s| s.clone(),
+        )
     }
 
     fn update(new_state: InputProcessor) {
@@ -47,13 +43,9 @@ impl InputProcessor {
             new_state.modifiers,
             new_state.total_delta
         );
-        unsafe {
-            let _ = INPUT_STATE.take();
-        };
-        if let Ok(_) = unsafe { INPUT_STATE.set(new_state) } {
-            log::debug!("Global input state changed");
-        } else {
-            log::error!("Failed to update input state");
+        match INPUT_STATE.lock().and_then(|mut s| Ok(*s = new_state)) {
+            Err(e) => log::error!("Failed to update INPUT_STATE: {e:?}"),
+            _ => {}
         }
     }
 }
@@ -62,6 +54,16 @@ impl InputProcessor {
 pub struct InputProcessor {
     modifiers: ModifiersState,
     total_delta: PhysicalPosition<f64>,
+}
+
+impl Default for InputProcessor {
+    #[inline]
+    fn default() -> Self {
+        InputProcessor {
+            modifiers: ModifiersState::default(),
+            total_delta: PhysicalPosition::new(0.0, 0.9),
+        }
+    }
 }
 
 impl InputProcessor {
@@ -96,14 +98,14 @@ impl InputProcessor {
     }
 
     fn get_modifiers() -> ModifiersState {
-        let InputProcessor { modifiers, .. } = Self::global();
+        let InputProcessor { modifiers, .. } = Self::snapshot();
         modifiers.clone()
     }
 }
 
 impl InputProcessor {
     pub fn handle_receive_char(c: char, top_frame: LispObject) -> Option<input_event> {
-        let state = Self::global();
+        let state = Self::snapshot();
 
         let iev: input_event = InputEvent {
             kind: event_kind::ASCII_KEYSTROKE_EVENT,
@@ -132,7 +134,7 @@ impl InputProcessor {
                 None
             }
             PhysicalKey::Code(key_code) => {
-                let InputProcessor { modifiers, .. } = Self::global().clone();
+                let InputProcessor { modifiers, .. } = Self::snapshot();
                 if keycode_to_emacs_key_name(key_code).is_null() {
                     return None;
                 }
@@ -184,7 +186,7 @@ impl InputProcessor {
             pos = frame.cursor_position();
         }
 
-        let InputProcessor { modifiers, .. } = Self::global();
+        let InputProcessor { modifiers, .. } = Self::snapshot();
         let iev: input_event = InputEvent {
             kind: event_kind::MOUSE_CLICK_EVENT,
             part: scroll_bar_part::scroll_bar_nowhere,
@@ -226,7 +228,7 @@ impl InputProcessor {
                 }
             }
             MouseScrollDelta::PixelDelta(pos) => {
-                let mut total_delta = Self::global().total_delta.clone();
+                let mut total_delta = Self::snapshot().total_delta.clone();
                 if phase != TouchPhase::Moved {
                     total_delta = PhysicalPosition::new(0.0, 0.0);
                 }

@@ -81,9 +81,6 @@ struct winit_display_info
   void *gl_renderer_data;
 };
 
-extern struct winit_display_info *winit_display_list;
-#define x_display_list winit_display_list
-
 struct winit_output
 {
 
@@ -172,6 +169,7 @@ extern const char *app_bundle_relocate (const char *);
 
 /* Symbol initializations implemented in each pgtk sources. */
 extern void syms_of_winit_term(void);
+extern bool winit_display_available(void);
 
 #include "webrender_ffi.h"
 
