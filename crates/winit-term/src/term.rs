@@ -755,13 +755,13 @@ extern "C" fn winit_delete_terminal(terminal: *mut terminal) {
     terminal.free_winit_data();
 }
 
-fn winit_pump_events() -> Vec<Event<i32>> {
+fn winit_pump_events(timeout: Option<Duration>) -> Vec<Event<i32>> {
     current_winit_data().map_or(Vec::new(), |mut d| {
         let mut pending_events: Vec<Event<i32>> = Vec::new();
         let mut add_event = |e: Event<i32>| {
             pending_events.push(e);
         };
-        let status = d.event_loop.pump_events(Some(Duration::ZERO), |e, _elwt| {
+        let status = d.event_loop.pump_events(timeout, |e, _elwt| {
             if let Event::WindowEvent { event, .. } = &e {
                 // Print only Window events to reduce noise
                 log::trace!("{event:?}");
@@ -815,8 +815,16 @@ pub extern "C" fn winit_select(
 ) -> i32 {
     use nix::sys::signal::Signal;
     use nix::sys::signal::{self};
+    use nix::sys::time::TimeSpec;
+    use std::time::Instant;
 
-    let mut pending_events = winit_pump_events();
+    let duration = unsafe { Duration::new((*timeout).tv_sec as u64, (*timeout).tv_nsec as u32) };
+    // Code from C sometimes set durations to 10000s. No idea how to reason about that.
+    // Manually reduce it here.
+    let duration = std::cmp::min(duration, Duration::from_millis(25));
+    let deadline = Instant::now() + duration;
+
+    let mut pending_events = winit_pump_events(Some(duration));
     if pending_events.len() > 0 {
         let _ = current_winit_data().and_then(|mut d| {
             d.pending_events.append(&mut pending_events);
@@ -830,6 +838,9 @@ pub extern "C" fn winit_select(
         };
     }
 
+    let now = Instant::now();
+    let mut timespec = TimeSpec::from_duration(deadline - now);
+
     return unsafe {
         emacs_sys::bindings::thread_select(
             Some(libc::pselect),
@@ -837,7 +848,7 @@ pub extern "C" fn winit_select(
             readfds,
             writefds,
             _exceptfds,
-            timeout,
+            timespec.as_mut(),
             _sigmask,
         )
     };
