@@ -15,7 +15,6 @@ lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 log.workspace = true
 libc.workspace = true
-lazy_static = "1.4"
 gleam.workspace = true
 image.workspace = true
 bit-vec = "0.6.3"

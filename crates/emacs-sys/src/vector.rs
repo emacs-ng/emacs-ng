@@ -4,7 +4,6 @@ use libc::ptrdiff_t;
 use std::mem;
 
 use crate::bindings::VECTORP;
-use lazy_static::lazy_static;
 
 use crate::bindings::pvec_type;
 use crate::bindings::Lisp_Type;
@@ -22,6 +21,7 @@ use crate::sys::Lisp_Vectorlike;
 use crate::sys::PSEUDOVECTOR_FLAG;
 use crate::terminal::TerminalRef;
 use crate::window::WindowRef;
+use std::sync::LazyLock;
 
 pub type LispVectorlikeRef = ExternalPtr<Lisp_Vectorlike>;
 #[allow(dead_code)]
@@ -236,11 +236,10 @@ macro_rules! impl_vectorlike_ref {
 
 impl_vectorlike_ref! { LispVectorRef, LispVecIterator, ptrdiff_t::max_value() }
 
-lazy_static! {
-    pub static ref HEADER_SIZE: usize =
-        memoffset::offset_of!(crate::bindings::Lisp_Vector, contents);
-    pub static ref WORD_SIZE: usize = ::std::mem::size_of::<crate::lisp::LispObject>();
-}
+pub static HEADER_SIZE: LazyLock<usize> =
+    LazyLock::new(|| memoffset::offset_of!(crate::bindings::Lisp_Vector, contents));
+pub static WORD_SIZE: LazyLock<usize> =
+    LazyLock::new(|| ::std::mem::size_of::<crate::lisp::LispObject>());
 
 pub trait LVector {
     fn vectorp(self) -> bool;

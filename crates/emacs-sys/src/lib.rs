@@ -13,6 +13,7 @@
 #![feature(never_type)]
 #![feature(stmt_expr_attributes)]
 #![feature(async_closure)]
+#![feature(lazy_cell)]
 
 #[cfg(all(glutin, surfman, winit))]
 compile_error!("You cannot specify both `glutin` and `surfman` features for winit window system");

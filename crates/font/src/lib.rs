@@ -1,4 +1,5 @@
 #![feature(concat_idents)]
+#![feature(lazy_cell)]
 
 #[macro_use]
 extern crate emacs_sys;
@@ -31,7 +32,9 @@ use font_index::FontEntry;
 pub use font_index::FontId;
 use font_index::FontIndex;
 use std::mem::ManuallyDrop;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
+use std::sync::Mutex;
+use swash::shape::ShapeContext;
 use swash::text::Language;
 use swash::text::Script;
 use swash::Attributes;
@@ -73,29 +76,32 @@ pub type FontRef = ExternalPtr<font>;
 pub struct FontDriver(pub font_driver);
 unsafe impl Sync for FontDriver {}
 
-static FONT_DRIVER: OnceLock<FontDriver> = OnceLock::new();
+static FONT_DRIVER: LazyLock<FontDriver> = LazyLock::new(|| {
+    log::trace!("FONT_DRIVER is being created...");
+    let mut font_driver = font_driver::default();
+
+    font_driver.type_ = Qswash;
+    font_driver.case_sensitive = true;
+    font_driver.get_cache = Some(get_cache);
+    font_driver.list = Some(list);
+    font_driver.match_ = Some(match_);
+    font_driver.list_family = Some(list_family);
+    font_driver.open_font = Some(open_font);
+    font_driver.close_font = Some(close_font);
+    font_driver.encode_char = Some(encode_char);
+    font_driver.has_char = Some(has_char);
+    font_driver.text_extents = Some(text_extents);
+    font_driver.draw = Some(draw);
+    font_driver.shape = Some(shape);
+
+    FontDriver(font_driver)
+});
+//shapecontext per thread
+static SHAPE_CONTEXT: LazyLock<Mutex<ShapeContext>> =
+    LazyLock::new(|| Mutex::new(ShapeContext::new()));
 impl FontDriver {
     fn global() -> &'static FontDriver {
-        FONT_DRIVER.get_or_init(|| {
-            log::trace!("FONT_DRIVER is being created...");
-            let mut font_driver = font_driver::default();
-
-            font_driver.type_ = Qswash;
-            font_driver.case_sensitive = true;
-            font_driver.get_cache = Some(get_cache);
-            font_driver.list = Some(list);
-            font_driver.match_ = Some(match_);
-            font_driver.list_family = Some(list_family);
-            font_driver.open_font = Some(open_font);
-            font_driver.close_font = Some(close_font);
-            font_driver.encode_char = Some(encode_char);
-            font_driver.has_char = Some(has_char);
-            font_driver.text_extents = Some(text_extents);
-            font_driver.draw = Some(draw);
-            font_driver.shape = Some(shape);
-
-            FontDriver(font_driver)
-        })
+        &FONT_DRIVER
     }
 }
 
@@ -685,7 +691,6 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
     use swash::shape::cluster::Glyph;
     use swash::shape::cluster::GlyphCluster;
     use swash::shape::Direction;
-    use swash::shape::ShapeContext;
 
     let font = lgstring.lgstring_font();
     let font = unsafe { CHECK_FONT_GET_OBJECT(font) };
@@ -711,8 +716,7 @@ pub extern "C" fn shape(lgstring: LispObject, direction: LispObject) -> LispObje
     };
     let source = source.as_str();
 
-    //TODO shapecontext per thread
-    let mut context = ShapeContext::new();
+    let mut context = SHAPE_CONTEXT.lock().expect("SHAPE_CONTEXT lock() failed");
     let mut shaper_builder = context.builder(&font);
 
     /* If the caller didn't provide a meaningful DIRECTION, let Swash

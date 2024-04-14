@@ -64,7 +64,7 @@ extern "C" {
     ) -> LispObject;
 }
 
-// In order to use `lazy_static!` with LispSubr, it must be Sync. Raw
+// In order to use `LazyLock` with LispSubr, it must be Sync. Raw
 // pointers are not Sync, but it isn't a problem to define Sync if we
 // never mutate LispSubr values. If we do, we will need to create
 // these objects at runtime, perhaps using forget().

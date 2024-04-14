@@ -1,4 +1,5 @@
 #![feature(concat_idents)]
+#![feature(lazy_cell)]
 
 extern crate emacs_sys;
 #[macro_use]

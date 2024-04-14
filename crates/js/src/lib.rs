@@ -2,6 +2,7 @@
 #![feature(concat_idents)]
 #![feature(async_closure)]
 #![feature(maybe_uninit_extra)]
+#![feature(lazy_cell)]
 
 extern crate futures;
 extern crate serde_json;

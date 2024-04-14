@@ -9,7 +9,6 @@ path = "src/lib.rs"
 
 [dependencies]
 libc = "0.2.153"
-lazy_static = "1.4.0"
 log = "0.4"
 memoffset = "0.9"
 raw-window-handle = { workspace = true, optional = true }

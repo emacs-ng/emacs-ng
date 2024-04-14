@@ -34,7 +34,7 @@ use libc::fd_set;
 use libc::sigset_t;
 use libc::timespec;
 use std::ptr;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Duration;
 use winit::event::ElementState;
 use winit::event::Event;
@@ -167,46 +167,46 @@ struct RedisplayInterface(pub redisplay_interface);
 unsafe impl Sync for RedisplayInterface {}
 unsafe impl Send for RedisplayInterface {}
 
-static REDISPLAY_INTERFACE: OnceLock<RedisplayInterface> = OnceLock::new();
+static REDISPLAY_INTERFACE: LazyLock<RedisplayInterface> = LazyLock::new(|| {
+    log::trace!("REDISPLAY_INTERFACE is being created...");
+    let frame_parm_handlers = Box::new(get_frame_parm_handlers());
+
+    let interface = redisplay_interface {
+        frame_parm_handlers: (Box::into_raw(frame_parm_handlers)) as *mut Option<_>,
+        produce_glyphs: Some(gui_produce_glyphs),
+        write_glyphs: Some(gui_write_glyphs),
+        insert_glyphs: Some(gui_insert_glyphs),
+        clear_end_of_line: Some(gui_clear_end_of_line),
+        scroll_run_hook: Some(wr_scroll_run),
+        after_update_window_line_hook: Some(wr_after_update_window_line),
+        update_window_begin_hook: Some(wr_update_window_begin),
+        update_window_end_hook: Some(wr_update_window_end),
+        flush_display: Some(wr_flush_display),
+        clear_window_mouse_face: Some(gui_clear_window_mouse_face),
+        get_glyph_overhangs: Some(gui_get_glyph_overhangs),
+        fix_overlapping_area: Some(gui_fix_overlapping_area),
+        draw_fringe_bitmap: Some(wr_draw_fringe_bitmap),
+        define_fringe_bitmap: None,
+        destroy_fringe_bitmap: None,
+        compute_glyph_string_overhangs: None,
+        draw_glyph_string: Some(wr_draw_glyph_string),
+        define_frame_cursor: Some(winit_define_frame_cursor),
+        clear_frame_area: Some(wr_clear_frame_area),
+        clear_under_internal_border: None,
+        draw_window_cursor: Some(wr_draw_window_cursor),
+        draw_vertical_window_border: Some(wr_draw_vertical_window_border),
+        draw_window_divider: Some(wr_draw_window_divider),
+        shift_glyphs_for_insert: None, /* Never called; see comment in xterm.c.  */
+        show_hourglass: None,
+        hide_hourglass: None,
+        default_font_parameter: None,
+    };
+
+    RedisplayInterface(interface)
+});
 impl RedisplayInterface {
     fn global() -> &'static RedisplayInterface {
-        REDISPLAY_INTERFACE.get_or_init(|| {
-            log::trace!("REDISPLAY_INTERFACE is being created...");
-            let frame_parm_handlers = Box::new(get_frame_parm_handlers());
-
-            let interface = redisplay_interface {
-                frame_parm_handlers: (Box::into_raw(frame_parm_handlers)) as *mut Option<_>,
-                produce_glyphs: Some(gui_produce_glyphs),
-                write_glyphs: Some(gui_write_glyphs),
-                insert_glyphs: Some(gui_insert_glyphs),
-                clear_end_of_line: Some(gui_clear_end_of_line),
-                scroll_run_hook: Some(wr_scroll_run),
-                after_update_window_line_hook: Some(wr_after_update_window_line),
-                update_window_begin_hook: Some(wr_update_window_begin),
-                update_window_end_hook: Some(wr_update_window_end),
-                flush_display: Some(wr_flush_display),
-                clear_window_mouse_face: Some(gui_clear_window_mouse_face),
-                get_glyph_overhangs: Some(gui_get_glyph_overhangs),
-                fix_overlapping_area: Some(gui_fix_overlapping_area),
-                draw_fringe_bitmap: Some(wr_draw_fringe_bitmap),
-                define_fringe_bitmap: None,
-                destroy_fringe_bitmap: None,
-                compute_glyph_string_overhangs: None,
-                draw_glyph_string: Some(wr_draw_glyph_string),
-                define_frame_cursor: Some(winit_define_frame_cursor),
-                clear_frame_area: Some(wr_clear_frame_area),
-                clear_under_internal_border: None,
-                draw_window_cursor: Some(wr_draw_window_cursor),
-                draw_vertical_window_border: Some(wr_draw_vertical_window_border),
-                draw_window_divider: Some(wr_draw_window_divider),
-                shift_glyphs_for_insert: None, /* Never called; see comment in xterm.c.  */
-                show_hourglass: None,
-                hide_hourglass: None,
-                default_font_parameter: None,
-            };
-
-            RedisplayInterface(interface)
-        })
+        &REDISPLAY_INTERFACE
     }
 }
 

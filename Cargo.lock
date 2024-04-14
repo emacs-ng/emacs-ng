@@ -688,7 +688,6 @@ dependencies = [
  "anyhow",
  "cargo-files-core",
  "cargo_metadata 0.18.1",
- "lazy_static",
  "libc",
  "regex",
  "thiserror",
@@ -703,9 +702,6 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 [[package]]
 name = "colors"
 version = "0.1.0"
-dependencies = [
- "lazy_static",
-]
 
 [[package]]
 name = "combine"
@@ -1003,7 +999,6 @@ dependencies = [
  "gtk",
  "gtk-sys",
  "image",
- "lazy_static",
  "libc",
  "log",
  "memoffset",
@@ -1190,7 +1185,6 @@ dependencies = [
  "font-index",
  "font-loader",
  "fxhash",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -1592,7 +1586,6 @@ dependencies = [
  "codegen",
  "emacs-sys",
  "git2",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -2112,7 +2105,6 @@ dependencies = [
  "codegen",
  "emacs-sys",
  "futures",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -2252,7 +2244,6 @@ dependencies = [
  "crossbeam",
  "emacs-sys",
  "futures",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -2264,7 +2255,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "darling",
- "lazy_static",
  "libc",
  "lisp-util",
  "regex",
@@ -2276,7 +2266,6 @@ version = "0.1.0"
 dependencies = [
  "darling",
  "emacs-sys",
- "lazy_static",
  "lisp-util",
  "proc-macro2",
  "quote",
@@ -2340,7 +2329,6 @@ version = "0.1.0"
 dependencies = [
  "codegen",
  "emacs-sys",
- "lazy_static",
  "libc",
  "lisp-async",
  "lisp-macros",
@@ -2531,7 +2519,6 @@ version = "0.1.0"
 dependencies = [
  "codegen",
  "emacs-sys",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -4535,7 +4522,6 @@ dependencies = [
  "font",
  "gleam",
  "image",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",
@@ -4899,7 +4885,6 @@ dependencies = [
  "core-foundation",
  "emacs-sys",
  "font",
- "lazy_static",
  "libc",
  "lisp-macros",
  "lisp-util",

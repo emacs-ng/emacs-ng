@@ -16,6 +16,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::mem;
 use std::ptr;
+use std::sync::LazyLock;
 
 use lisp_util::parse_lisp_fn;
 
@@ -243,11 +244,11 @@ pub fn scan_rust_file1(
                 );
             }
         } else if line.starts_with("def_lisp_sym!(") {
-            lazy_static! {
-                static ref RE: Regex = Regex::new(r#"def_lisp_sym!\((.+?),\s+"(.+?)"\);"#)
+            static RE: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new(r#"def_lisp_sym!\((.+?),\s+"(.+?)"\);"#)
                     .map_err(|e| format_err!("Failed to create regext: {:?}", e))
-                    .unwrap();
-            }
+                    .unwrap()
+            });
             let caps = RE.captures(line).ok_or(format_err!("No Regex captures"))?;
             let name = CString::new(&caps[1])?;
             let value = CString::new(&caps[2])?;
@@ -255,12 +256,11 @@ pub fn scan_rust_file1(
         } else if line.starts_with("defvar_") {
             // defvar_lisp!(f_Vpost_self_insert_hook, "post-self-insert-hook", Qnil);
             // defvar_kboard!(Vlast_command_, "last-command");
-            lazy_static! {
-                static ref RE: Regex =
-                    Regex::new(r#"defvar_(.+?)!\((.+?),\s+"(.+?)"(?:,\s+(.+?))?\);"#)
-                        .map_err(|e| format_err!("Failed to create regext: {:?}", e))
-                        .unwrap();
-            }
+            static RE: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new(r#"defvar_(.+?)!\((.+?),\s+"(.+?)"(?:,\s+(.+?))?\);"#)
+                    .map_err(|e| format_err!("Failed to create regext: {:?}", e))
+                    .unwrap()
+            });
             for caps in RE.captures_iter(line) {
                 if generate_globals != 0 {
                     let kindstr = &caps[1];

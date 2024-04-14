@@ -13,7 +13,6 @@ emacs-sys.path = "../emacs-sys"
 lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 libc.workspace = true
-lazy_static.workspace = true
 lsp-server = "0.7"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 

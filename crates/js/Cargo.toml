@@ -13,7 +13,6 @@ lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 lsp-json.path = "../lsp-json"
 libc.workspace = true
-lazy_static.workspace = true
 futures = "0.3"
 # deno_core = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }
 # deno_runtime = { git = "https://github.com/emacs-ng/deno", branch = "emacs-ng" }

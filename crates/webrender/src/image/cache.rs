@@ -29,7 +29,7 @@ use std::io::BufRead;
 use std::io::Cursor;
 use std::io::Seek;
 use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Duration;
 use webrender::api::ImageData;
 use webrender::api::ImageDescriptor;
@@ -338,16 +338,11 @@ impl ImageSource {
 /// TODO We plan implement spec(rotate/scale) using WebRender transform
 pub struct ImageCache(FastHashMap<ImageHash, ImageCacheResult>);
 
-static IMAGE_CACHE: OnceLock<Arc<Mutex<ImageCache>>> = OnceLock::new();
+static IMAGE_CACHE: LazyLock<Arc<Mutex<ImageCache>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(ImageCache(FastHashMap::default()))));
 impl ImageCache {
-    pub fn new() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self(FastHashMap::default())))
-    }
     pub fn global() -> &'static Arc<Mutex<ImageCache>> {
-        IMAGE_CACHE.get_or_init(|| {
-            log::trace!("image cache is being created...");
-            Self::new()
-        })
+        &IMAGE_CACHE
     }
     fn cache_mut<P, T>(p: P) -> Option<T>
     where

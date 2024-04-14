@@ -12,7 +12,6 @@ emacs-sys.path = "../emacs-sys"
 lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 libc.workspace = true
-lazy_static.workspace = true
 
 [build-dependencies]
 codegen = { path = "../codegen" }

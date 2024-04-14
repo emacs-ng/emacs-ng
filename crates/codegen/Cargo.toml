@@ -6,7 +6,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lazy_static = "1.4"
 libc = "0.2"
 regex = "1.10"
 cargo_metadata = { version = "0.18", optional = false }

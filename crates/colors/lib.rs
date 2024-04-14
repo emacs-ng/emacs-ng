@@ -1,8 +1,8 @@
-use lazy_static::lazy_static;
+#![feature(lazy_cell)]
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 include!(concat!(env!("OUT_DIR"), "/colors.rs"));
 
-lazy_static! {
-    pub static ref COLOR_MAP: HashMap<&'static str, (u8, u8, u8)> = init_color();
-}
+pub static COLOR_MAP: LazyLock<HashMap<&'static str, (u8, u8, u8)>> =
+    LazyLock::new(|| init_color());

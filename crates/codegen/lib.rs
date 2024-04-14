@@ -1,5 +1,5 @@
-#[macro_use]
-extern crate lazy_static;
+#![feature(lazy_cell)]
+
 mod data;
 mod error;
 use data::package_targets;
@@ -11,6 +11,7 @@ pub use data::with_root_crate;
 use data::with_root_crate_checked;
 pub use data::Package;
 pub use error::BuildError;
+use std::sync::LazyLock;
 
 use std::env;
 use std::ffi::OsStr;
@@ -248,9 +249,8 @@ impl<'a> ModuleParser<'a> {
     }
 
     fn parse_gc_protected_static(&mut self, line: &str) -> Result<String, LintMsg> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r#"GC_protected_static!\((.+), .+\);"#).unwrap();
-        }
+        static RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#"GC_protected_static!\((.+), .+\);"#).unwrap());
 
         match RE.captures(line) {
             Some(caps) => {

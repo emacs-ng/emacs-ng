@@ -11,7 +11,6 @@ webrender_api.workspace = true
 emacs-sys.path = "../emacs-sys"
 lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
-lazy_static = "1.4"
 log.workspace = true
 libc.workspace = true
 parking_lot.workspace = true

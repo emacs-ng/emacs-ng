@@ -13,7 +13,6 @@ emacs-sys.path = "../emacs-sys"
 lisp-macros.path = "../lisp-macros"
 lisp-util.path = "../lisp-util"
 libc.workspace = true
-lazy_static.workspace = true
 crossbeam = "0.8"
 futures = "0.3"
 
