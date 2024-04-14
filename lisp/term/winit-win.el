@@ -1285,6 +1285,16 @@ This returns an error if any Emacs frames are X frames."
 ;; TODO
 
 
+(defun child-frame-support-p ()
+  "Winit currently doesn't support child frame."
+  nil)
+
+(eval-after-load 'posframe
+  (advice-add 'posframe-workable-p :override 'child-frame-support-p))
+(eval-after-load 'corfu
+  (advice-add 'corfu--popup-support-p :override 'child-frame-support-p))
+
+
 (provide 'winit-win)
 (provide 'term/winit-win)
 

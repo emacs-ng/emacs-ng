@@ -522,6 +522,11 @@ impl FrameRef {
         };
         f.set_parent(parent_frame);
         f.store_param(FrameParam::ParentFrame, parent_frame);
+
+        if cfg!(have_winit) && parent_frame.is_not_nil() {
+            error!("Winit currently doesn't support parent-frame parameter");
+        }
+
         let unsplittable =
             f.is_minibuf_only() || dpyinfo.gui_arg(params, FrameParam::Unsplittable).is_t();
         f.set_no_split(unsplittable);
