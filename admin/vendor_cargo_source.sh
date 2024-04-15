@@ -15,6 +15,6 @@ git add -f ./third_party/rust
 git add .cargo/config.toml
 git commit --no-verify -m "Vendor Cargo Source"
 
-prefix=emacs-ng_$1
+prefix=vendored-source_$1
 
 git archive --prefix=$prefix/ HEAD -o $prefix.tar.xz
