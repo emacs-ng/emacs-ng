@@ -45,12 +45,11 @@ jobs:
 
   build:
     needs: prepare_env
-    name: Build and release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        build: [general, webrender]
+        build: [general, webrender, vendor]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CARGO_INCREMENTAL: 0
@@ -71,23 +70,37 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.build }}-cargo-${{ needs.prepare_env.outputs.rust_cache }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.build }}-cargo
+      - name: Cargo Vendor
+        if: ${{ matrix.build == 'vendor' }}
+        run: |
+          version=${{ needs.prepare_env.outputs.version }}
+          artifacts=vendored-source_$version\.tar.xz
+          artifactContentType=
+          echo "version=$version" >> $GITHUB_ENV
+          echo "artifacts=$artifacts" >> $GITHUB_ENV
+          echo "content_type=application/x-xz-compressed-tar" >> $GITHUB_ENV
+          ./admin/vendor_cargo_source.sh $version
       - name: Build project
         if: ${{ matrix.build == 'general' }}
         run: |
           version=${{ needs.prepare_env.outputs.version }}
-          bin_version=$version
+          artifacts=emacs-ng_$version\_${{ needs.prepare_env.outputs.arch }}.deb
           echo "version=$version" >> $GITHUB_ENV
-          echo "bin_version=$bin_version" >> $GITHUB_ENV
-          ./build_emacs_ng.sh $bin_version
+          echo "artifacts=$artifacts" >> $GITHUB_ENV
+          echo "content_type=application/vnd.debian.binary-package" >> $GITHUB_ENV
+          ./admin/build_emacs_ng.sh $version
       - name: Build project with webrender
         if: ${{ matrix.build == 'webrender' }}
         run: |
           version=${{ needs.prepare_env.outputs.version }}
-          bin_version=$version.webrender
+          bin_version=$version\.webrender
+          artifacts=emacs-ng_$bin_version\_${{ needs.prepare_env.outputs.arch }}.deb
           echo "version=$version" >> $GITHUB_ENV
-          echo "bin_version=$bin_version" >> $GITHUB_ENV
-          ./build_emacs_ng.sh $bin_version --with-webrender --with-winit
+          echo "artifacts=$artifacts" >> $GITHUB_ENV
+          echo "content_type=application/vnd.debian.binary-package" >> $GITHUB_ENV
+          ./admin/build_emacs_ng.sh $bin_version --with-webrender --with-winit
       - name: Reduce cache
+        if: ${{ matrix.build != 'vendor' }}
         continue-on-error: true
         run: |
           ## Reduce Cache
@@ -115,8 +128,8 @@ jobs:
           draft: false
           prerelease: ${{ needs.prepare_env.outputs.prerelease }}
           artifactErrorsFailBuild: true
-          artifacts: ./emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
-          artifactContentType: application/vnd.debian.binary-package
+          artifacts: ./${{ env.artifacts }}
+          artifactContentType: ${{ env.content_type }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Do upload to release
         if: steps.get_release_by_tag.outcome == 'success'
@@ -124,6 +137,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.get_release_by_tag.outputs.upload_url }}
-          asset_path: ./emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
-          asset_name: emacs-ng_${{ env.bin_version }}_${{ needs.prepare_env.outputs.arch }}.deb
-          asset_content_type: application/vnd.debian.binary-package
+          asset_path: ./${{ env.artifacts }}
+          asset_name: ${{ env.artifacts }}
+          asset_content_type: ${{ env.content_type }}
