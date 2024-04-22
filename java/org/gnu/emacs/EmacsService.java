@@ -70,15 +70,16 @@ import android.hardware.input.InputManager;
 import android.net.Uri;
 
 import android.os.BatteryManager;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Environment;
-import android.os.Looper;
-import android.os.IBinder;
 import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
-import android.os.VibrationEffect;
 
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
@@ -234,6 +235,8 @@ public final class EmacsService extends Service
     final double scaledDensity;
     double tempScaledDensity;
 
+    super.onCreate ();
+
     SERVICE = this;
     handler = new Handler (Looper.getMainLooper ());
     manager = getAssets ();
@@ -247,9 +250,9 @@ public final class EmacsService extends Service
     resolver = getContentResolver ();
     mainThread = Thread.currentThread ();
 
-    /* If the density used to compute the text size is lesser than
-       160, there's likely a bug with display density computation.
-       Reset it to 160 in that case.
+    /* If the density used to compute the text size is smaller than 160,
+       there's likely a bug with display density computation.  Reset it
+       to 160 in that case.
 
        Note that Android uses 160 ``dpi'' as the density where 1 point
        corresponds to 1 pixel, not 72 or 96 as used elsewhere.  This
@@ -261,6 +264,10 @@ public final class EmacsService extends Service
     /* scaledDensity is const as required to refer to it from within
        the nested function below.  */
     scaledDensity = tempScaledDensity;
+
+    /* Remove all tasks from previous Emacs sessions but the task
+       created by the system at startup.  */
+    EmacsWindowManager.MANAGER.removeOldTasks (this);
 
     try
       {
@@ -955,11 +962,13 @@ public final class EmacsService extends Service
      string; make it writable if WRITABLE, and readable if READABLE.
      Truncate the file if TRUNCATE.
 
-     Value is the resulting file descriptor or -1 upon failure.  */
+     Value is the resulting file descriptor or an exception will be
+     raised.  */
 
   public int
-  openContentUri (byte[] bytes, boolean writable, boolean readable,
+  openContentUri (String uri, boolean writable, boolean readable,
 		  boolean truncate)
+    throws FileNotFoundException, IOException
   {
     String name, mode;
     ParcelFileDescriptor fd;
@@ -978,39 +987,16 @@ public final class EmacsService extends Service
     if (truncate)
       mode += "t";
 
-    /* Try to open an associated ParcelFileDescriptor.  */
+    /* Try to open a corresponding ParcelFileDescriptor.  Though
+       `fd.detachFd' is exclusive to Honeycomb and up, this function is
+       never called on systems older than KitKat, which is Emacs's
+       minimum requirement for access to /content/by-authority.  */
 
-    try
-      {
-	/* The usual file name encoding question rears its ugly head
-	   again.  */
+    fd = resolver.openFileDescriptor (Uri.parse (uri), mode);
+    i = fd.detachFd ();
+    fd.close ();
 
-	name = new String (bytes, "UTF-8");
-	fd = resolver.openFileDescriptor (Uri.parse (name), mode);
-
-	/* Use detachFd on newer versions of Android or plain old
-	   dup.  */
-
-	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1)
-	  {
-	    i = fd.detachFd ();
-	    fd.close ();
-
-	    return i;
-	  }
-	else
-	  {
-	    i = EmacsNative.dup (fd.getFd ());
-	    fd.close ();
-
-	    return i;
-	  }
-      }
-    catch (Exception exception)
-      {
-	exception.printStackTrace ();
-	return -1;
-      }
+    return i;
   }
 
   /* Return whether Emacs is directly permitted to access the
@@ -1021,11 +1007,8 @@ public final class EmacsService extends Service
   public boolean
   checkContentUri (String name, boolean readable, boolean writable)
   {
-    String mode;
-    ParcelFileDescriptor fd;
     Uri uri;
     int rc, flags;
-    ParcelFileDescriptor descriptor;
 
     uri = Uri.parse (name);
     flags = 0;
@@ -1036,47 +1019,21 @@ public final class EmacsService extends Service
     if (writable)
       flags |= Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
 
-    rc = checkCallingUriPermission (uri, flags);
+    /* checkCallingUriPermission deals with permissions held by callers
+       of functions over the Binder IPC mechanism as contrasted with
+       Emacs itself, while getCallingPid and getCallingUid, despite the
+       class where they reside, return the process credentials against
+       which the system will actually test URIs being opened.  */
 
-    if (rc == PackageManager.PERMISSION_GRANTED)
-      return true;
-
-    /* In the event checkCallingUriPermission fails and only read
-       permissions are being verified, attempt to query the URI.  This
-       enables ascertaining whether drag and drop URIs can be
-       accessed, something otherwise not provided for.  */
-
-    descriptor = null;
-
-    try
-      {
-        descriptor = resolver.openFileDescriptor (uri, "r");
-	return true;
-      }
-    catch (Exception exception)
-      {
-	/* Ignored.  */
-      }
-    finally
-      {
-	try
-	  {
-	    if (descriptor != null)
-	      descriptor.close ();
-	  }
-	catch (IOException exception)
-	  {
-	    /* Ignored.  */
-	  }
-      }
-
-    return false;
+    rc = checkUriPermission (uri, Binder.getCallingPid (),
+			     Binder.getCallingUid (), flags);
+    return rc == PackageManager.PERMISSION_GRANTED;
   }
 
   /* Return a 8 character checksum for the string STRING, after encoding
      as UTF-8 data.  */
 
-  public static String
+  private static String
   getDisplayNameHash (String string)
   {
     byte[] encoded;

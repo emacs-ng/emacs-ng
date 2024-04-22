@@ -102,6 +102,7 @@
 (require 'erc-common)
 
 (defvar erc--display-context)
+(defvar erc--msg-prop-overrides)
 (defvar erc--target)
 (defvar erc-channel-list)
 (defvar erc-channel-members)
@@ -787,7 +788,8 @@ TLS (see `erc-session-client-certificate' for more details)."
     ;; MOTD line)
     (if (eq (process-status process) 'connect)
         ;; waiting for a non-blocking connect - keep the user informed
-        (progn
+        (let ((erc--msg-prop-overrides `((erc--skip . (stamp))
+                                         ,@erc--msg-prop-overrides)))
           (erc-display-message nil nil buffer "Opening connection..\n")
           (run-at-time 1 nil erc--server-connect-function process))
       (message "%s...done" msg)
@@ -1536,6 +1538,8 @@ Finds hooks by looking in the `erc-server-responses' hash table."
   (let ((hook (or (erc-get-hook (erc-response.command message))
                   'erc-default-server-functions)))
     (run-hook-with-args-until-success hook process message)
+    ;; Some handlers, like `erc-cmd-JOIN', open new targets without
+    ;; saving excursion, and `erc-open' sets the current buffer.
     (erc-with-server-buffer
       (run-hook-with-args 'erc-timer-hook (erc-current-time)))))
 
@@ -1992,7 +1996,6 @@ like `erc-insert-modify-hook'.")
             (and erc-ignore-reply-list (erc-ignored-reply-p msg tgt proc)))
         (when erc-minibuffer-ignored
           (message "Ignored %s from %s to %s" cmd sender-spec tgt))
-      (defvar erc--msg-prop-overrides)
       (let* ((sndr (erc-parse-user sender-spec))
              (nick (nth 0 sndr))
              (login (nth 1 sndr))

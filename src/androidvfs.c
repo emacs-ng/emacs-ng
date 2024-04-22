@@ -3130,8 +3130,10 @@ android_authority_name (struct android_vnode *vnode, char *name,
 	  return NULL;
 	}
 
-      /* NAME must be a valid JNI string, so that it can be encoded
-	 properly.  */
+      /* If the URI is not a valid JNI string, return immediately.  This
+	 should not be possible, since /content file names are encoded
+	 into JNI strings at the naming stage; the check is performed
+	 only out of an abundance of caution.  */
 
       if (android_verify_jni_string (name))
 	goto no_entry;
@@ -3169,7 +3171,6 @@ android_authority_open (struct android_vnode *vnode, int flags,
 			AAsset **asset)
 {
   struct android_authority_vnode *vp;
-  size_t length;
   jobject string;
   int fd;
   JNIEnv *env;
@@ -3189,22 +3190,11 @@ android_authority_open (struct android_vnode *vnode, int flags,
      feasible.  */
   env = android_java_env;
 
-  /* Allocate a buffer to hold the file name.  */
-  length = strlen (vp->uri);
-  string = (*env)->NewByteArray (env, length);
-  if (!string)
-    {
-      (*env)->ExceptionClear (env);
-      errno = ENOMEM;
-      return -1;
-    }
-
-  /* Copy the URI into this byte array.  */
-  (*env)->SetByteArrayRegion (env, string, 0, length,
-			      (jbyte *) vp->uri);
+  /* Allocate a JNI string to hold VP->uri.  */
+  string = (*env)->NewStringUTF (env, vp->uri);
+  android_exception_check ();
 
   /* Try to open the file descriptor.  */
-
   fd = (*env)->CallNonvirtualIntMethod (env, emacs_service,
 					service_class.class,
 					service_class.open_content_uri,
@@ -3215,13 +3205,7 @@ android_authority_open (struct android_vnode *vnode, int flags,
 					(jboolean) !(mode & O_WRONLY),
 					(jboolean) ((mode & O_TRUNC)
 						    != 0));
-  if ((*env)->ExceptionCheck (env))
-    {
-      (*env)->ExceptionClear (env);
-      errno = ENOMEM;
-      ANDROID_DELETE_LOCAL_REF (string);
-      return -1;
-    }
+  android_exception_check_1 (string);
 
   /* If fd is -1, just assume that the file does not exist,
      and return -1 with errno set to ENOENT.  */
@@ -7821,10 +7805,10 @@ DEFUN ("android-relinquish-directory-access",
        Sandroid_relinquish_directory_access, 1, 1,
        "DDirectory: ",
        doc: /* Relinquish access to the provided directory.
-DIRECTORY must be an inferior directory to a subdirectory of
-/content/storage.  Once the command completes, the parent of DIRECTORY
-below that subdirectory from will cease to appear there, but no files
-will be removed.  */)
+DIRECTORY must be the toplevel directory of an open SAF volume (i.e., a
+file under /content/storage), or one of its inferiors.  Once the command
+completes, the SAF directory holding this directory will vanish, but no
+files will be removed.  */)
   (Lisp_Object file)
 {
   struct android_vnode *vp;
@@ -7840,7 +7824,14 @@ will be removed.  */)
     return Qnil;
 
   file = ENCODE_FILE (Fexpand_file_name (file, Qnil));
-  vp   = android_name_file (SSDATA (file));
+
+  if (!NILP (call1 (Qfile_remote_p, file)))
+    signal_error ("Cannot relinquish access to remote file", file);
+
+  vp = android_name_file (SSDATA (file));
+
+  if (!vp)
+    report_file_error ("Relinquishing directory", file);
 
   if (vp->type != ANDROID_VNODE_SAF_TREE)
     {

@@ -15,6 +15,12 @@ in older Emacs versions.
 You can narrow news to a specific version by calling 'view-emacs-news'
 with a prefix argument or by typing 'C-u C-h C-n'.
 
+Temporary note:
++++ indicates that all relevant manuals in doc/ have been updated.
+--- means no change in the manuals is needed.
+When you add a new item, use the appropriate mark if you are sure it
+applies, and please also update docstrings as needed.
+
 
 * Installation Changes in Emacs 30.1
 
@@ -70,7 +76,7 @@ more details.
 
 ** Mouse wheel events should now always be 'wheel-up/down/left/right'.
 At those places where the old 'mouse-4/5/6/7' events could still occur
-(i.e. X11 input in the absence of XInput2, and 'xterm-mouse-mode'),
+(i.e., X11 input in the absence of XInput2, and 'xterm-mouse-mode'),
 we remap them to the corresponding 'wheel-up/down/left/right' event,
 according to the new variable 'mouse-wheel-buttons'.
 The old variables 'mouse-wheel-up-event', 'mouse-wheel-down-event',
@@ -81,7 +87,7 @@ obsolete.
 In order to help the use of those Tree-Sitter modes, they are now
 declared to have the corresponding non-Tree-Sitter mode as an
 additional parent.
-This way, things like `.dir-locals.el` settings, and YASnippet
+This way, things like ".dir-locals.el" settings, and YASnippet
 collections of snippets automatically apply to the new Tree-Sitter modes.
 
 Note that those modes still do not inherit from the non-TS mode, so
@@ -126,7 +132,7 @@ to your init:
 ** 'describe-function' now shows the type of the function object.
 The text used to say things like "car is is a built-in function"
 whereas it now says "car is a primitive-function" where "primitive-function"
-is the symbol returned by `cl-type-of` and you can click on it to get
+is the symbol returned by 'cl-type-of' and you can click on it to get
 information about that type.
 
 ** 'advice-remove' is now an interactive command.
@@ -266,7 +272,7 @@ value when installing GNU coreutils using something like ports or
 Homebrew.
 
 +++
-** cl-print
+** CL Print
 
 +++
 *** You can expand the "..." truncation everywhere.
@@ -345,24 +351,51 @@ points after switching back to that tab.
 
 ---
 *** New user option 'tab-bar-select-restore-windows'.
-It defines what to do with windows whose buffer was killed
-since the tab was last selected.  By default it displays
-a placeholder buffer that provides information about the name
-of the killed buffer that was displayed in that window.
+It defines what to do with windows whose buffer was killed since the tab
+was last selected.  By default it displays a placeholder buffer that
+provides information about the name of the killed buffer that was
+displayed in that window.
 
 ---
 *** New user option 'tab-bar-tab-name-format-functions'.
-It can be used to add, remove and reorder functions that change
-the appearance of every tab on the tab bar.
+It can be used to add, remove and reorder functions that change the
+appearance of every tab on the tab bar.
 
 ---
 *** New hook 'tab-bar-tab-post-select-functions'.
 
 ---
 *** New keymap 'tab-bar-mode-map'.
-By default it contains a keybinding 'C-TAB' to switch tabs,
-but only when 'C-TAB' is not bound globally.  You can unbind it
-if it conflicts with 'C-TAB' in other modes.
+By default it contains a keybinding 'C-TAB' to switch tabs, but only
+when 'C-TAB' is not bound globally.  You can unbind it if it conflicts
+with 'C-TAB' in other modes.
+
+---
+*** New keymap 'tab-line-mode-map'.
+By default it contains keybindings for switching tabs: 'C-x <left>',
+'C-x <right>', 'C-x C-<left>', 'C-x C-<right>'.  You can unbind them if
+you want to use these keys for the commands 'previous-buffer' and
+'next-buffer'.
+
+---
+*** Default list of tabs is changed to support a fixed order.
+This means that 'tab-line-tabs-fixed-window-buffers', the new default
+tabs function, is like the previous 'tab-line-tabs-window-buffers' where
+both of them show only buffers that were previously displayed in the
+window.  But the difference is that the new function always keeps the
+original order of buffers on the tab line, even after switching between
+these buffers.  You can drag the tabs and release at a new position
+to manually reorder the buffers on the tab line.
+
+---
+*** New user option 'tab-line-tabs-buffer-group-function'.
+It provides two choices to group tab buffers by major mode and by
+project name.
+
+---
+*** Buffers on group tabs are now sorted alphabetically.
+This will keep the fixed order of tabs, even after switching between
+them.
 
 +++
 ** New optional argument for modifying directory-local variables.
@@ -499,7 +532,7 @@ By default this is disabled.
 ---
 *** Users in CJK locales can control width of some non-CJK characters.
 Some characters are considered by Unicode as "ambiguous" with respect
-to their display width: either "full-width" (i.e. taking 2 columns on
+to their display width: either "full-width" (i.e., taking 2 columns on
 display) or "narrow" (taking 1 column).  The actual width depends on
 the fonts used for these characters by Emacs or (for text-mode frames)
 by the terminal emulator.  Traditionally, font sets in CJK locales
@@ -546,7 +579,7 @@ only to specify the 'mouse-4/5/6/7' events that might still
 happen to be generated by some old packages (or if 'mouse-wheel-buttons'
 has been set to nil).
 
-** 'xterm-mouse-mode'
+** Xterm Mouse mode
 This mode now emits 'wheel-up/down/right/left' events instead of
 'mouse-4/5/6/7' events for the mouse wheel.
 It uses the new variable 'mouse-wheel-buttons' to decide which button
@@ -568,7 +601,7 @@ This requires the 'lzip' program to be installed on your system.
 ** New command 'lldb'.
 Run the LLDB debugger, analogous to the 'gud-gdb' command.
 
-** gdb-mi
+** GDB MI
 
 ---
 *** Variable order and truncation can now be configured in 'gdb-many-windows'.
@@ -1112,7 +1145,7 @@ would add a duplicate entry to the end of the history list each time.
 This made it impossible to navigate to the "end" of the history list.
 Now, navigating through history in EWW simply changes your position in
 the history list, allowing you to reach the end as expected.  In
-addition, when browsing to a new page from a "historical" one (i.e. a
+addition, when browsing to a new page from a "historical" one (i.e., a
 page loaded by navigating back through history), EWW deletes the history
 entries newer than the current page.  To change the behavior when
 browsing from "historical" pages, you can customize
@@ -1136,7 +1169,7 @@ display only the readable parts by default.  For more details, see
 When non-nil (the default), calling 'eww-readable' adds a new entry to
 the EWW page history.
 
-** go-ts-mode
+** Go-ts mode
 
 +++
 *** New command 'go-ts-mode-docstring'.
@@ -1217,6 +1250,28 @@ in a clean environment.
 ** Flymake
 
 +++
+*** New user option 'flymake-indicator-type'.
+This user option controls which error indicator type Flymake should use
+in current buffer.  Depending on your preference, this can either use
+fringes or margins for indicating errors.
+
++++
+*** New user option 'flymake-margin-indicators-string'.
+It controls, for each error type, the string and its face to display as
+the margin indicator.
+
++++
+*** New user option 'flymake-autoresize-margins'.
+If non-nil, Flymake will resize the margins when 'flymake-mode' is
+turned on or off.
+Only relevant if `flymake-indicator-type` is set to `margins`.
+
++++
+*** New user option 'flymake-margin-indicator-position'.
+It controls which margin (left or right) is used for margin
+indicators.
+
++++
 *** New user option 'flymake-show-diagnostics-at-end-of-line'.
 When non-nil, Flymake shows summarized descriptions of diagnostics at
 the end of the line.  Depending on your preference, this can either be
@@ -1265,12 +1320,11 @@ This allows the user to specify command line arguments to the non
 interactive Python interpreter specified by 'python-interpreter'.
 
 ** Scheme mode
-
-Scheme mode now handles regular expression literal #/regexp/ that is
+Scheme mode now handles regular expression literal '#/regexp/' that is
 available in some Scheme implementations.
 Also, it should now handle nested sexp-comments.
 
-** use-package
+** Use package
 
 +++
 *** New ':vc' keyword.
@@ -1434,13 +1488,13 @@ without specifying a file, like this:
 ** Image
 
 +++
-*** Image :map property is now recomputed when image is transformed.
+*** Image ':map' property is now recomputed when image is transformed.
 Now images with clickable maps work as expected after you run commands
-such as `image-increase-size', `image-decrease-size', `image-rotate',
-`image-flip-horizontally', and `image-flip-vertically'.
+such as 'image-increase-size', 'image-decrease-size', 'image-rotate',
+'image-flip-horizontally', and 'image-flip-vertically'.
 
 +++
-*** New user option 'image-recompute-map-p'
+*** New user option 'image-recompute-map-p'.
 Set this option to nil to prevent Emacs from recomputing image maps.
 
 ** Image Dired
@@ -1500,6 +1554,16 @@ macros with many lines, such as from 'kmacro-edit-lossage'.
 The user option 'proced-auto-update-flag' can now be set to 2 additional
 values, which control automatic updates of Proced buffers that are not
 displayed in some window.
+** Kmacro Menu Mode
+
++++
+*** New mode 'kmacro-menu-mode' and new command 'list-keyboard-macros'.
+The new command 'list-keyboard-macros' is the keyboard-macro version
+of commands like 'list-buffers' and 'list-processes', creating a listing
+of the currently existing keyboards macros using the new mode
+'kmacro-menu-mode'.  It allows rearranging the macros in the ring,
+duplicating them, deleting them, and editing their counters, formats,
+and keys.
 
 ** Miscellaneous
 
@@ -1575,7 +1639,7 @@ buffer method is the default, which preserves previous behavior.
 *** New user option 'xwidget-webkit-disable-javascript'.
 This allows disabling JavaScript in xwidget Webkit sessions.
 
-** ls-lisp
+** Ls Lisp
 
 ---
 *** 'ls-lisp--insert-directory' supports more long options of 'ls'.
@@ -1583,8 +1647,27 @@ This allows disabling JavaScript in xwidget Webkit sessions.
 'insert-directory', now supports the '--time=TIME' and '--sort=time'
 options of GNU 'ls'.
 
+** Widget
+
++++
+*** New user option 'widget-skip-inactive'.
+If non-nil, moving point forward or backward between widgets by typing
+TAB or S-TAB skips over inactive widgets.  The default value is nil.
+
 
 * New Modes and Packages in Emacs 30.1
+
++++
+** New package Track-Changes.
+This library is a layer of abstraction above 'before-change-functions'
+and 'after-change-functions' which provides a superset of
+the functionality of 'after-change-functions':
+- It provides the actual previous text rather than only its length.
+- It takes care of accumulating and bundling changes until a time when
+  its client finds it convenient to react to them.
+- It detects most cases where some changes were not properly
+  reported (calls to 'before/after-change-functions' that are
+  incorrectly paired, missing, etc...) and reports them adequately.
 
 ** New major modes based on the tree-sitter library
 
@@ -1657,6 +1740,14 @@ documentation and examples.
 
 
 * Incompatible Lisp Changes in Emacs 30.1
+
++++
+** 'define-globalized-minor-mode' requires that modes use 'run-mode-hooks'.
+Minor modes defined with 'define-globalized-minor-mode', such as
+'global-font-lock-mode', will not be enabled any more in those buffers
+whose major modes fails to use 'run-mode-hooks'.  Major modes defined
+with 'define-derived-mode' are not affected.  `run-mode-hooks` has been the
+recommended way to run major mode hooks since Emacs-22.
 
 ---
 ** Old derived.el functions removed.
@@ -1775,6 +1866,17 @@ Use a float value for the first argument instead.
 Instead, use 'eshell-process-wait-time', which supports floating-point
 values.
 
++++
+** Conversion of strings to and from byte-arrays works with multibyte strings.
+The functions 'dbus-string-to-byte-array' and
+'dbus-byte-array-to-string' now accept and return multibyte Lisp
+strings, encoding to UTF-8 and decoding from UTF-8 internally.  This
+means that the argument to 'dbus-byte-array-to-string' must be a valid
+UTF-8 byte sequence, and the optional parameter MULTIBYTE of
+'dbus-byte-array-to-string' is now obsolete and unused.  The argument of
+'dbus-string-to-byte-array' should be a regular Lisp string, not a
+unibyte string.
+
 
 * Lisp Changes in Emacs 30.1
 
@@ -1789,18 +1891,18 @@ This function is like 'type-of' except that it sometimes returns
 a more precise type.  For example, for nil and t it returns 'null'
 and 'boolean' respectively, instead of just 'symbol'.
 
-** New functions `primitive-function-p` and `cl-functionp`.
-`primitive-function-p` is like `subr-primitive-p` except that it returns
+** New functions 'primitive-function-p' and 'cl-functionp'.
+'primitive-function-p' is like 'subr-primitive-p' except that it returns
 t only if the argument is a function rather than a special-form,
-and `cl-functionp` is like `functionp` except it return nil
+and 'cl-functionp' is like 'functionp' except it returns nil
 for lists and symbols.
 
 ** Built-in types have now corresponding classes.
-At the Lisp level, this means that things like (cl-find-class 'integer)
+At the Lisp level, this means that things like '(cl-find-class 'integer)'
 will now return a class object, and at the UI level it means that
 things like 'C-h o integer RET' will show some information about that type.
 
-** New var 'major-mode-remap-defaults' and function 'major-mode-remap'.
+** New variable 'major-mode-remap-defaults' and function 'major-mode-remap'.
 The first is like Emacs-29's 'major-mode-remap-alist' but to be set by
 packages (instead of users).  The second looks up those two variables.
 
@@ -1831,6 +1933,13 @@ It provides a functionality similar to 'condition-case' except it runs
 the handler code without unwinding the stack, such that we can record
 the backtrace and other dynamic state at the point of the error.  See
 the Info node "(elisp) Handling Errors".
+
++++
+** Tooltips on fringes.
+It is now possible to provide tooltips on fringes by adding special text
+properties 'left-fringe-help' and 'right-fringe-help'.  See the "Special
+Properties" Info node in the Emacs Lisp Reference Manual for more
+details.
 
 +++
 ** New 'pop-up-frames' action alist entry for 'display-buffer'.
@@ -1934,7 +2043,7 @@ capabilities of the 'notifications-notify' function in a manner
 analogous to 'w32-notification-notify'.
 
 ** New variable 'haiku-pass-control-tab-to-system'.
-This sets whether Emacs should pass C-TAB on to the system instead of
+This sets whether Emacs should pass 'C-TAB' on to the system instead of
 handling it, fixing a problem where window switching would not activate
 if an Emacs frame had focus on the Haiku operation system.
 
@@ -2010,7 +2119,6 @@ killed.
 It returns the last position of a marker in its buffer even if that
 buffer has been killed.  ('marker-position' would return nil in that
 case.)
-
 
 ** Functions and variables to transpose sexps
 
@@ -2360,16 +2468,16 @@ is the value of the property to context menus shown when clicking on the
 text which as this property.
 
 ---
-** Detecting the end of an iteration of a keyboard macro
+** Detecting the end of an iteration of a keyboard macro.
 'read-event', 'read-char', and 'read-char-exclusive' no longer return -1
-when called at the end of an iteration of a the execution of a keyboard
+when called at the end of an iteration of the execution of a keyboard
 macro.  Instead, they will transparently continue reading available input
 (e.g., from the keyboard).  If you need to detect the end of a macro
 iteration, check the following condition before calling one of the
 aforementioned functions:
 
     (and (arrayp executing-kbd-macro)
-         (>= executing-kbd-macro-index (length executing-kbd-macro))))
+         (>= executing-kbd-macro-index (length executing-kbd-macro)))
 
 +++
 ** 'vtable-update-object' updates an existing object with just two arguments.
@@ -2394,37 +2502,53 @@ It will now signal 'json-utf8-decode-error' for inputs that are not
 correctly UTF-8 encoded.
 
 ---
-*** The parser and encoder now accept arbitarily large integers.
+*** The parser and encoder now accept arbitrarily large integers.
 Previously, they were limited to the range of signed 64-bit integers.
 
-** New tree-sitter functions and variables for defining and using "things"
+** New tree-sitter functions and variables for defining and using "things".
 
 +++
 *** New variable 'treesit-thing-settings'.
-
-New variable that allows users to define "things" like 'defun', 'text',
-'sexp', for navigation commands and tree-traversal functions.
+It allows modes to define "things" like 'defun', 'text', 'sexp', and
+'sentence' for navigation commands and tree-traversal functions.
 
 +++
-*** New navigation functions 'treesit-thing-prev', 'treesit-thing-next', 'treesit-navigate-thing', 'treesit-beginning-of-thing', 'treesit-end-of-thing'.
+*** New functions for navigating "things".
+There are new navigation functions 'treesit-thing-prev',
+'treesit-thing-next', 'treesit-navigate-thing',
+'treesit-beginning-of-thing', and 'treesit-end-of-thing'.
 
 +++
 *** New functions 'treesit-thing-at', 'treesit-thing-at-point'.
 
 +++
-*** Tree-tarversing functions 'treesit-search-subtree', 'treesit-search-forward', 'treesit-search-forward-goto', 'treesit-induce-sparse-tree' now accepts more kinds of predicates.
+*** Tree-traversing functions.
+The functions 'treesit-search-subtree', 'treesit-search-forward',
+'treesit-search-forward-goto', and 'treesit-induce-sparse-tree' now
+accept more kinds of predicates.  Lisp programs can now use thing
+symbols (defined in 'treesit-thing-settings') and any thing definitions
+for the predicate argument.
 
-Now users can use thing symbols (defined in 'treesit-thing-settings'),
-and any thing definitions for the predicate argument.
-
-** Other tree-sitter function and variable changes
+** Other tree-sitter function and variable changes.
 
 +++
-*** 'treesit-parser-list' now takes additional optional arguments, LANGUAGE and TAG.
+*** 'treesit-parser-list' now takes additional optional arguments.
+The additional arguments are LANGUAGE and TAG.  If LANGUAGE is given,
+only return parsers for that language.  If TAG is given, only return
+parsers with that tag.  Note that passing nil as tag doesn't mean return
+all parsers, but rather "all parsers with no tags".
 
-If LANGUAGE is given, only return parsers for that language.  If TAG is
-given, only return parsers with that tag.  Note that passing nil as tag
-doesn't mean return all parsers, but rather "all parsers with no tags".
++++
+*** New function 'treesit-parser-changed-ranges'.
+
+This function returns buffer regions that are affected by the last
+buffer edits.
+
+*** New function 'treesit-add-font-lock-rules'.
+
+This function helps user to add custom font-lock rules to a tree-sitter
+major mode.
+
 
 
 * Changes in Emacs 30.1 on Non-Free Operating Systems

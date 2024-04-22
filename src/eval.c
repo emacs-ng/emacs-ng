@@ -948,8 +948,9 @@ usage: (let* VARLIST BODY...)  */)
 	  val = eval_sub (Fcar (XCDR (elt)));
 	}
 
-      if (!NILP (lexenv) && SYMBOLP (var)
-	  && !XSYMBOL (var)->u.s.declared_special
+      var = maybe_remove_pos_from_symbol (var);
+      if (!NILP (lexenv) && BARE_SYMBOL_P (var)
+	  && !XBARE_SYMBOL (var)->u.s.declared_special
 	  && NILP (Fmemq (var, Vinternal_interpreter_environment)))
 	/* Lexically bind VAR by adding it to the interpreter's binding
 	   alist.  */
@@ -1016,11 +1017,10 @@ usage: (let VARLIST BODY...)  */)
   varlist = XCAR (args);
   for (argnum = 0; argnum < nvars && CONSP (varlist); argnum++)
     {
-      Lisp_Object var;
-
       elt = XCAR (varlist);
       varlist = XCDR (varlist);
-      var = SYMBOLP (elt) ? elt : Fcar (elt);
+      Lisp_Object var = maybe_remove_pos_from_symbol (SYMBOLP (elt) ? elt
+						      : Fcar (elt));
       tem = temps[argnum];
 
       if (!NILP (lexenv) && SYMBOLP (var)
@@ -1416,6 +1416,7 @@ internal_lisp_condition_case (Lisp_Object var, Lisp_Object bodyform,
   struct handler *oldhandlerlist = handlerlist;
   ptrdiff_t CACHEABLE clausenb = 0;
 
+  var = maybe_remove_pos_from_symbol (var);
   CHECK_SYMBOL (var);
 
   Lisp_Object success_handler = Qnil;
@@ -3158,13 +3159,9 @@ apply_lambda (Lisp_Object fun, Lisp_Object args, specpdl_ref count)
    or a module function.  */
 
 static Lisp_Object
-funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
-		register Lisp_Object *arg_vector)
+funcall_lambda (Lisp_Object fun, ptrdiff_t nargs, Lisp_Object *arg_vector)
 {
-  Lisp_Object val, syms_left, next, lexenv;
-  specpdl_ref count = SPECPDL_INDEX ();
-  ptrdiff_t i;
-  bool optional, rest;
+  Lisp_Object syms_left, lexenv;
 
   if (CONSP (fun))
     {
@@ -3211,13 +3208,16 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
   else
     emacs_abort ();
 
-  i = optional = rest = 0;
+  specpdl_ref count = SPECPDL_INDEX ();
+  ptrdiff_t i = 0;
+  bool optional = false;
+  bool rest = false;
   bool previous_rest = false;
   for (; CONSP (syms_left); syms_left = XCDR (syms_left))
     {
       maybe_quit ();
 
-      next = XCAR (syms_left);
+      Lisp_Object next = XCAR (syms_left);
       if (!SYMBOLP (next))
 	xsignal1 (Qinvalid_function, fun);
 
@@ -3255,7 +3255,7 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
 	    lexenv = Fcons (Fcons (next, arg), lexenv);
 	  else
 	    /* Dynamically bind NEXT.  */
-	    specbind (next, arg);
+	    specbind (maybe_remove_pos_from_symbol (next), arg);
 	  previous_rest = false;
 	}
     }
@@ -3269,6 +3269,7 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
     /* Instantiate a new lexical environment.  */
     specbind (Qinternal_interpreter_environment, lexenv);
 
+  Lisp_Object val;
   if (CONSP (fun))
     val = Fprogn (XCDR (XCDR (fun)));
   else if (SUBR_NATIVE_COMPILEDP (fun))
@@ -3466,10 +3467,8 @@ do_specbind (struct Lisp_Symbol *sym, union specbinding *bind,
 void
 specbind (Lisp_Object symbol, Lisp_Object value)
 {
-  struct Lisp_Symbol *sym;
-
-  CHECK_SYMBOL (symbol);
-  sym = XSYMBOL (symbol);
+  /* The caller must ensure that the SYMBOL argument is a bare symbol.  */
+  struct Lisp_Symbol *sym = XBARE_SYMBOL (symbol);
 
  start:
   switch (sym->u.s.redirect)
