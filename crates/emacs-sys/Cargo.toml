@@ -34,7 +34,7 @@ wayland-sys = {version = "0.31", features = ["client", "dlopen"]}
 x11 = { version = "2.21", features = ["xlib"], optional = true}
 
 [build-dependencies]
-bindgen = "0.69"
+bindgen = "0.69.4"
 regex.workspace = true
 libc = "0.2"
 cfg_aliases.workspace = true
