@@ -8,7 +8,7 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-libc = "0.2.153"
+libc = "0.2.154"
 log = "0.4"
 memoffset = "0.9"
 raw-window-handle = { workspace = true, optional = true }
@@ -36,7 +36,7 @@ x11 = { version = "2.21", features = ["xlib"], optional = true}
 [build-dependencies]
 bindgen = "0.69"
 regex.workspace = true
-libc = "0.2"
+libc = "0.2.154"
 cfg_aliases.workspace = true
 
 [features]

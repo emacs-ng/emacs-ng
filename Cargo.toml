@@ -9,7 +9,7 @@ edition = "2021"
 build = "./crates/codegen/etc/build.rs"
 
 [dependencies]
-libc = "0.2"
+libc = "0.2.154"
 emacs-sys.path = "./crates/emacs-sys"
 lisp-async.path = "./crates/lisp-async"
 lsp-json.path = "./crates/lsp-json"
@@ -70,7 +70,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.dependencies]
-libc = "0.2"
+libc = "0.2.154"
 log = "0.4"
 errno = "0.3"
 gtk = "0.18"
