@@ -21,7 +21,6 @@ app_units = "0.7"
 bit-vec = "0.6.3"
 raw-window-handle.workspace = true
 winit.workspace = true
-spin_sleep = "1.2"
 nix = { version = "0.28.0", features = ["signal"] }
 
 [build-dependencies]

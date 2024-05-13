@@ -1027,6 +1027,7 @@ dependencies = [
  "lsp-json",
  "ng-module",
  "pgtk",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "winit 0.1.0",
@@ -3587,15 +3588,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spin_sleep"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368a978649eaf70006b082e79c832bd72556ac1393eaf564d686e919dca2347f"
-dependencies = [
- "windows-sys 0.52.0",
-]
-
-[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4891,7 +4883,6 @@ dependencies = [
  "log",
  "nix",
  "raw-window-handle",
- "spin_sleep",
  "webrender 0.1.0",
  "webrender_api",
  "winit 0.29.15",
