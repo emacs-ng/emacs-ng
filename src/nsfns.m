@@ -87,8 +87,6 @@ static Lisp_Object tip_last_parms;
 static Lisp_Object as_script, *as_result;
 static int as_status;
 
-static ptrdiff_t image_cache_refcount;
-
 static struct ns_display_info *ns_display_info_for_name (Lisp_Object);
 
 /* ==========================================================================
@@ -690,11 +688,15 @@ ns_change_tab_bar_height (struct frame *f, int height)
   SET_FRAME_GARBAGED (f);
 }
 
+#ifdef NS_IMPL_COCOA
+
 void
 ns_make_frame_key_window (struct frame *f)
 {
   [[FRAME_NS_VIEW (f) window] makeKeyWindow];
 }
+
+#endif /* NS_IMPL_COCOA */
 
 /* tabbar support */
 static void
@@ -1133,29 +1135,8 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      struct ns_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-#endif
-
-      /* If the frame's image cache refcount is still the same as our
-	 private shadow variable, it means we are unwinding a frame
-	 for which we didn't yet call init_frame_faces, where the
-	 refcount is incremented.  Therefore, we increment it here, so
-	 that free_frame_faces, called in ns_free_frame_resources
-	 below, will not mistakenly decrement the counter that was not
-	 incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       ns_free_frame_resources (f);
       free_glyphs (f);
-
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      /* Check that reference counts are indeed correct.  */
-      eassert (dpyinfo->terminal->image_cache->refcount == image_cache_refcount);
-#endif
-
       return Qt;
     }
 
@@ -1331,13 +1312,10 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   block_input ();
 
 #ifdef NS_IMPL_COCOA
-    mac_register_font_driver (f);
+  mac_register_font_driver (f);
 #else
-    register_font_driver (&nsfont_driver, f);
+  register_font_driver (&nsfont_driver, f);
 #endif
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -2046,12 +2024,12 @@ DEFUN ("x-display-backing-store", Fx_display_backing_store,
   switch ([ns_get_window (terminal) backingType])
     {
     case NSBackingStoreBuffered:
-      return intern ("buffered");
+      return Qbuffered;
 #if defined (NS_IMPL_GNUSTEP) || MAC_OS_X_VERSION_MIN_REQUIRED < 101300
     case NSBackingStoreRetained:
-      return intern ("retained");
+      return Qretained;
     case NSBackingStoreNonretained:
-      return intern ("non-retained");
+      return Qnon_retained;
 #endif
     default:
       error ("Strange value for backingType parameter of frame");
@@ -2071,19 +2049,19 @@ DEFUN ("x-display-visual-class", Fx_display_visual_class,
   depth = [[[NSScreen screens] objectAtIndex:0] depth];
 
   if ( depth == NSBestDepth (NSCalibratedWhiteColorSpace, 2, 2, YES, NULL))
-    return intern ("static-gray");
+    return Qstatic_gray;
   else if (depth == NSBestDepth (NSCalibratedWhiteColorSpace, 8, 8, YES, NULL))
-    return intern ("gray-scale");
+    return Qgray_scale;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 8, 8, YES, NULL))
-    return intern ("pseudo-color");
+    return Qpseudo_color;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 4, 12, NO, NULL))
-    return intern ("true-color");
+    return Qtrue_color;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 8, 24, NO, NULL))
-    return intern ("direct-color");
+    return Qdirect_color;
   else
     /* Color management as far as we do it is really handled by
        Nextstep itself anyway.  */
-    return intern ("direct-color");
+    return Qdirect_color;
 }
 
 
@@ -2183,13 +2161,13 @@ is layered in front of the windows of other applications.  */)
   (Lisp_Object on)
 {
   check_window_system (NULL);
-  if (EQ (on, intern ("activate")))
+  if (EQ (on, Qactivate))
     {
       [NSApp unhide: NSApp];
       [NSApp activateIgnoringOtherApps: YES];
     }
 #if GNUSTEP_GUI_MAJOR_VERSION > 0 || GNUSTEP_GUI_MINOR_VERSION >= 27
-  else if (EQ (on, intern ("activate-front")))
+  else if (EQ (on, Qactivate_front))
     {
       [NSApp unhide: NSApp];
       [[NSRunningApplication currentApplication]
@@ -2530,7 +2508,7 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   if (!NILP (Ffile_directory_p (filename))
       && NILP (Ffile_symlink_p (filename)))
     {
-      operation = intern ("delete-directory");
+      operation = Qdelete_directory;
       filename = Fdirectory_file_name (filename);
     }
 
@@ -3041,9 +3019,6 @@ ns_create_tip_frame (struct ns_display_info *dpyinfo, Lisp_Object parms)
 #endif
   unblock_input ();
 
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
 
@@ -3149,7 +3124,7 @@ ns_create_tip_frame (struct ns_display_info *dpyinfo, Lisp_Object parms)
 
   /* Set the `display-type' frame parameter before setting up faces. */
   {
-    Lisp_Object disptype = intern ("color");
+    Lisp_Object disptype = Qcolor;
 
     if (NILP (Fframe_parameter (frame, Qdisplay_type)))
       {
@@ -3208,7 +3183,7 @@ x_hide_tip (bool delete)
 {
   if (!NILP (tip_timer))
     {
-      call1 (intern ("cancel-timer"), tip_timer);
+      call1 (Qcancel_timer, tip_timer);
       tip_timer = Qnil;
     }
 
@@ -3359,7 +3334,7 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 	      tip_f = XFRAME (tip_frame);
 	      if (!NILP (tip_timer))
 		{
-		  call1 (intern ("cancel-timer"), tip_timer);
+		  call1 (Qcancel_timer, tip_timer);
 		  tip_timer = Qnil;
 		}
 
@@ -3406,12 +3381,12 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 			  break;
 			}
 		      else
-			tip_last_parms =
-			  call2 (intern ("assq-delete-all"), parm, tip_last_parms);
+			tip_last_parms
+			  = call2 (Qassq_delete_all, parm, tip_last_parms);
 		    }
 		  else
-		    tip_last_parms =
-		      call2 (intern ("assq-delete-all"), parm, tip_last_parms);
+		    tip_last_parms
+		      = call2 (Qassq_delete_all, parm, tip_last_parms);
 		}
 
 	      /* Now check if every parameter in what is left of
@@ -3573,8 +3548,8 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 
     start_timer:
       /* Let the tip disappear after timeout seconds.  */
-      tip_timer = call3 (intern ("run-at-time"), timeout, Qnil,
-			 intern ("x-hide-tip"));
+      tip_timer = call3 (Qrun_at_time, timeout, Qnil,
+			 Qx_hide_tip);
     }
 
   return unbind_to (count, Qnil);
@@ -4076,4 +4051,20 @@ The default value is t.  */);
   as_script = Qnil;
   staticpro (&as_script);
   as_result = 0;
+
+  DEFSYM (Qbuffered, "buffered");
+  DEFSYM (Qretained, "retained");
+  DEFSYM (Qnon_retained, "non-retained");
+  DEFSYM (Qstatic_gray, "static-gray");
+  DEFSYM (Qgray_scale, "gray-scale");
+  DEFSYM (Qpseudo_color, "pseudo-color");
+  DEFSYM (Qtrue_color, "true-color");
+  DEFSYM (Qdirect_color, "direct-color");
+  DEFSYM (Qactivate, "activate");
+  DEFSYM (Qactivate_front, "activate-front");
+  DEFSYM (Qcolor, "color");
+  DEFSYM (Qcancel_timer, "cancel-timer");
+  DEFSYM (Qassq_delete_all, "assq-delete-all");
+  DEFSYM (Qrun_at_time, "run-at-time");
+  DEFSYM (Qx_hide_tip, "x-hide-tip");
 }

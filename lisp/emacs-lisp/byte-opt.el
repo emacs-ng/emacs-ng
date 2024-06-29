@@ -164,7 +164,7 @@ Earlier variables shadow later ones with the same name.")
        ;; The byte-code will be really inlined in byte-compile-unfold-bcf.
        (byte-compile--check-arity-bytecode form fn)
        `(,fn ,@(cdr form)))
-      ((or `(lambda . ,_) `(closure . ,_))
+      ((pred interpreted-function-p)
        ;; While byte-compile-unfold-bcf can inline dynbind byte-code into
        ;; letbind byte-code (or any other combination for that matter), we
        ;; can only inline dynbind source into dynbind source or lexbind
@@ -1410,13 +1410,14 @@ See Info node `(elisp) Integer Basics'."
       form)))
 
 (defun byte-optimize-not (form)
-  (and (= (length form) 2)
-       (let ((arg (nth 1 form)))
-         (cond ((null arg) t)
-               ((macroexp-const-p arg) nil)
-               ((byte-compile-nilconstp arg) `(progn ,arg t))
-               ((byte-compile-trueconstp arg) `(progn ,arg nil))
-               (t form)))))
+  (if (= (length form) 2)
+      (let ((arg (nth 1 form)))
+        (cond ((null arg) t)
+              ((macroexp-const-p arg) nil)
+              ((byte-compile-nilconstp arg) `(progn ,arg t))
+              ((byte-compile-trueconstp arg) `(progn ,arg nil))
+              (t form)))
+    form))
 
 (put 'and   'byte-optimizer #'byte-optimize-and)
 (put 'or    'byte-optimizer #'byte-optimize-or)
@@ -1512,13 +1513,15 @@ See Info node `(elisp) Integer Basics'."
 (put 'nthcdr 'byte-optimizer #'byte-optimize-nthcdr)
 (defun byte-optimize-nthcdr (form)
   (if (= (safe-length form) 3)
-      (if (memq (nth 1 form) '(0 1 2))
-	  (let ((count (nth 1 form)))
-	    (setq form (nth 2 form))
-	    (while (>= (setq count (1- count)) 0)
-	      (setq form (list 'cdr form)))
-	    form)
-	form)
+      (let ((count (nth 1 form)))
+        (cond ((and (integerp count) (<= count 3))
+	       (setq form (nth 2 form))
+	       (while (>= (setq count (1- count)) 0)
+	         (setq form (list 'cdr form)))
+	       form)
+              ((not (eq (car form) 'nthcdr))
+               (cons 'nthcdr (cdr form)))  ; use the nthcdr byte-op
+              (t form)))
     form))
 
 (put 'cons 'byte-optimizer #'byte-optimize-cons)
@@ -1870,12 +1873,14 @@ See Info node `(elisp) Integer Basics'."
          charsetp
          ;; data.c
          arrayp atom bare-symbol-p bool-vector-p bufferp byte-code-function-p
+         interpreted-function-p closurep
          byteorder car-safe cdr-safe char-or-string-p char-table-p
          condition-variable-p consp eq floatp indirect-function
          integer-or-marker-p integerp keywordp listp markerp
-         module-function-p multibyte-string-p mutexp natnump nlistp null
+         module-function-p multibyte-string-p mutexp native-comp-function-p
+         natnump nlistp null
          number-or-marker-p numberp recordp remove-pos-from-symbol
-         sequencep stringp subr-native-elisp-p subrp symbol-with-pos-p symbolp
+         sequencep stringp subrp symbol-with-pos-p symbolp
          threadp type-of user-ptrp vector-or-char-table-p vectorp wholenump
          ;; editfns.c
          bobp bolp buffer-size buffer-string current-message emacs-pid

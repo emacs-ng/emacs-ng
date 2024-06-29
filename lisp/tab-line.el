@@ -187,7 +187,7 @@ If the value is a function, call it with no arguments."
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (force-mode-line-update t))
   :group 'tab-line
   :version "27.1")
 
@@ -228,7 +228,7 @@ If nil, don't show it at all."
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (force-mode-line-update t))
   :group 'tab-line
   :version "27.1")
 
@@ -295,7 +295,8 @@ If nil, don't show it at all."
   "Function to get a tab name.
 The function is called with one or two arguments: the buffer or
 another object whose tab's name is requested, and, optionally,
-the list of all tabs."
+the list of all tabs.  The result of this function is cached
+using `tab-line-cache-key-function'."
   :type '(choice (const :tag "Buffer name"
                         tab-line-tab-name-buffer)
                  (const :tag "Truncated buffer name"
@@ -304,7 +305,7 @@ the list of all tabs."
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (tab-line-force-update t))
   :group 'tab-line
   :version "27.1")
 
@@ -348,7 +349,9 @@ buffers always keep the original order after switching buffers.
 When `tab-line-tabs-mode-buffers', return a list of buffers
 with the same major mode as the current buffer.
 When `tab-line-tabs-buffer-groups', return a list of buffers
-grouped by `tab-line-tabs-buffer-group-function'."
+grouped by `tab-line-tabs-buffer-group-function'.
+The result of this function is cached using
+`tab-line-cache-key-function'."
   :type '(choice (const :tag "Window buffers"
                         tab-line-tabs-window-buffers)
                  (const :tag "Window buffers with fixed order"
@@ -361,7 +364,7 @@ grouped by `tab-line-tabs-buffer-group-function'."
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (tab-line-force-update t))
   :group 'tab-line
   :version "27.1")
 
@@ -387,7 +390,7 @@ Used only for `tab-line-tabs-mode-buffers' and `tab-line-tabs-buffer-groups'.")
 (defcustom tab-line-tabs-buffer-group-function
   #'tab-line-tabs-buffer-group-by-mode
   "Function to add a buffer to the appropriate group of tabs.
-Takes a buffer as arg and should return a group name as a string.
+Takes a buffer as argument and should return a group name as a string.
 If the return value is nil, the buffer has no group, so \"No group\"
 is displayed instead of a group name and the buffer is not grouped
 together with other buffers.
@@ -404,19 +407,38 @@ as a group name."
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (tab-line-force-update t))
   :group 'tab-line
   :version "30.1")
 
-(defvar tab-line-tabs-buffer-group-sort-function
+(defcustom tab-line-tabs-buffer-group-sort-function
   #'tab-line-tabs-buffer-group-sort-by-name
-  "Function to sort buffers in a group.")
+  "Function to sort buffers in a group."
+  :type '(choice (const :tag "Don't sort" nil)
+                 (const :tag "Sort by name alphabetically"
+                        tab-line-tabs-buffer-group-sort-by-name)
+                 (function :tag "Custom function"))
+  :initialize 'custom-initialize-default
+  :set (lambda (sym val)
+         (set-default sym val)
+         (tab-line-force-update t))
+  :group 'tab-line
+  :version "30.1")
 
 (defun tab-line-tabs-buffer-group-sort-by-name (a b)
   (string< (buffer-name a) (buffer-name b)))
 
-(defvar tab-line-tabs-buffer-groups-sort-function #'string<
-  "Function to sort group names.")
+(defcustom tab-line-tabs-buffer-groups-sort-function #'string<
+  "Function to sort group names."
+  :type '(choice (const :tag "Don't sort" nil)
+                 (const :tag "Sort alphabetically" string<)
+                 (function :tag "Custom function"))
+  :initialize 'custom-initialize-default
+  :set (lambda (sym val)
+         (set-default sym val)
+         (tab-line-force-update t))
+  :group 'tab-line
+  :version "30.1")
 
 (defvar tab-line-tabs-buffer-groups mouse-buffer-menu-mode-groups
   "How to group various major modes together in the tab line.
@@ -445,7 +467,8 @@ named the same as the mode.")
 
 (defun tab-line-tabs-buffer-group-name (&optional buffer)
   (if (functionp tab-line-tabs-buffer-group-function)
-      (funcall tab-line-tabs-buffer-group-function buffer)))
+      (funcall tab-line-tabs-buffer-group-function buffer)
+    (tab-line-tabs-buffer-group-by-mode buffer)))
 
 (defun tab-line-tabs-buffer-groups ()
   "Return a list of tabs that should be displayed in the tab line.
@@ -455,13 +478,14 @@ If non-nil, `tab-line-tabs-buffer-group-function' is used to
 generate the group name."
   (if (window-parameter nil 'tab-line-groups)
       (let* ((buffers (funcall tab-line-tabs-buffer-list-function))
-             (groups
-              (seq-sort tab-line-tabs-buffer-groups-sort-function
-                        (delq nil (mapcar #'car (seq-group-by
-                                                 (lambda (buffer)
-                                                   (tab-line-tabs-buffer-group-name
-                                                    buffer))
-                                                 buffers)))))
+             (groups (delq nil
+                           (mapcar #'car
+                                   (seq-group-by #'tab-line-tabs-buffer-group-name
+                                                 buffers))))
+             (sorted-groups (if (functionp tab-line-tabs-buffer-groups-sort-function)
+                                (seq-sort tab-line-tabs-buffer-groups-sort-function
+                                          groups)
+                              groups))
              (selected-group (window-parameter nil 'tab-line-group))
              (tabs
               (mapcar (lambda (group)
@@ -472,9 +496,8 @@ generate the group name."
                                        (set-window-parameter nil 'tab-line-groups nil)
                                        (set-window-parameter nil 'tab-line-group group)
                                        (set-window-parameter nil 'tab-line-hscroll nil)))))
-                      groups)))
+                      sorted-groups)))
         tabs)
-
     (let* ((window-parameter (window-parameter nil 'tab-line-group))
            (group-name (tab-line-tabs-buffer-group-name (current-buffer)))
            (group (prog1 (or window-parameter group-name "No group")
@@ -487,10 +510,9 @@ generate the group name."
                                      (set-window-parameter nil 'tab-line-groups t)
                                      (set-window-parameter nil 'tab-line-group group)
                                      (set-window-parameter nil 'tab-line-hscroll nil)))))
-           (buffers
-            (seq-filter (lambda (b)
-                          (equal (tab-line-tabs-buffer-group-name b) group))
-                        (funcall tab-line-tabs-buffer-list-function)))
+           (buffers (seq-filter (lambda (b)
+                                  (equal (tab-line-tabs-buffer-group-name b) group))
+                                (funcall tab-line-tabs-buffer-list-function)))
            (sorted-buffers (if (functionp tab-line-tabs-buffer-group-sort-function)
                                (seq-sort tab-line-tabs-buffer-group-sort-function
                                          buffers)
@@ -540,7 +562,7 @@ And newly displayed buffers are added to the end of the tab line."
     (set-window-parameter nil 'tab-line-buffers new-buffers)
     new-buffers))
 
-(add-to-list 'window-persistent-parameters '(tab-line-buffers . writable))
+(add-to-list 'window-persistent-parameters '(tab-line-buffers . t))
 
 
 (defcustom tab-line-tab-name-format-function #'tab-line-tab-name-format-default
@@ -549,12 +571,13 @@ The function will be called two arguments: the tab whose name to format,
 and the list of all the tabs; it should return the formatted tab name
 to display in the tab line.
 The first argument could also be a different object, for example the buffer
-which the tab will represent."
+which the tab will represent.  The result of this function is cached
+using `tab-line-cache-key-function'."
   :type 'function
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
-         (force-mode-line-update))
+         (tab-line-force-update t))
   :group 'tab-line
   :version "28.1")
 
@@ -670,6 +693,18 @@ For use in `tab-line-tab-face-functions'."
 
 (defvar tab-line-auto-hscroll)
 
+(defun tab-line-force-update (all)
+  "Force redisplay of the current buffer’s tab line.
+This function also clears the tab-line cache.  With optional non-nil ALL,
+it clears the tab-line cache of all tab lines and forces their redisplay."
+  (if all
+      (walk-windows
+       (lambda (window)
+         (set-window-parameter window 'tab-line-cache nil))
+       'no-mini t)
+    (set-window-parameter nil 'tab-line-cache nil))
+  (force-mode-line-update all))
+
 (defun tab-line-cache-key-default (tabs)
   "Return default list of cache keys."
   (list
@@ -689,7 +724,8 @@ For use in `tab-line-tab-face-functions'."
 (defvar tab-line-cache-key-function #'tab-line-cache-key-default
   "Function that adds more cache keys.
 It is called with one argument, a list of tabs, and should return a list
-of cache keys.  You can use `add-function' to add more cache keys.")
+of cache keys.  You can use `add-function' to add more cache keys.
+Also there is the function `tab-line-force-update' that clears the cache.")
 
 (defun tab-line-format ()
   "Format for displaying the tab line of the selected window."
@@ -1103,13 +1139,14 @@ However, return the correct mouse position list if EVENT is a
   "Toggle display of tab line in the windows displaying the current buffer."
   :lighter nil
   (let ((default-value '(:eval (tab-line-format))))
-    (if tab-line-mode
-        ;; Preserve the existing tab-line set outside of this mode
-        (unless tab-line-format
-          (setq tab-line-format default-value))
-      ;; Reset only values set by this mode
-      (when (equal tab-line-format default-value)
-        (setq tab-line-format nil)))))
+    ;; Preserve the existing tab-line set outside of this mode
+    (if (or (null tab-line-format)
+            (equal tab-line-format default-value))
+        (if tab-line-mode
+            (setq tab-line-format default-value)
+          (setq tab-line-format nil))
+      (message "tab-line-format set outside of tab-line-mode, currently `%S'"
+               tab-line-format))))
 
 (defcustom tab-line-exclude-modes
   '(completion-list-mode)

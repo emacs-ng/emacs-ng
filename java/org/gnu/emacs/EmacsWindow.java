@@ -20,11 +20,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 package org.gnu.emacs;
 
 import java.lang.IllegalStateException;
+
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
+
+import java.util.concurrent.Callable;
+import java.util.concurrent.FutureTask;
 
 import android.app.Activity;
 
@@ -69,6 +73,9 @@ public final class EmacsWindow extends EmacsHandleObject
   implements EmacsDrawable
 {
   private static final String TAG = "EmacsWindow";
+
+  /* Whether any windows have yet been created in this session.  */
+  private static boolean initialWindowCreated;
 
   private static class Coordinate
   {
@@ -136,10 +143,10 @@ public final class EmacsWindow extends EmacsHandleObject
      there is no such window manager.  */
   private WindowManager windowManager;
 
-  /* The time of the last KEYCODE_VOLUME_DOWN release.  This is used
-     to quit Emacs upon two rapid clicks of the volume down
-     button.  */
-  private long lastVolumeButtonRelease;
+  /* The time of the last release of the quit keycode, generally
+     KEYCODE_VOLUME_DOWN.  This is used to signal quit upon two rapid
+     presses of such key.  */
+  private long lastQuitKeyRelease;
 
   /* Linked list of character strings which were recently sent as
      events.  */
@@ -169,12 +176,15 @@ public final class EmacsWindow extends EmacsHandleObject
      and whether this window has previously been attached to a task.  */
   public boolean preserve, previouslyAttached;
 
+  /* The window manager name of this window, which supplies the name of
+     activities in which it is displayed as a toplevel window, or
+     NULL.  */
+  public String wmName;
+
   public
-  EmacsWindow (short handle, final EmacsWindow parent, int x, int y,
+  EmacsWindow (final EmacsWindow parent, int x, int y,
 	       int width, int height, boolean overrideRedirect)
   {
-    super (handle);
-
     rect = new Rect (x, y, x + width, y + height);
     pointerMap = new SparseArray<Coordinate> ();
 
@@ -184,6 +194,14 @@ public final class EmacsWindow extends EmacsHandleObject
 					      parent == null);
     this.parent = parent;
     this.overrideRedirect = overrideRedirect;
+
+    /* The initial frame should always be bound to the startup
+       activity.  */
+    if (!initialWindowCreated)
+      {
+	this.attachmentToken = -1;
+        initialWindowCreated = true;
+      }
 
     /* Create the list of children.  */
     children = new ArrayList<EmacsWindow> ();
@@ -205,7 +223,7 @@ public final class EmacsWindow extends EmacsHandleObject
 	  });
       }
 
-    scratchGC = new EmacsGC ((short) 0);
+    scratchGC = new EmacsGC ();
 
     /* Create the map of input method-committed strings.  Keep at most
        ten strings in the map.  */
@@ -389,7 +407,7 @@ public final class EmacsWindow extends EmacsHandleObject
     rect = getGeometry ();
     flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
     flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
-    type = WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG;
+    type = WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
 
     params
       = new WindowManager.LayoutParams (rect.width (), rect.height (),
@@ -485,7 +503,6 @@ public final class EmacsWindow extends EmacsHandleObject
 		  /* Attach the view.  */
 		  try
 		    {
-		      view.prepareForLayout (width, height);
 		      windowManager.addView (view, params);
 
 		      /* Record the window manager being used in the
@@ -510,11 +527,6 @@ public final class EmacsWindow extends EmacsHandleObject
 	    public void
 	    run ()
 	    {
-	      /* Prior to mapping the view, set its measuredWidth and
-		 measuredHeight to some reasonable value, in order to
-		 avoid excessive bitmap dirtying.  */
-
-	      view.prepareForLayout (width, height);
 	      view.setVisibility (View.VISIBLE);
 
 	      if (!getDontFocusOnMap ())
@@ -635,8 +647,8 @@ public final class EmacsWindow extends EmacsHandleObject
 
 
   /* Return the modifier mask associated with the specified keyboard
-     input EVENT.  Replace bits corresponding to Left or Right keys
-     with their corresponding general modifier bits.  */
+     input EVENT.  Replace bits representing Left or Right keys with
+     their corresponding general modifier bits.  */
 
   public static int
   eventModifiers (KeyEvent event)
@@ -644,7 +656,7 @@ public final class EmacsWindow extends EmacsHandleObject
     int state;
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2)
-      state = event.getModifiers ();
+      state = KeyEvent.normalizeMetaState (event.getMetaState ());
     else
       {
 	/* Replace this with getMetaState and manual
@@ -669,10 +681,10 @@ public final class EmacsWindow extends EmacsHandleObject
   /* event.getCharacters is used because older input methods still
      require it.  */
   @SuppressWarnings ("deprecation")
-  public void
+  public boolean
   onKeyDown (int keyCode, KeyEvent event)
   {
-    int state, state_1, extra_ignored;
+    int state, state_1, extra_ignored, unicode_char;
     long serial;
     String characters;
 
@@ -688,18 +700,15 @@ public final class EmacsWindow extends EmacsHandleObject
 	   Deliver onKeyDown events in onKeyUp instead, so as not to
 	   navigate backwards during gesture navigation.  */
 
-	return;
+	return true;
       }
 
     state = eventModifiers (event);
 
-    /* Num Lock, Scroll Lock and Meta aren't supported by systems older
-       than Android 3.0. */
+    /* Meta isn't supported by systems older than Android 3.0.  */
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
-      extra_ignored = (KeyEvent.META_NUM_LOCK_ON
-		       | KeyEvent.META_SCROLL_LOCK_ON
-		       | KeyEvent.META_META_MASK);
+      extra_ignored = KeyEvent.META_META_MASK;
     else
       extra_ignored = 0;
 
@@ -725,23 +734,36 @@ public final class EmacsWindow extends EmacsHandleObject
 	  state &= ~KeyEvent.META_ALT_MASK;
       }
 
+    unicode_char = getEventUnicodeChar (event, state_1);
+
+    /* If a NUMPAD_ key is detected for which no character is returned,
+       return false without sending the key event, as this will prompt
+       the system to send an event with the corresponding action
+       key.  */
+
+    if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0
+	&& keyCode <= KeyEvent.KEYCODE_NUMPAD_RIGHT_PAREN
+	&& unicode_char == 0)
+      return false;
+
     synchronized (eventStrings)
       {
 	serial
 	  = EmacsNative.sendKeyPress (this.handle,
 				      event.getEventTime (),
 				      state, keyCode,
-				      getEventUnicodeChar (event,
-							   state_1));
+				      unicode_char);
 
 	characters = event.getCharacters ();
 
 	if (characters != null && characters.length () > 1)
 	  saveUnicodeString ((int) serial, characters);
       }
+
+    return true;
   }
 
-  public void
+  public boolean
   onKeyUp (int keyCode, KeyEvent event)
   {
     int state, state_1, unicode_char, extra_ignored;
@@ -750,13 +772,10 @@ public final class EmacsWindow extends EmacsHandleObject
     /* Compute the event's modifier mask.  */
     state = eventModifiers (event);
 
-    /* Num Lock, Scroll Lock and Meta aren't supported by systems older
-       than Android 3.0. */
+    /* Meta isn't supported by systems older than Android 3.0.  */
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
-      extra_ignored = (KeyEvent.META_NUM_LOCK_ON
-		       | KeyEvent.META_SCROLL_LOCK_ON
-		       | KeyEvent.META_META_MASK);
+      extra_ignored = KeyEvent.META_META_MASK;
     else
       extra_ignored = 0;
 
@@ -789,16 +808,25 @@ public final class EmacsWindow extends EmacsHandleObject
 	/* If the key press's been canceled, return immediately.  */
 
 	if ((event.getFlags () & KeyEvent.FLAG_CANCELED) != 0)
-	  return;
+	  return true;
 
+	/* Dispatch the key press event that was deferred till now.  */
 	EmacsNative.sendKeyPress (this.handle, event.getEventTime (),
 				  state, keyCode, unicode_char);
       }
+    /* If a NUMPAD_ key is detected for which no character is returned,
+       return false without sending the key event, as this will prompt
+       the system to send an event with the corresponding action
+       key.  */
+    else if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0
+	     && keyCode <= KeyEvent.KEYCODE_NUMPAD_RIGHT_PAREN
+	     && unicode_char == 0)
+      return false;
 
     EmacsNative.sendKeyRelease (this.handle, event.getEventTime (),
 				state, keyCode, unicode_char);
 
-    if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+    if (keyCode == EmacsNative.getQuitKeycode ())
       {
 	/* Check if this volume down press should quit Emacs.
 	   Most Android devices have no physical keyboard, so it
@@ -806,11 +834,13 @@ public final class EmacsWindow extends EmacsHandleObject
 
 	time = event.getEventTime ();
 
-	if (time - lastVolumeButtonRelease < 350)
+	if (time - lastQuitKeyRelease < 350)
 	  EmacsNative.quit ();
 
-	lastVolumeButtonRelease = time;
+        lastQuitKeyRelease = time;
       }
+
+    return true;
   }
 
   public void
@@ -1546,6 +1576,36 @@ public final class EmacsWindow extends EmacsHandleObject
     return dontFocusOnMap;
   }
 
+  public void
+  setWmName (final String wmName)
+  {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
+      return;
+
+    EmacsService.SERVICE.runOnUiThread (new Runnable () {
+	@Override
+	public void
+	run ()
+	{
+	  EmacsActivity activity;
+	  Object tem;
+
+	  EmacsWindow.this.wmName = wmName;
+
+	  /* If an activity is already attached, replace its task
+	     description.  */
+
+	  tem = getAttachedConsumer ();
+
+	  if (tem != null && tem instanceof EmacsActivity)
+	    {
+	      activity = (EmacsActivity) tem;
+	      activity.updateWmName ();
+	    }
+	}
+      });
+  }
+
   public int[]
   translateCoordinates (int x, int y)
   {
@@ -1569,23 +1629,38 @@ public final class EmacsWindow extends EmacsHandleObject
   public void
   toggleOnScreenKeyboard (final boolean on)
   {
+    FutureTask<Void> task;
+
     /* Even though InputMethodManager functions are thread safe,
        `showOnScreenKeyboard' etc must be called from the UI thread in
        order to avoid deadlocks if the calls happen in tandem with a
        call to a synchronizing function within
        `onCreateInputConnection'.  */
 
-    EmacsService.SERVICE.runOnUiThread (new Runnable () {
+    task = new FutureTask<Void> (new Callable<Void> () {
 	@Override
-	public void
-	run ()
+	public Void
+	call ()
 	{
 	  if (on)
 	    view.showOnScreenKeyboard ();
 	  else
 	    view.hideOnScreenKeyboard ();
+	  return null;
 	}
       });
+
+    /* Block Lisp until this request to display the on-screen keyboard
+       is registered by the UI thread, or updates arising from a
+       redisplay that are reported between the two events will be liable
+       to run afoul of the IMM's cache of selection positions and never
+       reach the input method, if it is currently hidden, as input
+       methods receive outdated selection information reported during
+       the previous call to `onCreateInputConnection' when first
+       displayed.
+
+       Chances are this is a long-standing bug in the system.  */
+    EmacsService.<Void>syncRunnable (task);
   }
 
   public String
@@ -1615,7 +1690,7 @@ public final class EmacsWindow extends EmacsHandleObject
 	  fullscreen = isFullscreen;
 	  tem = getAttachedConsumer ();
 
-	  if (tem != null)
+	  if (tem != null && tem instanceof EmacsActivity)
 	    {
 	      activity = (EmacsActivity) tem;
 	      activity.syncFullscreenWith (EmacsWindow.this);

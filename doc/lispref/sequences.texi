@@ -397,7 +397,7 @@ remains unmodified.  In-place sorting is slightly faster, but the
 original sequence is lost.
 @end table
 
-If the default behaviour is not suitable for your needs, it is usually
+If the default behavior is not suitable for your needs, it is usually
 easier and faster to supply a new @code{:key} function than a different
 @code{:lessp} predicate.  For example, consider sorting these strings:
 
@@ -1583,7 +1583,7 @@ nonempty vector that is not @code{eq} to any existing vector.
 
 The @code{vconcat} function also allows byte-code function objects as
 arguments.  This is a special feature to make it easy to access the entire
-contents of a byte-code function object.  @xref{Byte-Code Objects}.
+contents of a byte-code function object.  @xref{Closure Objects}.
 
 For other concatenation functions, see @code{mapconcat} in @ref{Mapping
 Functions}, @code{concat} in @ref{Creating Strings}, and @code{append}

@@ -381,7 +381,7 @@ the symbol `mode-line-format-right-align' is processed by
 		  `(space :align-to (,(- (window-pixel-width)
                                          (window-scroll-bar-width)
                                          (window-right-divider-width)
-                                         (* (or (cdr (window-margins)) 1)
+                                         (* (or (car (window-margins)) 0)
                                             (frame-char-width))
                                          ;; Manually account for value of
                                          ;; `mode-line-right-align-edge' even
@@ -978,9 +978,8 @@ language you are using."
 ;;        It seems that they can't because they're handled via
 ;;        special-event-map which is used at very low-level.  -stef
 (global-set-key [delete-frame] 'handle-delete-frame)
-(global-set-key [iconify-frame] 'ignore-event)
-(global-set-key [make-frame-visible] 'ignore-event)
-
+(global-set-key [iconify-frame] 'ignore)
+(global-set-key [make-frame-visible] 'ignore)
 
 ;These commands are defined in editfns.c
 ;but they are not assigned to keys there.

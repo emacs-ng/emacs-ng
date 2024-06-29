@@ -63,9 +63,6 @@ AC_DEFUN([gl_EARLY],
   # Code from module cloexec:
   # Code from module close-stream:
   # Code from module copy-file-range:
-  # Code from module count-leading-zeros:
-  # Code from module count-one-bits:
-  # Code from module count-trailing-zeros:
   # Code from module crypto/md5:
   # Code from module crypto/md5-buffer:
   # Code from module crypto/sha1-buffer:
@@ -80,6 +77,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module dtotimespec:
   # Code from module dup2:
   # Code from module eloop-threshold:
+  # Code from module endian:
   # Code from module environ:
   # Code from module errno:
   # Code from module euidaccess:
@@ -174,7 +172,12 @@ AC_DEFUN([gl_EARLY],
   # Code from module ssize_t:
   # Code from module stat-time:
   # Code from module std-gnu11:
+  # Code from module stdbit-h:
   # Code from module stdbool:
+  # Code from module stdc_bit_width:
+  # Code from module stdc_count_ones:
+  # Code from module stdc_leading_zeros:
+  # Code from module stdc_trailing_zeros:
   # Code from module stdckdint:
   # Code from module stddef:
   # Code from module stdint:
@@ -192,6 +195,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module sys_stat:
   # Code from module sys_time:
   # Code from module sys_types:
+  AC_REQUIRE([AC_USE_SYSTEM_EXTENSIONS])
   # Code from module tempname:
   # Code from module time-h:
   # Code from module time_r:
@@ -513,7 +517,18 @@ AC_DEFUN([gl_INIT],
   gt_TYPE_SSIZE_T
   gl_STAT_TIME
   gl_STAT_BIRTHTIME
+  gl_STDBIT_H
+  gl_CONDITIONAL_HEADER([stdbit.h])
+  AC_PROG_MKDIR_P
   gl_C_BOOL
+  AC_REQUIRE([gl_STDBIT_H])
+  GL_STDC_BIT_WIDTH=1
+  AC_REQUIRE([gl_STDBIT_H])
+  GL_STDC_COUNT_ONES=1
+  AC_REQUIRE([gl_STDBIT_H])
+  GL_STDC_LEADING_ZEROS=1
+  AC_REQUIRE([gl_STDBIT_H])
+  GL_STDC_TRAILING_ZEROS=1
   AC_CHECK_HEADERS_ONCE([stdckdint.h])
   if test $ac_cv_header_stdckdint_h = yes; then
     GL_GENERATE_STDCKDINT_H=false
@@ -652,6 +667,7 @@ AC_DEFUN([gl_INIT],
   gl_gnulib_enabled_cloexec=false
   gl_gnulib_enabled_dirfd=false
   gl_gnulib_enabled_925677f0343de64b89a9f0c790b4104c=false
+  gl_gnulib_enabled_endian=false
   gl_gnulib_enabled_euidaccess=false
   gl_gnulib_enabled_getdelim=false
   gl_gnulib_enabled_getdtablesize=false
@@ -672,6 +688,7 @@ AC_DEFUN([gl_INIT],
   gl_gnulib_enabled_6099e9737f757db36c47fa9d9f02e88c=false
   gl_gnulib_enabled_strtoll=false
   gl_gnulib_enabled_utimens=false
+  gl_gnulib_enabled_verify=false
   gl_gnulib_enabled_682e609604ccaac6be382e4ee3a4eaec=false
   func_gl_gnulib_m4code_260941c0e5dc67ec9e87d1fb321c300b ()
   {
@@ -707,6 +724,15 @@ AC_DEFUN([gl_INIT],
   {
     if $gl_gnulib_enabled_925677f0343de64b89a9f0c790b4104c; then :; else
       gl_gnulib_enabled_925677f0343de64b89a9f0c790b4104c=true
+    fi
+  }
+  func_gl_gnulib_m4code_endian ()
+  {
+    if $gl_gnulib_enabled_endian; then :; else
+      gl_ENDIAN_H
+      gl_CONDITIONAL_HEADER([endian.h])
+      AC_PROG_MKDIR_P
+      gl_gnulib_enabled_endian=true
     fi
   }
   func_gl_gnulib_m4code_euidaccess ()
@@ -952,6 +978,12 @@ AC_DEFUN([gl_INIT],
       gl_gnulib_enabled_utimens=true
     fi
   }
+  func_gl_gnulib_m4code_verify ()
+  {
+    if $gl_gnulib_enabled_verify; then :; else
+      gl_gnulib_enabled_verify=true
+    fi
+  }
   func_gl_gnulib_m4code_682e609604ccaac6be382e4ee3a4eaec ()
   {
     if $gl_gnulib_enabled_682e609604ccaac6be382e4ee3a4eaec; then :; else
@@ -1015,6 +1047,12 @@ AC_DEFUN([gl_INIT],
   if case $host_os in mingw* | windows*) false;; *) test $HAVE_GETRANDOM = 0 || test $REPLACE_GETRANDOM = 1;; esac; then
     func_gl_gnulib_m4code_open
   fi
+  if $GL_GENERATE_IEEE754_H; then
+    func_gl_gnulib_m4code_endian
+  fi
+  if test $REPLACE_MKTIME = 1; then
+    func_gl_gnulib_m4code_verify
+  fi
   if test $HAVE_READLINKAT = 0 || test $REPLACE_READLINKAT = 1; then
     func_gl_gnulib_m4code_260941c0e5dc67ec9e87d1fb321c300b
   fi
@@ -1023,6 +1061,9 @@ AC_DEFUN([gl_INIT],
   fi
   if test $ac_use_included_regex = yes; then
     func_gl_gnulib_m4code_fd38c7e463b54744b77b98aeafb4fa7c
+  fi
+  if test $ac_use_included_regex = yes; then
+    func_gl_gnulib_m4code_verify
   fi
   if test $HAVE_DECL_STRTOIMAX = 0 || test $REPLACE_STRTOIMAX = 1; then
     func_gl_gnulib_m4code_strtoll
@@ -1044,6 +1085,7 @@ AC_DEFUN([gl_INIT],
   AM_CONDITIONAL([gl_GNULIB_ENABLED_cloexec], [$gl_gnulib_enabled_cloexec])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_dirfd], [$gl_gnulib_enabled_dirfd])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_925677f0343de64b89a9f0c790b4104c], [$gl_gnulib_enabled_925677f0343de64b89a9f0c790b4104c])
+  AM_CONDITIONAL([gl_GNULIB_ENABLED_endian], [$gl_gnulib_enabled_endian])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_euidaccess], [$gl_gnulib_enabled_euidaccess])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_getdelim], [$gl_gnulib_enabled_getdelim])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_getdtablesize], [$gl_gnulib_enabled_getdtablesize])
@@ -1064,6 +1106,7 @@ AC_DEFUN([gl_INIT],
   AM_CONDITIONAL([gl_GNULIB_ENABLED_6099e9737f757db36c47fa9d9f02e88c], [$gl_gnulib_enabled_6099e9737f757db36c47fa9d9f02e88c])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_strtoll], [$gl_gnulib_enabled_strtoll])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_utimens], [$gl_gnulib_enabled_utimens])
+  AM_CONDITIONAL([gl_GNULIB_ENABLED_verify], [$gl_gnulib_enabled_verify])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_682e609604ccaac6be382e4ee3a4eaec], [$gl_gnulib_enabled_682e609604ccaac6be382e4ee3a4eaec])
   # End of code from modules
   m4_ifval(gl_LIBSOURCES_LIST, [
@@ -1258,6 +1301,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/boot-time-aux.h
   lib/boot-time.c
   lib/boot-time.h
+  lib/byteswap.c
   lib/byteswap.in.h
   lib/c++defs.h
   lib/c-ctype.c
@@ -1274,12 +1318,6 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/close-stream.c
   lib/close-stream.h
   lib/copy-file-range.c
-  lib/count-leading-zeros.c
-  lib/count-leading-zeros.h
-  lib/count-one-bits.c
-  lib/count-one-bits.h
-  lib/count-trailing-zeros.c
-  lib/count-trailing-zeros.h
   lib/diffseq.h
   lib/dirent-private.h
   lib/dirent.in.h
@@ -1289,6 +1327,8 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/dup2.c
   lib/dynarray.h
   lib/eloop-threshold.h
+  lib/endian.c
+  lib/endian.in.h
   lib/errno.in.h
   lib/euidaccess.c
   lib/execinfo.c
@@ -1412,6 +1452,12 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/signal.in.h
   lib/stat-time.c
   lib/stat-time.h
+  lib/stdbit.c
+  lib/stdbit.in.h
+  lib/stdc_bit_width.c
+  lib/stdc_count_ones.c
+  lib/stdc_leading_zeros.c
+  lib/stdc_trailing_zeros.c
   lib/stdckdint.in.h
   lib/stddef.in.h
   lib/stdint.in.h
@@ -1477,6 +1523,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/double-slash-root.m4
   m4/dup2.m4
   m4/eealloc.m4
+  m4/endian_h.m4
   m4/environ.m4
   m4/errno_h.m4
   m4/euidaccess.m4
@@ -1538,6 +1585,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/nocrash.m4
   m4/nproc.m4
   m4/nstrftime.m4
+  m4/off64_t.m4
   m4/off_t.m4
   m4/open-cloexec.m4
   m4/open-slash.m4
@@ -1564,6 +1612,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/stat-time.m4
   m4/std-gnu11.m4
   m4/stdalign.m4
+  m4/stdbit_h.m4
   m4/stddef_h.m4
   m4/stdint.m4
   m4/stdio_h.m4
@@ -1574,6 +1623,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/strtoimax.m4
   m4/strtoll.m4
   m4/symlink.m4
+  m4/sys_cdefs_h.m4
   m4/sys_random_h.m4
   m4/sys_select_h.m4
   m4/sys_socket_h.m4

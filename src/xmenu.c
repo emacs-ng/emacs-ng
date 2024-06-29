@@ -236,7 +236,7 @@ x_menu_translate_generic_event (XEvent *event)
   XEvent copy;
   XIDeviceEvent *xev;
 
-  dpyinfo = x_display_info_for_display (event->xgeneric.display);
+  dpyinfo = x_dpyinfo (event->xgeneric.display);
 
   if (event->xgeneric.extension == dpyinfo->xi2_opcode)
     {
@@ -1607,6 +1607,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv,
 
    For menu bars, we use numbers starting at 0, counted in
    next_menubar_widget_id.  */
+extern LWLIB_ID widget_id_tick; /* FIXME: Move this to a .h file.  */
 LWLIB_ID widget_id_tick;
 
 static void

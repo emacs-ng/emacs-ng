@@ -305,7 +305,7 @@ names which represent them."
                  (new-uri-list nil)
                  (dnd-unescape-file-uris t))
              (dolist (uri uri-list)
-               ;; If the URI is a preprepared file name, insert it directly.
+               ;; If the URI is a prepared file name, insert it directly.
                (if (string-match-p "^/content/by-authority\\(-named\\)?/" uri)
                    (setq uri (concat "file:" uri)
                          dnd-unescape-file-uris nil)
@@ -532,7 +532,7 @@ accessible to other programs."
 ;; Coding systems used by androidvfs.c.
 
 (define-ccl-program android-encode-jni
-  `(2 ((loop
+  '(2 ((loop
 	(read r0)
 	(if (r0 < #x1) ; 0x0 is encoded specially in JNI environments.
 	    ((write #xc0)
@@ -564,7 +564,7 @@ accessible to other programs."
   "Encode characters from the input buffer for Java virtual machines.")
 
 (define-ccl-program android-decode-jni
-  `(1 ((loop
+  '(1 ((loop
         ((read-if (r0 >= #x80) ; More than a one-byte sequence?
 		  ((if (r0 < #xe0)
 		       ;; Two-byte sequence; potentially a NULL
@@ -616,6 +616,16 @@ accessible to other programs."
   :charset-list '(unicode)
   :ccl-decoder 'android-decode-jni
   :ccl-encoder 'android-encode-jni)
+
+
+;; Default key definitions.
+
+;; Suppress KEYCODE_NOTIFICATION, which has been observed to be
+;; spontaneously generated on certain tablets, so that the user may not
+;; be disturbed by intrusive messages when it is registered.
+(global-set-key [KEYCODE_NOTIFICATION] #'ignore)
+(global-set-key [\83] #'ignore) ; KEYCODE_NOTIFICATION on pre-Honeycomb
+                                ; releases.
 
 
 (provide 'android-win)

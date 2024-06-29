@@ -1239,6 +1239,8 @@ Ask user how many thumbnails should be displayed per row."
 
 ;;; Display image from thumbnail buffer
 
+(declare-function w32-shell-execute "w32fns.c")
+
 (defun image-dired-thumbnail-display-external ()
   "Display original image for thumbnail at point using external viewer.
 The viewer command is specified by `image-dired-external-viewer'."
@@ -1248,9 +1250,15 @@ The viewer command is specified by `image-dired-external-viewer'."
         (message "No thumbnail at point")
       (if (not file)
           (message "No original file name found")
-        (apply #'start-process "image-dired-thumb-external" nil
-               (append (string-split image-dired-external-viewer " ")
-                       (list file)))))))
+        (cond
+         ((stringp image-dired-external-viewer)
+          (apply #'start-process "image-dired-thumb-external" nil
+                 (append (string-split image-dired-external-viewer " ")
+                         (list file))))
+         ((eq system-type 'windows-nt)
+          (w32-shell-execute "open" file))
+         (t
+          (error "`image-dired-external-viewer' does not name an image viewer program")))))))
 
 (defun image-dired-display-image (file &optional _ignored)
   "Display image FILE in the image buffer window.
@@ -1756,6 +1764,28 @@ Dired."
           (setcdr image-dired-tag-file-list
                   (cons (list tag file) (cdr image-dired-tag-file-list))))
       (setq image-dired-tag-file-list (list (list tag file))))))
+
+(defun image-dired-tag-thumbnail-remove ()
+  "Remove tag from current or marked thumbnails."
+  (interactive nil image-dired-thumbnail-mode)
+  (let ((tag (completing-read "Tag to remove: " image-dired-tag-history
+                              nil nil nil 'image-dired-tag-history)))
+    (image-dired--with-marked
+     (image-dired-remove-tag (image-dired-original-file-name) tag)
+     (image-dired-update-property
+      'tags (image-dired-list-tags (image-dired-original-file-name))))))
+
+(defun image-dired-tag-thumbnail ()
+  "Tag current or marked thumbnails."
+  (interactive nil image-dired-thumbnail-mode)
+  (let ((tag (completing-read
+              "Tags to add (separate tags with a semicolon): "
+              image-dired-tag-history nil nil nil 'image-dired-tag-history)))
+    (image-dired--with-marked
+     (image-dired-write-tags
+      (list (cons (image-dired-original-file-name) tag)))
+     (image-dired-update-property
+      'tags (image-dired-list-tags (image-dired-original-file-name))))))
 
 (defvar image-dired-slideshow-count 0
   "Keeping track on number of images in slideshow.")

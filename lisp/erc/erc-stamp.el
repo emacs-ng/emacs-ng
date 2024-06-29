@@ -203,6 +203,7 @@ from entering them and instead jump over them."
     (dolist (var '(erc-timestamp-last-inserted
                    erc-timestamp-last-inserted-left
                    erc-timestamp-last-inserted-right
+                   erc-stamp--deferred-date-stamp
                    erc-stamp--date-stamps))
       (when-let (existing (alist-get var priors))
         (set var existing)))))
@@ -243,7 +244,8 @@ or `erc-send-modify-hook'."
   (unless (and (not erc-stamp--allow-unmanaged-p)
                (or (null erc--msg-props)
                    (erc--memq-msg-prop 'erc--skip 'stamp)))
-    (let* ((ct (erc-stamp--current-time))
+    (let* ((ct (or (erc--check-msg-prop 'erc--ts)
+                   (erc-stamp--current-time)))
            (invisible (get-text-property (point-min) 'invisible))
            (erc-stamp--invisible-property
             ;; FIXME on major version bump, make this `erc-' prefixed.
@@ -667,7 +669,9 @@ value of t means the option's value doesn't require trimming.")
     :documentation "Time recorded by `erc-insert-timestamp-left-and-right'.")
   ( str (error "Missing `str' field") :type string
     :documentation "Stamp rendered by `erc-insert-timestamp-left-and-right'.")
-  ( fn nil :type (or null function)
+  ( fn #'ignore :type (or null function)
+    ;; Use `ignore' as a third state to mean the creation of a bespoke
+    ;; date-insertion function has been requested but not completed.
     :documentation "Deferred insertion function created by post-modify hook.")
   ( marker (make-marker) :type marker
     :documentation "Insertion marker."))
@@ -700,6 +704,9 @@ Non-nil between insertion-modification and \"done\" (or timer) hook.")
 (defun erc-stamp--find-insertion-point (p target-time)
   "Scan buffer backwards from P looking for TARGET-TIME.
 Return P or, if found, a position less than P."
+  ;; Continue searching after encountering a message without a
+  ;; timestamp because date stamps must be unique, and
+  ;; "Re-establishing connection" messages should have stamps.
   (while-let ((q (previous-single-property-change (1- p) 'erc--ts))
               (qq (erc--get-inserted-msg-beg q))
               (ts (get-text-property qq 'erc--ts))
@@ -719,7 +726,7 @@ inserted is a date stamp."
 Do so when `erc-stamp--deferred-date-stamp' and its `fn' slot are
 non-nil."
   (when-let ((data erc-stamp--deferred-date-stamp)
-             ((null (erc-stamp--date-fn data)))
+             ((eq (erc-stamp--date-fn data) #'ignore))
              (ct (erc-stamp--date-ts data))
              (rendered (erc-stamp--date-str data))
              (buffer (current-buffer))
@@ -729,6 +736,7 @@ non-nil."
     (fset symbol
           (lambda (&rest _)
             (remove-hook hook-var symbol)
+            (setf (erc-stamp--date-fn data) nil)
             (when (buffer-live-p buffer)
               (with-current-buffer buffer
                 (setq erc-stamp--date-stamps
@@ -737,7 +745,8 @@ non-nil."
                 (setq erc-stamp--deferred-date-stamp nil)
                 (let* ((aligned (erc-stamp--time-as-day ct))
                        (erc-stamp--current-time aligned)
-                       (erc--msg-props (map-into '((erc--msg . datestamp))
+                       (erc--msg-props (map-into '((erc--msg . datestamp)
+                                                   (erc--skip track))
                                                  'hash-table))
                        (erc-insert-post-hook
                         `(,(lambda ()
@@ -767,15 +776,38 @@ non-nil."
 ;; a standalone module to allow completely decoupling from and
 ;; possibly deprecating `erc-insert-timestamp-left-and-right'.
 (define-minor-mode erc-stamp--date-mode
-  "Insert date stamps as standalone messages."
+  "When enabled, insert date stamps as standalone messages.
+Only do so when `erc-insert-timestamp-function' is set to
+`erc-insert-timestamp-left-and-right'.  On `erc-insert-modify-hook',
+hold off on inserting a date stamp immediately because that would force
+other members of the hook to rely on heuristics and implementation
+details to detect a prepended stamp's presence, not to mention
+compromise the integrity of the `erc-parsed' text property.  Instead,
+tell `erc-insert-post-hook', via `erc-stamp--deferred-date-stamp', to
+schedule a date stamp for insertion on the next go around of
+`erc-timer-hook', which only runs on server-sent messages.  Expect users
+to know that non-server-sent messages, such as local informational
+messages, won't induce a date stamp's insertion but will instead defer
+it until the next arrival, which can include \"PING\"s or messages that
+otherwise don't insert anything, such as those skipped on account of
+`erc-ignore'."
   :interactive nil
   (if erc-stamp--date-mode
       (progn
+        (add-function :around
+                      (local 'erc-networks--transplant-target-buffer-function)
+                      #'erc-stamp--dedupe-date-stamps-from-target-buffer)
+        (add-hook 'erc-networks--copy-server-buffer-functions
+                  #'erc-stamp--dedupe-date-stamps-from-buffer 0 t)
         (add-hook 'erc-insert-post-hook
                   #'erc-stamp--defer-date-insertion-on-post-insert 0 t)
         (add-hook 'erc-send-post-hook
                   #'erc-stamp--defer-date-insertion-on-post-send 0 t))
     (kill-local-variable 'erc-timestamp-last-inserted-left)
+    (remove-function (local 'erc-networks--transplant-target-buffer-function)
+                     #'erc-stamp--dedupe-date-stamps-from-target-buffer)
+    (remove-hook 'erc-networks--copy-server-buffer-functions
+                 #'erc-stamp--dedupe-date-stamps-from-buffer t)
     (remove-hook 'erc-insert-post-hook
                  #'erc-stamp--defer-date-insertion-on-post-insert t)
     (remove-hook 'erc-send-post-hook
@@ -839,6 +871,8 @@ and date stamps inserted by this function."
            ((not (string-equal rendered erc-timestamp-last-inserted-left)))
            ((null (cl-find rendered erc-stamp--date-stamps
                            :test #'string= :key #'erc-stamp--date-str))))
+        ;; Force `erc-insert-timestamp-right' to stamp this message.
+        (setq erc-timestamp-last-inserted-right nil)
         (setq erc-stamp--deferred-date-stamp
               (make-erc-stamp--date :ts ct :str rendered))))
     ;; insert right timestamp
@@ -1037,6 +1071,47 @@ And discard stale references in `erc-stamp--date-stamps'."
     (setq erc-timestamp-last-inserted nil
           erc-timestamp-last-inserted-left nil
           erc-timestamp-last-inserted-right nil)))
+
+(defun erc-stamp--dedupe-date-stamps (old-stamps)
+  "Update `erc-stamp--date-stamps' from its counterpart OLD-STAMPS.
+Assume the contents of the buffer for OLD-STAMPS have just been inserted
+above the current buffer's and that the old buffer still exists so that
+markers still point somewhere.  For each duplicate, update the existing
+marker to match the transplanted timestamp with the same date.  Also
+copy non-duplicate `erc-stamp--date' objects from OLD-STAMPS to the
+current buffer's, maintaining order."
+  (let (need)
+    (dolist (old old-stamps)
+      (if-let ((new (cl-find (erc-stamp--date-str old) erc-stamp--date-stamps
+                             :test #'string= :key #'erc-stamp--date-str))
+               (new-marker (erc-stamp--date-marker new)))
+          ;; The new buffer now has a duplicate stamp, so remove the
+          ;; "newer" one from the buffer.
+          (progn
+            (erc--delete-inserted-message-naively new-marker)
+            (set-marker new-marker (erc-stamp--date-marker old)))
+        ;; The new buffer doesn't have this stamp, so add its data
+        ;; object to the sorted list.
+        (push old need)
+        ;; Update the old marker position to point to the new buffer.
+        (set-marker (erc-stamp--date-marker old)
+                    (erc-stamp--date-marker old))))
+    ;; These *should* already be sorted.
+    (setq erc-stamp--date-stamps
+          (nconc (nreverse need) erc-stamp--date-stamps))))
+
+(defun erc-stamp--dedupe-date-stamps-from-buffer (old-buffer)
+  "Merge date stamps from OLD-BUFFER into in the current buffer."
+  (let ((old-stamps (buffer-local-value 'erc-stamp--date-stamps old-buffer)))
+    (erc-stamp--dedupe-date-stamps old-stamps)))
+
+(defun erc-stamp--dedupe-date-stamps-from-target-buffer (orig old-buffer
+                                                              new-buffer)
+  "Merge date stamps from OLD-BUFFER into NEW-BUFFER after calling ORIG."
+  (let ((old-stamps (buffer-local-value 'erc-stamp--date-stamps old-buffer)))
+    (prog1 (funcall orig old-buffer new-buffer)
+      (with-current-buffer new-buffer
+        (erc-stamp--dedupe-date-stamps old-stamps)))))
 
 (provide 'erc-stamp)
 

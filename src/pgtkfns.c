@@ -38,8 +38,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xsettings.h"
 #include "atimer.h"
 
-static ptrdiff_t image_cache_refcount;
-
 static int x_decode_color (struct frame *f, Lisp_Object color_name,
 			   int mono_color);
 static struct pgtk_display_info *pgtk_display_info_for_name (Lisp_Object);
@@ -947,6 +945,7 @@ unless TYPE is `png'.  */)
   return pgtk_cr_export_frames (frames, surface_type);
 }
 
+extern frame_parm_handler pgtk_frame_parm_handlers[];
 frame_parm_handler pgtk_frame_parm_handlers[] =
   {
     gui_set_autoraise,		/* generic OK */
@@ -1020,17 +1019,6 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-      /* If the frame's image cache refcount is still the same as our
-         private shadow variable, it means we are unwinding a frame
-         for which we didn't yet call init_frame_faces, where the
-         refcount is incremented.  Therefore, we increment it here, so
-         that free_frame_faces, called in x_free_frame_resources
-         below, will not mistakenly decrement the counter that was not
-         incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       pgtk_free_frame_resources (f);
       free_glyphs (f);
       return Qt;
@@ -1396,9 +1384,6 @@ This function is an internal primitive--use `make-frame' instead.  */ )
 #else
 register_swash_font_driver(f);
 #endif  /* USE_WEBRENDER */
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
 			 "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -2157,7 +2142,7 @@ If omitted or nil, that stands for the selected frame's display.
 On PGTK, always return true-color.  */)
   (Lisp_Object terminal)
 {
-  return intern ("true-color");
+  return Qtrue_color;
 }
 
 
@@ -2627,7 +2612,7 @@ static Lisp_Object tip_frame;
 
 /* The window-system window corresponding to the frame of the
    currently visible tooltip.  */
-GtkWidget *tip_window;
+static GtkWidget *tip_window;
 
 /* A timer that hides or deletes the currently visible tooltip when it
    fires.  */
@@ -2757,9 +2742,6 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
 register_swash_font_driver(f);
 #endif  /* USE_WEBRENDER */
 
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
 
@@ -2856,7 +2838,7 @@ register_swash_font_driver(f);
   {
     Lisp_Object disptype;
 
-    disptype = intern ("color");
+    disptype = Qcolor;
 
     if (NILP (Fframe_parameter (frame, Qdisplay_type)))
       {
@@ -3403,8 +3385,7 @@ Text larger than the specified size is clipped.  */)
 
  start_timer:
   /* Let the tip disappear after timeout seconds.  */
-  tip_timer = call3 (intern ("run-at-time"), timeout, Qnil,
-		     intern ("x-hide-tip"));
+  tip_timer = call3 (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 }
@@ -3983,4 +3964,8 @@ syms_of_pgtkfns (void)
   DEFSYM (Qlandscape, "landscape");
   DEFSYM (Qreverse_portrait, "reverse-portrait");
   DEFSYM (Qreverse_landscape, "reverse-landscape");
+  DEFSYM (Qtrue_color, "true-color");
+  DEFSYM (Qcolor, "color");
+  DEFSYM (Qrun_at_time, "run-at-time");
+  DEFSYM (Qx_hide_tip, "x-hide-tip");
 }

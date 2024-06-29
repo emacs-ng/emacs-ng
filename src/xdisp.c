@@ -3878,7 +3878,7 @@ init_from_display_pos (struct it *it, struct window *w, struct display_pos *pos)
   if (in_ellipses_for_invisible_text_p (pos, w))
     {
       --charpos;
-      bytepos = 0;
+      bytepos = BYTE_TO_CHAR (charpos);
     }
 
   /* Keep in mind: the call to reseat in init_iterator skips invisible
@@ -5549,6 +5549,7 @@ setup_for_ellipsis (struct it *it, int len)
 static Lisp_Object
 find_display_property (Lisp_Object disp, Lisp_Object prop)
 {
+  Lisp_Object elem;
   if (NILP (disp))
     return Qnil;
   /* We have a vector of display specs.  */
@@ -5556,11 +5557,11 @@ find_display_property (Lisp_Object disp, Lisp_Object prop)
     {
       for (ptrdiff_t i = 0; i < ASIZE (disp); i++)
 	{
-	  Lisp_Object elem = AREF (disp, i);
+	  elem = AREF (disp, i);
 	  if (CONSP (elem)
 	      && CONSP (XCDR (elem))
 	      && EQ (XCAR (elem), prop))
-	    return XCAR (XCDR (elem));
+	    goto found;
 	}
       return Qnil;
     }
@@ -5570,11 +5571,11 @@ find_display_property (Lisp_Object disp, Lisp_Object prop)
     {
       while (!NILP (disp))
 	{
-	  Lisp_Object elem = XCAR (disp);
+	  elem = XCAR (disp);
 	  if (CONSP (elem)
 	      && CONSP (XCDR (elem))
 	      && EQ (XCAR (elem), prop))
-	    return XCAR (XCDR (elem));
+	    goto found;
 
 	  /* Check that we have a proper list before going to the next
 	     element.  */
@@ -5589,9 +5590,20 @@ find_display_property (Lisp_Object disp, Lisp_Object prop)
   else if (CONSP (disp)
 	   && CONSP (XCDR (disp))
 	   && EQ (XCAR (disp), prop))
-    return XCAR (XCDR (disp));
+    {
+      elem = disp;
+      goto found;
+    }
+
+  return Qnil;
+
+ found:
+  /* If the property value is a list of one element, just return the
+     CAR. */
+  if (NILP (XCDR (XCDR (elem))))
+    return XCAR (XCDR (elem));
   else
-    return Qnil;
+    return XCDR (elem);
 }
 
 static Lisp_Object
@@ -7288,6 +7300,7 @@ pop_it (struct it *it)
   it->bidi_p = p->bidi_p;
   it->paragraph_embedding = p->paragraph_embedding;
   it->from_disp_prop_p = p->from_disp_prop_p;
+  it->align_visually_p = false;
   if (it->bidi_p)
     {
       bidi_pop_it (&it->bidi_it);
@@ -12053,8 +12066,8 @@ message_dolog (const char *m, ptrdiff_t nbytes, bool nlflag, bool multibyte)
       bool newbuffer = NILP (Fget_buffer (Vmessages_buffer_name));
       Fset_buffer (Fget_buffer_create (Vmessages_buffer_name, Qnil));
       if (newbuffer
-	  && !NILP (Ffboundp (intern ("messages-buffer-mode"))))
-	call0 (intern ("messages-buffer-mode"));
+	  && !NILP (Ffboundp (Qmessages_buffer_mode)))
+	call0 (Qmessages_buffer_mode);
 
       bset_undo_list (current_buffer, Qt);
       bset_cache_long_scans (current_buffer, Qnil);
@@ -13195,8 +13208,6 @@ truncate_message_1 (void *a1, Lisp_Object a2)
   return false;
 }
 
-extern intptr_t garbage_collection_inhibited;
-
 /* Set the current message to STRING.  */
 
 static void
@@ -13379,8 +13390,10 @@ echo_area_display (bool update_frame_p)
   w = XWINDOW (mini_window);
   f = XFRAME (WINDOW_FRAME (w));
 
-  /* Don't display if frame is invisible or not yet initialized.  */
-  if (!FRAME_REDISPLAY_P (f) || !f->glyphs_initialized_p)
+  /* Don't display if frame is invisible or not yet initialized or
+     if redisplay is inhibited.  */
+  if (!FRAME_REDISPLAY_P (f) || !f->glyphs_initialized_p
+      || !NILP (Vinhibit_redisplay))
     return;
 
 #ifdef HAVE_WINDOW_SYSTEM
@@ -17360,10 +17373,13 @@ redisplay_internal (void)
 		= f->redisplay || !REDISPLAY_SOME_P ();
 	      bool f_redisplay_flag = f->redisplay;
 
-	      /* The X error handler may have deleted that frame
-		 before we went back to retry_frame.  This must come
+	      /* The X error handler may have deleted that frame before
+		 we went back to retry_frame.  Or this could be a TTY
+		 frame that is not completely made, in which case we
+		 cannot safely redisplay its windows.  This must come
 		 before any accesses to f->terminal.  */
-	      if (!FRAME_LIVE_P (f))
+	      if (!FRAME_LIVE_P (f)
+		  || (FRAME_TERMCAP_P (f) && !f->after_make_frame))
 		continue;
 
 	      /* Mark all the scroll bars to be removed; we'll redeem
@@ -17850,6 +17866,7 @@ mark_window_display_accurate_1 (struct window *w, bool accurate_p)
       if ((prev_point != w->last_point
 	   || prev_mark != w->last_mark)
 	  && FRAME_WINDOW_P (WINDOW_XFRAME (w))
+	  && !FRAME_TOOLTIP_P (WINDOW_XFRAME (w))
 	  && w == XWINDOW (WINDOW_XFRAME (w)->selected_window))
 	report_point_change (WINDOW_XFRAME (w), w, b);
 #endif /* HAVE_TEXT_CONVERSION */
@@ -18182,7 +18199,7 @@ set_cursor_from_row (struct window *w, struct glyph_row *row,
 	    --glyph;
 	  /* By default, in reversed rows we put the cursor on the
 	     rightmost (first in the reading order) glyph.  */
-	  for (x = 0, g = end + 1; g < glyph; g++)
+	  for (x = row->x, g = end + 1; g < glyph; g++)
 	    x += g->pixel_width;
 	  while (end < glyph
 		 && NILP ((end + 1)->object)
@@ -19172,7 +19189,7 @@ try_scrolling (Lisp_Object window, bool just_this_one_p,
       /* Maybe forget recorded base line for line number display.  */
       /* FIXME: Why do we need this?  `try_scrolling` can only be called from
          `redisplay_window` which should have flushed this cache already when
-         eeded.  */
+         needed.  */
       if (!BASE_LINE_NUMBER_VALID_P (w))
 	w->base_line_number = 0;
 
@@ -22336,6 +22353,13 @@ try_window_id (struct window *w)
       start_pos = it.current.pos;
     }
 
+  /* init_to_row_end and start_display above could have caused the
+     window's window_end_valid flag to be reset (e.g., if init_iterator
+     decides to free all realized faces).  We cannot continue if that
+     happens.  */
+  if (!w->window_end_valid)
+    GIVE_UP (108);
+
   /* Find the first row that is not affected by changes at the end of
      the buffer.  Value will be null if there is no unchanged row, in
      which case we must redisplay to the end of the window.  delta
@@ -24415,6 +24439,7 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
     {
       it->method = GET_FROM_STRETCH;
       it->object = prop;
+      it->string_from_prefix_prop_p = true;
     }
 #ifdef HAVE_WINDOW_SYSTEM
   else if (IMAGEP (prop))
@@ -24422,6 +24447,7 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
       it->what = IT_IMAGE;
       it->image_id = lookup_image (it->f, prop, it->face_id);
       it->method = GET_FROM_IMAGE;
+      it->string_from_prefix_prop_p = true;
     }
 #endif /* HAVE_WINDOW_SYSTEM */
   else
@@ -24475,12 +24501,14 @@ static void
 handle_line_prefix (struct it *it)
 {
   Lisp_Object prefix;
+  bool wrap_prop = false;
 
   if (it->continuation_lines_width > 0)
     {
       prefix = get_line_prefix_it_property (it, Qwrap_prefix);
       if (NILP (prefix))
 	prefix = Vwrap_prefix;
+      wrap_prop = true;
     }
   else
     {
@@ -24495,6 +24523,11 @@ handle_line_prefix (struct it *it)
 	 iterator stack overflows.  So, don't wrap the prefix.  */
       it->line_wrap = TRUNCATE;
       it->avoid_cursor_p = true;
+      /* Interpreting :align-to relative to the beginning of the logical
+         line effectively renders this feature unusable, so we make an
+         exception for this use of :align-to.  */
+      if (wrap_prop && CONSP (prefix) && EQ (XCAR (prefix), Qspace))
+	it->align_visually_p = true;
     }
 }
 
@@ -28032,7 +28065,18 @@ store_mode_line_string (const char *string, Lisp_Object lisp_string,
 
   if (string != NULL)
     {
-      len = strnlen (string, precision <= 0 ? SIZE_MAX : precision);
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY	\
+  && __ANDROID_API__ < 22
+      /* Circumvent a bug in memchr preventing strnlen from returning
+	 valid values when a large limit is specified.
+
+         https://issuetracker.google.com/issues/37020957 */
+      if (precision <= 0 || ((uintptr_t) string
+			     > (UINTPTR_MAX - precision)))
+	len = strlen (string);
+      else
+#endif /* HAVE_ANDROID && !ANDROID_STUBIFY && __ANDROID_API__ < 22 */
+	len = strnlen (string, precision <= 0 ? SIZE_MAX : precision);
       lisp_string = make_string (string, len);
       if (NILP (props))
 	props = mode_line_string_face_prop;
@@ -31959,7 +32003,9 @@ produce_stretch_glyph (struct it *it)
 	   && calc_pixel_width_or_height (&tem, it, prop, font, true,
 					  &align_to))
     {
-      int x = it->current_x + it->continuation_lines_width;
+      int x = it->current_x + (it->align_visually_p
+			       ? 0
+			       : it->continuation_lines_width);
       int x0 = x;
       /* Adjust for line numbers, if needed.   */
       if (!NILP (Vdisplay_line_numbers) && it->line_number_produced_p)
@@ -33615,7 +33661,9 @@ get_window_cursor_type (struct window *w, struct glyph *glyph, int *width,
     {
       if (w == XWINDOW (echo_area_window))
 	{
-	  if (EQ (BVAR (b, cursor_type), Qt) || NILP (BVAR (b, cursor_type)))
+	  if (!EQ (Qt, w->cursor_type))
+	      return get_specified_cursor_type (w->cursor_type, width);
+	  else if (EQ (BVAR (b, cursor_type), Qt) || NILP (BVAR (b, cursor_type)))
 	    {
 	      *width = FRAME_CURSOR_WIDTH (f);
 	      return FRAME_DESIRED_CURSOR (f);
@@ -33642,18 +33690,23 @@ get_window_cursor_type (struct window *w, struct glyph *glyph, int *width,
       non_selected = true;
     }
 
-  /* Never display a cursor in a window in which cursor-type is nil.  */
-  if (NILP (BVAR (b, cursor_type)))
-    return NO_CURSOR;
-
-  /* Get the normal cursor type for this window.  */
-  if (EQ (BVAR (b, cursor_type), Qt))
-    {
-      cursor_type = FRAME_DESIRED_CURSOR (f);
-      *width = FRAME_CURSOR_WIDTH (f);
-    }
+  if (!EQ (Qt, w->cursor_type))
+      cursor_type = get_specified_cursor_type (w->cursor_type, width);
   else
-    cursor_type = get_specified_cursor_type (BVAR (b, cursor_type), width);
+    {
+      /* Never display a cursor in a window in which cursor-type is nil.  */
+      if (NILP (BVAR (b, cursor_type)))
+	return NO_CURSOR;
+
+      /* Get the normal cursor type for this window.  */
+      if (EQ (BVAR (b, cursor_type), Qt))
+	{
+	  cursor_type = FRAME_DESIRED_CURSOR (f);
+	  *width = FRAME_CURSOR_WIDTH (f);
+	}
+      else
+	cursor_type = get_specified_cursor_type (BVAR (b, cursor_type), width);
+    }
 
   /* Use cursor-in-non-selected-windows instead
      for non-selected window or frame.  */
@@ -35376,15 +35429,15 @@ define_frame_cursor1 (struct frame *f, Emacs_Cursor cursor, Lisp_Object pointer)
 	cursor = FRAME_OUTPUT_DATA (f)->hand_cursor;
       else if (EQ (pointer, Qtext))
 	cursor = FRAME_OUTPUT_DATA (f)->text_cursor;
-      else if (EQ (pointer, intern ("hdrag")))
+      else if (EQ (pointer, Qhdrag))
 	cursor = FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor;
-      else if (EQ (pointer, intern ("nhdrag")))
+      else if (EQ (pointer, Qnhdrag))
 	cursor = FRAME_OUTPUT_DATA (f)->vertical_drag_cursor;
 # ifdef HAVE_X_WINDOWS
-      else if (EQ (pointer, intern ("vdrag")))
+      else if (EQ (pointer, Qvdrag))
 	cursor = FRAME_DISPLAY_INFO (f)->vertical_scroll_bar_cursor;
 # endif
-      else if (EQ (pointer, intern ("hourglass")))
+      else if (EQ (pointer, Qhourglass))
 	cursor = FRAME_OUTPUT_DATA (f)->hourglass_cursor;
       else if (EQ (pointer, Qmodeline))
 	cursor = FRAME_OUTPUT_DATA (f)->modeline_cursor;
@@ -35732,6 +35785,7 @@ note_mode_line_or_margin_highlight (Lisp_Object window, int x, int y,
   define_frame_cursor1 (f, cursor, pointer);
 }
 
+#ifdef HAVE_WINDOW_SYSTEM
 
 /* Take proper action when mouse has moved to the window WINDOW, with
    window-local x-position X and y-position Y.  This is only used for
@@ -35792,7 +35846,7 @@ note_fringe_highlight (struct frame *f, Lisp_Object window, int x, int y,
 
   /* NOTE: iterating over glyphs can only find text properties coming
      from visible text.  This means that zero-length overlays and
-     invisibile text are NOT inspected.  */
+     invisible text are NOT inspected.  */
   for (; glyph_num; glyph_num--, glyph++)
     {
       Lisp_Object pos = make_fixnum (glyph->charpos);
@@ -35809,6 +35863,8 @@ note_fringe_highlight (struct frame *f, Lisp_Object window, int x, int y,
 	}
     }
 }
+
+#endif	/* HAVE_WINDOW_SYSTEM */
 
 /* EXPORT:
    Take proper action when the mouse has moved to position X, Y on
@@ -38260,6 +38316,13 @@ depending on your patience and the speed of your system.  */);
 
   /* Called by decode_mode_spec.  */
   DEFSYM (Qfile_remote_p, "file-remote-p");
+
+  /* Called or compared against by various functions.  */
+  DEFSYM (Qmessages_buffer_mode, "messages-buffer-mode");
+  DEFSYM (Qhdrag, "hdrag");
+  DEFSYM (Qnhdrag, "nhdrag");
+  DEFSYM (Qvdrag, "vdrag");
+  DEFSYM (Qhourglass, "hourglass");
 }
 
 

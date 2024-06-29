@@ -30,7 +30,7 @@ As these async events execute in the background, we will poll for their completi
 
 ### Proxies and Garbage Collector (GC) Interoperability
 
-JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS <--> elisp marshaling. We refer to that as 'proxying' within internal documentation. 
+JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS <--> elisp marshaling. We refer to that as 'proxying' within internal documentation.
 
 For example, we will discuss how this code actually works:
 

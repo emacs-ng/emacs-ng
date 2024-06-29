@@ -355,7 +355,7 @@ The `slots' (and hence `index-table') are currently unused."
 This is like `functionp' except that it returns nil for all lists and symbols,
 regardless if `funcall' would accept to call them."
   (memq (cl-type-of object)
-        '(primitive-function subr-native-elisp module-function
+        '(primitive-function native-comp-function module-function
           interpreted-function byte-code-function)))
 
 (cl--define-built-in-type t nil "Abstract supertype of everything.")
@@ -444,17 +444,29 @@ For this build of Emacs it's %dbit."
   )
 (cl--define-built-in-type compiled-function (function)
   "Abstract type of functions that have been compiled.")
-(cl--define-built-in-type byte-code-function (compiled-function)
+(cl--define-built-in-type closure (function)
+  "Abstract type of functions represented by a vector-like object.
+You can access the object's internals with `aref'.
+The fields are used as follows:
+
+  0 [args]       Argument list (either a list or an integer)
+  1 [code]       Either a byte-code string or a list of Lisp forms
+  2 [constants]  Either vector of constants or a lexical environment
+  3 [stackdepth] Maximum amount of stack depth used by the byte-code
+  4 [docstring]  The documentation, or a reference to it
+  5 [iform]      The interactive form (if present)")
+(cl--define-built-in-type byte-code-function (compiled-function closure)
   "Type of functions that have been byte-compiled.")
 (cl--define-built-in-type subr (atom)
   "Abstract type of functions compiled to machine code.")
 (cl--define-built-in-type module-function (function)
   "Type of functions provided via the module API.")
-(cl--define-built-in-type interpreted-function (function)
+(cl--define-built-in-type interpreted-function (closure)
   "Type of functions that have not been compiled.")
 (cl--define-built-in-type special-form (subr)
   "Type of the core syntactic elements of the Emacs Lisp language.")
-(cl--define-built-in-type subr-native-elisp (subr compiled-function)
+(define-obsolete-function-alias 'subr-native-elisp-p #'native-comp-function-p "30.1")
+(cl--define-built-in-type native-comp-function (subr compiled-function)
   "Type of functions that have been compiled by the native compiler.")
 (cl--define-built-in-type primitive-function (subr compiled-function)
   "Type of functions hand written in C.")

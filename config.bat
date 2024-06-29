@@ -280,6 +280,7 @@ If Exist assert.in.h update assert.in.h assert.in-h
 If Exist byteswap.in.h update byteswap.in.h byteswap.in-h
 If Exist dirent.in.h update dirent.in.h dirent.in-h
 If Exist errno.in.h update errno.in.h errno.in-h
+If Exist endian.in.h update endian.in.h endian.in-h
 If Exist execinfo.in.h update execinfo.in.h execinfo.in-h
 If Exist fcntl.in.h update fcntl.in.h fcntl.in-h
 If Exist getopt.in.h update getopt.in.h getopt.in-h
@@ -303,6 +304,7 @@ If Exist sys_types.in.h update sys_types.in.h sys_types.in-h
 If Exist time.in.h update time.in.h time.in-h
 If Exist unistd.in.h update unistd.in.h unistd.in-h
 If Exist stdckdint.in.h update stdckdint.in.h stdckdint.in-h
+If Exist stdbit.in.h update stdbit.in.h stdbit.in-h
 If Exist gnulib.mk.in update gnulib.mk.in gnulib.mk-in
 Rem Only repository has the msdos/autogen directory
 If Exist Makefile.in sed -f ../msdos/sedlibcf.inp < Makefile.in > makefile.tmp

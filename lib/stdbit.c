@@ -1,6 +1,6 @@
-/* Count the number of trailing 0 bits in a word.
+/* Support C23 bit and byte utilities on non-C23 platforms.
 
-   Copyright 2013-2024 Free Software Foundation, Inc.
+   Copyright 2024 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -15,7 +15,9 @@
    You should have received a copy of the GNU Lesser General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
+/* Written by Paul Eggert.  */
+
 #include <config.h>
 
-#define COUNT_TRAILING_ZEROS_INLINE _GL_EXTERN_INLINE
-#include "count-trailing-zeros.h"
+#define _GL_STDBIT_INLINE _GL_EXTERN_INLINE
+#include <stdbit.h>

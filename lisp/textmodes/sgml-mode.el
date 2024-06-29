@@ -1418,7 +1418,7 @@ Leave point at the beginning of the tag."
 	(with-syntax-table sgml-tag-syntax-table
 	  (let ((pos (point)))
 	    (condition-case nil
-                ;; FIXME: This does not correctly skip over PI an CDATA tags.
+                ;; FIXME: This does not correctly skip over PI and CDATA tags.
 		(sgml-forward-sexp 1)
 	      (scan-error
 	       ;; This < seems to be just a spurious one, let's ignore it.
@@ -1820,6 +1820,7 @@ This takes effect when first loading the library.")
     (define-key map "\C-c\C-c#" #'html-id-anchor)
     (define-key map "\C-c\C-ci" #'html-image)
     (when html-quick-keys
+      (define-key map "\C-cp" #'html-paragraph)
       (define-key map "\C-c-" #'html-horizontal-rule)
       (define-key map "\C-cd" #'html-div)
       (define-key map "\C-co" #'html-ordered-list)
@@ -2469,10 +2470,10 @@ To work around that, do:
 (defun html-mode--image-yank-handler (type image)
   (let ((file (read-file-name (format "Save %s image to: " type))))
     (when (file-directory-p file)
-      (user-error "%s is a directory"))
+      (user-error "%s is a directory" file))
     (when (and (file-exists-p file)
                (not (yes-or-no-p (format "%s exists; overwrite?" file))))
-      (user-error "%s exists"))
+      (user-error "%s exists" file))
     (with-temp-buffer
       (set-buffer-multibyte nil)
       (insert image)

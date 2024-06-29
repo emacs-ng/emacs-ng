@@ -1146,11 +1146,11 @@ text or moving point with a keyboard command will usually bring it back
 into view.
 
 @findex horizontal-scroll-bar-mode
-  To toggle the use of horizontal scroll bars, type @kbd{M-x
-horizontal-scroll-bar-mode}.  This command applies to all frames,
+  To toggle the use of horizontal scroll bars, type @w{@kbd{M-x
+horizontal-scroll-bar-mode}}.  This command applies to all frames,
 including frames yet to be created.  To toggle horizontal scroll bars
-for just the selected frame, use the command @kbd{M-x
-toggle-horizontal-scroll-bar}.
+for just the selected frame, use the command @w{@kbd{M-x
+toggle-horizontal-scroll-bar}}.
 
 @vindex horizontal-scroll-bar-mode
   To control the use of horizontal scroll bars at startup, customize the
@@ -1295,16 +1295,22 @@ menus' visual appearance.
 @node Tool Bars
 @section Tool Bars
 @cindex tool bar mode
+@cindex tool bar, attached to frame
 @cindex mode, Tool Bar
 @cindex icons, toolbar
 
-  On graphical displays, Emacs puts a @dfn{tool bar} at the top of
-each frame, just below the menu bar.  This is a row of icons which you
-can click on with the mouse to invoke various commands.
+  On graphical displays, Emacs puts a @dfn{tool bar} at the top of each
+frame, just below the menu bar.  This is a row of buttons with icons
+which you can click on with the mouse to invoke various commands.  Emacs
+can also optionally display a tool bar at the top of each window
+(@pxref{Window Tool Bar}).
 
+@vindex tool-bar-always-show-default
   The global (default) tool bar contains general commands.  Some major
 modes define their own tool bars; whenever a buffer with such a major
-mode is current, the mode's tool bar replaces the global tool bar.
+mode is current, the mode's tool bar replaces the global tool bar.  To
+prevent this replacement from happening, customize the variable
+@code{tool-bar-always-show-default}.
 
 @findex tool-bar-mode
 @vindex tool-bar-mode

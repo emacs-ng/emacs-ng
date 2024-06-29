@@ -53,7 +53,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termhooks.h"
 #include "termopts.h"
 #include "termchar.h"
-#include "emacs-icon.h"
 #include "menu.h"
 #include "window.h"
 #include "keyboard.h"
@@ -223,34 +222,6 @@ pgtk_regenerate_devices (struct pgtk_display_info *dpyinfo)
 {
   pgtk_free_devices (dpyinfo);
   pgtk_enumerate_devices (dpyinfo, false);
-}
-
-static void
-pgtk_toolkit_position (struct frame *f, int x, int y,
-		       bool *menu_bar_p, bool *tool_bar_p)
-{
-  GdkRectangle test_rect;
-  int scale;
-
-  y += (FRAME_MENUBAR_HEIGHT (f)
-	+ FRAME_TOOLBAR_TOP_HEIGHT (f));
-  x += FRAME_TOOLBAR_LEFT_WIDTH (f);
-
-  if (FRAME_EXTERNAL_MENU_BAR (f))
-    *menu_bar_p = (x >= 0 && x < FRAME_PIXEL_WIDTH (f)
-		   && y >= 0 && y < FRAME_MENUBAR_HEIGHT (f));
-
-  if (FRAME_X_OUTPUT (f)->toolbar_widget)
-    {
-      scale = xg_get_scale (f);
-      test_rect.x = x / scale;
-      test_rect.y = y / scale;
-      test_rect.width = 1;
-      test_rect.height = 1;
-
-      *tool_bar_p = gtk_widget_intersect (FRAME_X_OUTPUT (f)->toolbar_widget,
-					  &test_rect, NULL);
-    }
 }
 
 static Lisp_Object
@@ -451,6 +422,8 @@ pgtk_frame_raise_lower (struct frame *f, bool raise_flag)
 
 /* Free X resources of frame F.  */
 
+static void pgtk_unlink_touch_points (struct frame *);
+
 void
 pgtk_free_frame_resources (struct frame *f)
 {
@@ -463,6 +436,7 @@ pgtk_free_frame_resources (struct frame *f)
 
   block_input ();
 
+  pgtk_unlink_touch_points (f);
 #ifdef HAVE_XWIDGETS
   kill_frame_xwidget_views (f);
 #endif
@@ -1245,7 +1219,7 @@ pgtk_set_glyph_string_gc (struct glyph_string *s)
    line or menu if we don't have X toolkit support.  */
 
 static void
-pgtk_set_glyph_string_clipping (struct glyph_string *s, cairo_t * cr)
+pgtk_set_glyph_string_clipping (struct glyph_string *s, cairo_t *cr)
 {
   XRectangle r[2];
   int n = get_glyph_string_clip_rects (s, r, 2);
@@ -1266,7 +1240,7 @@ pgtk_set_glyph_string_clipping (struct glyph_string *s, cairo_t * cr)
 
 static void
 pgtk_set_glyph_string_clipping_exactly (struct glyph_string *src,
-					struct glyph_string *dst, cairo_t * cr)
+					struct glyph_string *dst, cairo_t *cr)
 {
   dst->clip[0].x = src->x;
   dst->clip[0].y = src->y;
@@ -2440,6 +2414,73 @@ pgtk_draw_stretch_glyph_string (struct glyph_string *s)
   s->background_filled_p = true;
 }
 
+
+/* Draw a dashed underline of thickness THICKNESS and width WIDTH onto F
+   at a vertical offset of OFFSET from the position of the glyph string
+   S, with each segment SEGMENT pixels in length.  */
+
+static void
+pgtk_draw_dash (struct frame *f, struct glyph_string *s,
+		unsigned long foreground, int width,
+		char segment, int offset, int thickness)
+{
+  cairo_t *cr;
+  double cr_segment, y_center;
+
+  cr = pgtk_begin_cr_clip (s->f);
+  pgtk_set_cr_source_with_color (f, foreground, false);
+  cr_segment = (double) segment;
+  y_center = s->ybase + offset + (thickness / 2.0);
+
+  cairo_set_dash (cr, &cr_segment, 1, s->x);
+  cairo_set_line_width (cr, thickness);
+  cairo_move_to (cr, s->x, y_center);
+  cairo_line_to (cr, s->x + width, y_center);
+  cairo_stroke (cr);
+  pgtk_end_cr_clip (f);
+}
+
+/* Draw an underline of STYLE onto F at an offset of POSITION from the
+   baseline of the glyph string S in the color provided by FOREGROUND,
+   DECORATION_WIDTH in length, and THICKNESS in height.  */
+
+static void
+pgtk_fill_underline (struct frame *f, struct glyph_string *s,
+		     unsigned long foreground,
+		     enum face_underline_type style, int position,
+		     int decoration_width, int thickness)
+{
+  int segment;
+
+  segment = thickness * 3;
+
+  switch (style)
+    {
+      /* FACE_UNDERLINE_DOUBLE_LINE is treated identically to SINGLE, as
+	 the second line will be filled by another invocation of this
+	 function.  */
+    case FACE_UNDERLINE_SINGLE:
+    case FACE_UNDERLINE_DOUBLE_LINE:
+      pgtk_fill_rectangle (f, foreground, s->x, s->ybase + position,
+			   decoration_width, thickness, false);
+      break;
+
+    case FACE_UNDERLINE_DOTS:
+      segment = thickness;
+      FALLTHROUGH;
+
+    case FACE_UNDERLINE_DASHES:
+      pgtk_draw_dash (f, s, foreground, decoration_width, segment,
+		      position, thickness);
+      break;
+
+    case FACE_NO_UNDERLINE:
+    case FACE_UNDERLINE_WAVE:
+    default:
+      emacs_abort ();
+    }
+}
+
 static void
 pgtk_draw_glyph_string (struct glyph_string *s)
 {
@@ -2552,20 +2593,21 @@ pgtk_draw_glyph_string (struct glyph_string *s)
       /* Draw underline.  */
       if (s->face->underline)
 	{
-	  if (s->face->underline == FACE_UNDER_WAVE)
+	  if (s->face->underline == FACE_UNDERLINE_WAVE)
 	    {
 	      if (s->face->underline_defaulted_p)
 		pgtk_draw_underwave (s, s->xgcv.foreground);
 	      else
 		pgtk_draw_underwave (s, s->face->underline_color);
 	    }
-	  else if (s->face->underline == FACE_UNDER_LINE)
+	  else if (s->face->underline >= FACE_UNDERLINE_SINGLE)
 	    {
 	      unsigned long thickness, position;
-	      int y;
+	      unsigned long foreground;
 
 	      if (s->prev
-		  && s->prev->face->underline == FACE_UNDER_LINE
+		  && (s->prev->face->underline != FACE_UNDERLINE_WAVE
+		      && s->prev->face->underline >= FACE_UNDERLINE_SINGLE)
 		  && (s->prev->face->underline_at_descent_line_p
 		      == s->face->underline_at_descent_line_p)
 		  && (s->prev->face->underline_pixels_above_descent_line
@@ -2621,16 +2663,24 @@ pgtk_draw_glyph_string (struct glyph_string *s)
 		thickness = (s->y + s->height) - (s->ybase + position);
 	      s->underline_thickness = thickness;
 	      s->underline_position = position;
-	      y = s->ybase + position;
+
 	      if (s->face->underline_defaulted_p)
-		pgtk_fill_rectangle (s->f, s->xgcv.foreground,
-				     s->x, y, s->width, thickness,
-				     false);
+		foreground = s->xgcv.foreground;
 	      else
+		foreground = s->face->underline_color;
+
+	      pgtk_fill_underline (s->f, s, foreground, s->face->underline,
+				   position, s->width, thickness);
+
+	      /* Place a second underline above the first if this was
+		 requested in the face specification.  */
+
+	      if (s->face->underline == FACE_UNDERLINE_DOUBLE_LINE)
 		{
-		  pgtk_fill_rectangle (s->f, s->face->underline_color,
-				       s->x, y, s->width, thickness,
-				       false);
+		  /* Compute the position of the second underline.  */
+		  position = position - thickness - 1;
+		  pgtk_fill_underline (s->f, s, foreground, s->face->underline,
+				       position, s->width, thickness);
 		}
 	    }
 	}
@@ -4010,8 +4060,8 @@ xg_scroll_callback (GtkRange * range,
 /* Callback for button release. Sets dragging to -1 when dragging is done.  */
 
 static gboolean
-xg_end_scroll_callback (GtkWidget * widget,
-			GdkEventButton * event, gpointer user_data)
+xg_end_scroll_callback (GtkWidget *widget,
+			GdkEventButton *event, gpointer user_data)
 {
   struct scroll_bar *bar = user_data;
   bar->dragging = -1;
@@ -4875,7 +4925,6 @@ pgtk_create_terminal (struct pgtk_display_info *dpyinfo)
 #else
   terminal->free_pixmap = wr_free_pixmap;
 #endif  /* USE_WEBRENDER */
-  terminal->toolkit_position_hook = pgtk_toolkit_position;
 
   /* Other hooks are NULL by default.  */
 
@@ -5935,6 +5984,17 @@ motion_notify_event (GtkWidget *widget, GdkEvent *event,
   struct frame *f, *frame;
   struct pgtk_display_info *dpyinfo;
   Mouse_HLInfo *hlinfo;
+  GdkDevice *device;
+
+  /* Ignore emulated pointer events generated from a touch screen
+     event.  */
+  if (gdk_event_get_pointer_emulated (event)
+      /* The event must not have emerged from a touch device either, as
+         GDK does not set pointer_emulated in events generated on
+         Wayland as on X, and as the X Input Extension specifies.  */
+      || ((device = gdk_event_get_source_device (event))
+	  && (gdk_device_get_source (device) == GDK_SOURCE_TOUCHSCREEN)))
+    return FALSE;
 
   EVENT_INIT (inev.ie);
   inev.ie.kind = NO_EVENT;
@@ -6074,6 +6134,17 @@ button_event (GtkWidget *widget, GdkEvent *event,
   bool tab_bar_p = false;
   bool tool_bar_p = false;
   Lisp_Object tab_bar_arg = Qnil;
+  GdkDevice *device;
+
+  /* Ignore emulated pointer events generated from a touch screen
+     event.  */
+  if (gdk_event_get_pointer_emulated (event)
+      /* The event must not have emerged from a touch device either, as
+         GDK does not set pointer_emulated in events generated on
+         Wayland as on X, and as the X Input Extension specifies.  */
+      || ((device = gdk_event_get_source_device (event))
+	  && (gdk_device_get_source (device) == GDK_SOURCE_TOUCHSCREEN)))
+    return FALSE;
 
   EVENT_INIT (inev.ie);
   inev.ie.kind = NO_EVENT;
@@ -6533,6 +6604,239 @@ drag_drop (GtkWidget *widget, GdkDragContext *context,
   return TRUE;
 }
 
+
+
+/* Touch screen events.  */
+
+/* Record a touch sequence with the identifier DETAIL from the given
+   FRAME on the specified DPYINFO.  Round X and Y and record them as its
+   current position, assign an identifier to the touch sequence suitable
+   for reporting to Lisp, and return the same.  */
+
+static EMACS_INT
+pgtk_link_touch_point (struct pgtk_display_info *dpyinfo,
+		       GdkEventSequence *detail, gdouble x,
+		       gdouble y, struct frame *frame)
+{
+  struct pgtk_touch_point *touchpoint;
+  static EMACS_INT local_detail;
+
+  /* Assign an identifier suitable for reporting to Lisp.  On builds
+     with 64-bit Lisp_Object, this is largely a theoretical problem, but
+     CARD32s easily overflow 32-bit systems, as they are not specific to
+     X clients (e.g. Emacs) but grow uniformly across all of them.  */
+
+  if (FIXNUM_OVERFLOW_P (local_detail))
+    local_detail = 0;
+
+  touchpoint = xmalloc (sizeof *touchpoint);
+  touchpoint->next = dpyinfo->touchpoints;
+  touchpoint->x = lrint (x);
+  touchpoint->y = lrint (y);
+  touchpoint->number = detail;
+  touchpoint->local_detail = local_detail++;
+  touchpoint->frame = frame;
+  dpyinfo->touchpoints = touchpoint;
+  return touchpoint->local_detail;
+}
+
+/* Free and remove the touch sequence with the identifier DETAIL.
+   DPYINFO is the display in which the touch sequence should be
+   recorded.  If such a touch sequence exists, return its local
+   identifier in *LOCAL_DETAIL.
+
+   Value is 0 if no touch sequence by that identifier exists inside
+   DPYINFO, or 1 if a touch sequence has been found.  */
+
+static int
+pgtk_unlink_touch_point (GdkEventSequence *detail,
+			 struct pgtk_display_info *dpyinfo,
+			 EMACS_INT *local_detail)
+{
+  struct pgtk_touch_point *last, *tem;
+
+  for (last = NULL, tem = dpyinfo->touchpoints; tem;
+       last = tem, tem = tem->next)
+    {
+      if (tem->number == detail)
+	{
+	  if (!last)
+	    dpyinfo->touchpoints = tem->next;
+	  else
+	    last->next = tem->next;
+
+	  *local_detail = tem->local_detail;
+	  xfree (tem);
+
+	  return 1;
+	}
+    }
+
+  return 0;
+}
+
+/* Unlink all touch points associated with the frame F.  This is done
+   upon destroying F's window (or its being destroyed), because touch
+   point delivery after that point is undefined.  */
+
+static void
+pgtk_unlink_touch_points (struct frame *f)
+{
+  struct pgtk_touch_point **next, *last;
+  struct pgtk_display_info *dpyinfo;
+
+  /* Now unlink all touch points on F's display matching F.  */
+
+  dpyinfo = FRAME_DISPLAY_INFO (f);
+  for (next = &dpyinfo->touchpoints; (last = *next);)
+    {
+      if (last->frame == f)
+	{
+	  *next = last->next;
+	  xfree (last);
+	}
+      else
+	next = &last->next;
+    }
+}
+
+/* Return the data associated with a touch sequence DETAIL recorded by
+   `pgtk_link_touch_point' from DPYINFO, or NULL if it can't be
+   found.  */
+
+static struct pgtk_touch_point *
+pgtk_find_touch_point (struct pgtk_display_info *dpyinfo,
+		       GdkEventSequence *detail)
+{
+  struct pgtk_touch_point *point;
+
+  for (point = dpyinfo->touchpoints; point; point = point->next)
+    {
+      if (point->number == detail)
+	return point;
+    }
+
+  return NULL;
+}
+
+static gboolean
+touch_event_cb (GtkWidget *self, GdkEvent *event, gpointer user_data)
+{
+  struct pgtk_display_info *dpyinfo;
+  struct frame *f;
+  EMACS_INT local_detail;
+  union buffered_input_event inev;
+  struct pgtk_touch_point *touchpoint;
+  Lisp_Object arg = Qnil;
+  int state;
+
+  EVENT_INIT (inev.ie);
+
+  f = pgtk_any_window_to_frame (gtk_widget_get_window (self));
+  eassert (f);
+  dpyinfo = FRAME_DISPLAY_INFO (f);
+  switch (event->type)
+    {
+    case GDK_TOUCH_BEGIN:
+
+      /* Verify that no touch point with this identifier is already at
+	 large.  */
+      if (pgtk_find_touch_point (dpyinfo, event->touch.sequence))
+	break;
+
+      /* Record this in the display structure.  */
+      local_detail = pgtk_link_touch_point (dpyinfo, event->touch.sequence,
+					    event->touch.x, event->touch.y,
+					    f);
+      /* Generate the input event.  */
+      inev.ie.kind = TOUCHSCREEN_BEGIN_EVENT;
+      inev.ie.timestamp = event->touch.time;
+      XSETFRAME (inev.ie.frame_or_window, f);
+      XSETINT (inev.ie.x, lrint (event->touch.x));
+      XSETINT (inev.ie.y, lrint (event->touch.y));
+      XSETINT (inev.ie.arg, local_detail);
+      break;
+
+    case GDK_TOUCH_UPDATE:
+      touchpoint = pgtk_find_touch_point (dpyinfo,
+					  event->touch.sequence);
+
+      if (!touchpoint
+	  /* Don't send this event if nothing has changed
+	     either.  */
+	  || (touchpoint->x == lrint (event->touch.x)
+	      && touchpoint->y == lrint (event->touch.y)))
+	break;
+
+      /* Construct the input event.  */
+      touchpoint->x = lrint (event->touch.x);
+      touchpoint->y = lrint (event->touch.y);
+      inev.ie.kind = TOUCHSCREEN_UPDATE_EVENT;
+      inev.ie.timestamp = event->touch.time;
+      XSETFRAME (inev.ie.frame_or_window, f);
+
+      for (touchpoint = dpyinfo->touchpoints;
+	   touchpoint; touchpoint = touchpoint->next)
+	{
+	  if (touchpoint->frame == f)
+	    arg = Fcons (list3i (touchpoint->x, touchpoint->y,
+				 touchpoint->local_detail),
+			 arg);
+	}
+
+      inev.ie.arg = arg;
+      break;
+
+    case GDK_TOUCH_END:
+    case GDK_TOUCH_CANCEL:
+      /* Remove this touch point's record, also establishing its
+	 existence.  */
+      state = pgtk_unlink_touch_point (event->touch.sequence,
+				       dpyinfo, &local_detail);
+      /* If it did exist... */
+      if (state)
+	{
+	  /* ... generate a suitable event.  */
+	  inev.ie.kind = TOUCHSCREEN_END_EVENT;
+	  inev.ie.timestamp = event->touch.time;
+	  inev.ie.modifiers = (event->type != GDK_TOUCH_END);
+
+	  XSETFRAME (inev.ie.frame_or_window, f);
+	  XSETINT (inev.ie.x, lrint (event->touch.x));
+	  XSETINT (inev.ie.y, lrint (event->touch.y));
+	  XSETINT (inev.ie.arg, local_detail);
+	}
+      break;
+
+    default:
+      break;
+    }
+
+  /* If the above produced a workable event, report the name of the
+     device that gave rise to it.  */
+
+  if (inev.ie.kind != NO_EVENT)
+    {
+      inev.ie.device = pgtk_get_device_for_event (dpyinfo, event);
+      evq_enqueue (&inev);
+
+      /* Next, save this event for future menu activations, unless it is
+	 only an update.  */
+      if (event->type != GDK_TOUCH_UPDATE)
+	{
+	  if (dpyinfo->last_click_event != NULL)
+	    gdk_event_free (dpyinfo->last_click_event);
+	  dpyinfo->last_click_event = gdk_event_copy (event);
+	}
+    }
+
+  return inev.ie.kind != NO_EVENT;
+}
+
+
+
+/* Callbacks for sundries.  */
+
 static void
 pgtk_monitors_changed_cb (GdkScreen *screen, gpointer user_data)
 {
@@ -6548,6 +6852,8 @@ pgtk_monitors_changed_cb (GdkScreen *screen, gpointer user_data)
 }
 
 static gboolean pgtk_selection_event (GtkWidget *, GdkEvent *, gpointer);
+
+
 
 void
 pgtk_set_event_handler (struct frame *f)
@@ -6618,6 +6924,8 @@ pgtk_set_event_handler (struct frame *f)
 		    G_CALLBACK (pgtk_selection_event), NULL);
   g_signal_connect (G_OBJECT (FRAME_GTK_WIDGET (f)), "selection-notify-event",
 		    G_CALLBACK (pgtk_selection_event), NULL);
+  g_signal_connect (G_OBJECT (FRAME_GTK_WIDGET (f)), "touch-event",
+		    G_CALLBACK (touch_event_cb), NULL);
   g_signal_connect (G_OBJECT (FRAME_GTK_WIDGET (f)), "event",
 		    G_CALLBACK (pgtk_handle_event), NULL);
 }
@@ -7037,6 +7345,7 @@ static void
 pgtk_delete_display (struct pgtk_display_info *dpyinfo)
 {
   struct terminal *t;
+  struct pgtk_touch_point *last, *tem;
 
   /* Close all frames and delete the generic struct terminal for this
      X display.  */
@@ -7056,6 +7365,15 @@ pgtk_delete_display (struct pgtk_display_info *dpyinfo)
       for (tail = x_display_list; tail; tail = tail->next)
 	if (tail->next == dpyinfo)
 	  tail->next = tail->next->next;
+    }
+
+  /* Free remaining touchpoints.  */
+  tem = dpyinfo->touchpoints;
+  while (tem)
+    {
+      last = tem;
+      tem = tem->next;
+      xfree (last);
     }
 
   pgtk_free_devices (dpyinfo);
@@ -7195,6 +7513,9 @@ syms_of_pgtkterm (void)
   DEFSYM (Qsuper, "super");
   DEFSYM (Qcontrol, "control");
   DEFSYM (QUTF8_STRING, "UTF8_STRING");
+  /* Referenced in gtkutil.c.  */
+  DEFSYM (Qtheme_name, "theme-name");
+  DEFSYM (Qfile_name_sans_extension, "file-name-sans-extension");
 
   DEFSYM (Qfile, "file");
   DEFSYM (Qurl, "url");
@@ -7211,7 +7532,6 @@ syms_of_pgtkterm (void)
   DEFSYM (Qmove, "move");
   DEFSYM (Qlink, "link");
   DEFSYM (Qprivate, "private");
-
 
   Fput (Qalt, Qmodifier_value, make_fixnum (alt_modifier));
   Fput (Qhyper, Qmodifier_value, make_fixnum (hyper_modifier));
@@ -7492,5 +7812,5 @@ pgtk_cr_export_frames (Lisp_Object frames, cairo_surface_type_t surface_type)
 
   unbind_to (count, Qnil);
 
-  return CALLN (Fapply, intern ("concat"), Fnreverse (acc));
+  return CALLN (Fapply, Qconcat, Fnreverse (acc));
 }

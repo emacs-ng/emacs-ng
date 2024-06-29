@@ -250,7 +250,8 @@ information on Eshell, see Info node `(eshell)Top'."
 		   (t
 		    (get-buffer-create eshell-buffer-name)))))
     (cl-assert (and buf (buffer-live-p buf)))
-    (pop-to-buffer buf display-comint-buffer-action)
+    (with-suppressed-warnings ((obsolete display-comint-buffer-action))
+      (pop-to-buffer buf display-comint-buffer-action))
     (unless (derived-mode-p 'eshell-mode)
       (eshell-mode))
     buf))
@@ -280,10 +281,7 @@ information on Eshell, see Info node `(eshell)Top'."
     (minibuffer-with-setup-hook (lambda ()
                                   (eshell-mode)
                                   (eshell-command-mode +1))
-      (let ((command (read-from-minibuffer prompt)))
-        (when (eshell-using-module 'eshell-hist)
-          (eshell-add-input-to-history command))
-        command))))
+      (read-from-minibuffer prompt))))
 
 ;;;###autoload
 (defun eshell-command (command &optional to-current-buffer)

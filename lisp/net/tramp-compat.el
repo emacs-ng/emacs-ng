@@ -46,15 +46,22 @@
 
 (unless (= emacs-major-version
 	   (car (version-to-list tramp-compat-emacs-compiled-version)))
-  (warn "Tramp has been compiled with Emacs %s, this is Emacs %s"
+  (lwarn 'tramp :warning
+	 "Tramp has been compiled with Emacs %s, this is Emacs %s"
 	tramp-compat-emacs-compiled-version emacs-version))
 
 (with-eval-after-load 'docker-tramp
-  (warn (concat "Package `docker-tramp' has been obsoleted, "
-		"please use integrated package `tramp-container'")))
+  (lwarn 'tramp :warning
+	 (concat "Package `docker-tramp' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
 (with-eval-after-load 'kubernetes-tramp
-  (warn (concat "Package `kubernetes-tramp' has been obsoleted, "
-		"please use integrated package `tramp-container'")))
+  (lwarn 'tramp :warning
+	 (concat "Package `kubernetes-tramp' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
+(with-eval-after-load 'tramp-nspawn
+  (lwarn 'tramp :warning
+	 (concat "Package `tramp-nspawn' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
 
 ;; For not existing functions, obsolete functions, or functions with a
 ;; changed argument list, there are compiler warnings.  We want to
@@ -249,10 +256,12 @@ Also see `ignore'."
       (tramp-error vec tramp-permission-denied file)
     (tramp-error vec tramp-permission-denied "Permission denied: %s" file)))
 
-;; Function `auth-info-password' is new in Emacs 29.1.
+;; Function `auth-info-password' is new in Emacs 29.1.  Finally,
+;; Bug#49289 is fixed in Emacs 30.1 for the `secrets' and `plstore'
+;; auth-sources backends.
 (defalias 'tramp-compat-auth-info-password
-  (if (fboundp 'auth-info-password)
-      #'auth-info-password
+  (if (>= emacs-major-version 30)
+      'auth-info-password
     (lambda (auth-info)
       (let ((secret (plist-get auth-info :secret)))
 	(while (functionp secret)
@@ -294,6 +303,19 @@ Also see `ignore'."
       (autoload 'netrc-parse "netrc")
       (netrc-parse file))))
 
+;; Function `seq-keep' is new in Emacs 29.1.
+(defalias 'tramp-compat-seq-keep
+  (if (fboundp 'seq-keep)
+      #'seq-keep
+    (lambda (function sequence)
+      (delq nil (seq-map function sequence)))))
+
+;; User option `connection-local-default-application' is new in Emacs 29.1.
+(unless (boundp 'connection-local-default-application)
+  (defvar connection-local-default-application 'tramp
+    "Default application in connection-local functions, a symbol.
+This variable must not be changed globally."))
+
 ;; User option `password-colon-equivalents' is new in Emacs 30.1.
 (if (boundp 'password-colon-equivalents)
     (defvaralias
@@ -307,15 +329,48 @@ Also see `ignore'."
       ?\N{KHMER SIGN CAMNUC PII KUUH})
     "List of characters equivalent to trailing colon in \"password\" prompts."))
 
-;; Macro `connection-local-p' is new in Emacs 30.1.
+;; Macros `connection-local-p' and `connection-local-value' are new in
+;; Emacs 30.1.
 (if (macrop 'connection-local-p)
     (defalias 'tramp-compat-connection-local-p 'connection-local-p)
-  (defmacro tramp-compat-connection-local-p (variable)
-    "Non-nil if VARIABLE has a connection-local binding in `default-directory'."
-    `(let (connection-local-variables-alist file-local-variables-alist)
-       (hack-connection-local-variables
-	(connection-local-criteria-for-default-directory))
-       (and (assq ',variable connection-local-variables-alist) t))))
+  (defmacro tramp-compat-connection-local-p (variable &optional application)
+    "Non-nil if VARIABLE has a connection-local binding in `default-directory'.
+`default-directory' must be a remote file name.
+If APPLICATION is nil, the value of
+`connection-local-default-application' is used."
+    (declare (debug (symbolp &optional form)))
+    (unless (symbolp variable)
+      (signal 'wrong-type-argument (list 'symbolp variable)))
+    `(let* ((connection-local-default-application
+	     (or ,application connection-local-default-application))
+	    (criteria (connection-local-criteria-for-default-directory))
+            connection-local-variables-alist file-local-variables-alist)
+       (when criteria
+	 (hack-connection-local-variables criteria)
+	 (and (assq ',variable connection-local-variables-alist) t)))))
+
+(if (macrop 'connection-local-value)
+    (defalias 'tramp-compat-connection-local-value 'connection-local-value)
+  (defmacro tramp-compat-connection-local-value (variable &optional application)
+    "Return connection-local VARIABLE for APPLICATION in `default-directory'.
+`default-directory' must be a remote file name.
+If APPLICATION is nil, the value of
+`connection-local-default-application' is used.
+If VARIABLE does not have a connection-local binding, the return
+value is the default binding of the variable."
+    (declare (debug (symbolp &optional form)))
+    (unless (symbolp variable)
+      (signal 'wrong-type-argument (list 'symbolp variable)))
+    `(let* ((connection-local-default-application
+	     (or ,application connection-local-default-application))
+	    (criteria (connection-local-criteria-for-default-directory))
+            connection-local-variables-alist file-local-variables-alist)
+       (if (not criteria)
+           ,variable
+	 (hack-connection-local-variables criteria)
+	 (if-let ((result (assq ',variable connection-local-variables-alist)))
+             (cdr result)
+           ,variable)))))
 
 (dolist (elt (all-completions "tramp-compat-" obarray 'functionp))
   (function-put (intern elt) 'tramp-suppress-trace t))

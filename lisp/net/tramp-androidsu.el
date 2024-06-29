@@ -77,19 +77,27 @@ may edit files belonging to any and all applications."
   "Name of the local temporary directory on Android.")
 
 ;;;###tramp-autoload
+(defun tramp-enable-androidsu-method ()
+  "Enable \"androidsu\" method."
+  (add-to-list 'tramp-methods
+	       `(,tramp-androidsu-method
+                 (tramp-login-program       "su")
+                 (tramp-login-args          (("-") ("%u")))
+                 (tramp-remote-shell        ,tramp-androidsu-local-shell-name)
+                 (tramp-remote-shell-login  ("-l"))
+                 (tramp-remote-shell-args   ("-c"))
+                 (tramp-tmpdir              ,tramp-androidsu-local-tmp-directory)
+                 (tramp-connection-timeout  10)
+                 (tramp-shell-name	   ,tramp-androidsu-local-shell-name)))
+
+  (add-to-list 'tramp-default-user-alist
+	       `(,(rx bos (literal tramp-androidsu-method) eos)
+		 nil ,tramp-root-id-string)))
+
+;;;###tramp-autoload
 (tramp--with-startup
- (add-to-list 'tramp-methods
-	      `(,tramp-androidsu-method
-                (tramp-login-program       "su")
-                (tramp-login-args          (("-") ("%u")))
-                (tramp-remote-shell        ,tramp-androidsu-local-shell-name)
-                (tramp-remote-shell-login  ("-l"))
-                (tramp-remote-shell-args   ("-c"))
-                (tramp-tmpdir              ,tramp-androidsu-local-tmp-directory)
-                (tramp-connection-timeout  10)
-                (tramp-shell-name	   ,tramp-androidsu-local-shell-name)))
- (add-to-list 'tramp-default-user-alist
-              `(,tramp-androidsu-method nil ,tramp-root-id-string)))
+ (when (eq system-type 'android)
+   (tramp-enable-androidsu-method)))
 
 (defvar android-use-exec-loader) ; androidfns.c.
 
@@ -110,16 +118,14 @@ multibyte mode and waits for the shell prompt to appear."
 	  (unless (process-live-p p)
 	    (with-tramp-progress-reporter
 		vec 3
-		(if (tramp-string-empty-or-nil-p (tramp-file-name-user vec))
-		    (format "Opening connection %s for %s using %s"
-			    process-name
-			    (tramp-file-name-host vec)
-			    (tramp-file-name-method vec))
-		  (format "Opening connection %s for %s@%s using %s"
-			  process-name
-			  (tramp-file-name-user vec)
-			  (tramp-file-name-host vec)
-			  (tramp-file-name-method vec)))
+		(format "Opening connection%s for %s%s using %s"
+			(if (tramp-string-empty-or-nil-p process-name)
+			    "" (concat " " process-name))
+			(if (tramp-string-empty-or-nil-p
+			     (tramp-file-name-user vec))
+			    "" (concat (tramp-file-name-user vec) "@"))
+			(tramp-file-name-host vec)
+			(tramp-file-name-method vec))
               (let* ((coding-system-for-read 'utf-8-unix)
                      (process-connection-type tramp-process-connection-type)
                      ;; The executable loader cannot execute setuid
@@ -134,12 +140,25 @@ multibyte mode and waits for the shell prompt to appear."
                                        ;; `android-use-exec-loader' off.
 			               tramp-androidsu-local-shell-name "-i"))
 		     (user (tramp-file-name-user vec))
-                     command)
+                     su-binary path command)
                 ;; Set sentinel.  Initialize variables.
 	        (set-process-sentinel p #'tramp-process-sentinel)
 	        (tramp-post-process-creation p vec)
-                ;; Replace `login-args' place holders.
-		(setq command (format "exec su - %s || exit" user))
+                ;; Replace `login-args' place holders.  `PATH' must be
+                ;; set to `tramp-androidsu-remote-path', as some `su'
+                ;; implementations propagate their callers' environments
+                ;; to the root session, which might be contaminated with
+                ;; incompatible `ls' binaries or similar.
+		(setq path (tramp-shell-quote-argument
+                            (string-join tramp-androidsu-remote-path ":"))
+                      su-binary
+                      (shell-quote-argument
+                       (or (executable-find "su")
+                           (tramp-user-error
+			    vec
+                            "No su binary is available in any of `exec-path'")))
+                      command (format "PATH=%s exec %s - %s || exit"
+                                      path su-binary user))
                 ;; Attempt to execute the shell inside the global mount
                 ;; namespace if requested.
                 (when tramp-androidsu-mount-global-namespace
@@ -155,12 +174,13 @@ multibyte mode and waits for the shell prompt to appear."
                       (setq tramp-androidsu-su-mm-supported
                             ;; Detect support for `su -mm'.
                             (tramp-adb-send-command-and-check
-                             vec "su -mm -c 'exit 24'" 24)))
+                             vec (format "%s -mm -c 'exit 24'" su-binary)
+                             24)))
                     (when tramp-androidsu-su-mm-supported
                       (tramp-set-connection-property
                        vec "remote-namespace" t)
-		      (setq command (format "exec su -mm - %s || exit"
-				            user)))))
+		      (setq command (format "PATH=%s exec %s -mm - %s || exit"
+				            path su-binary user)))))
 	        ;; Send the command.
 		(tramp-message vec 3 "Sending command `%s'" command)
 		(tramp-adb-send-command vec command t t)
@@ -282,121 +302,84 @@ FUNCTION."
 
 (defun tramp-androidsu-handle-make-process (&rest args)
   "Like `tramp-handle-make-process', but modified for Android."
-  (when args
-    (with-parsed-tramp-file-name (expand-file-name default-directory) nil
-      (let ((default-directory tramp-compat-temporary-file-directory)
-	    (name (plist-get args :name))
-	    (buffer (plist-get args :buffer))
-	    (command (plist-get args :command))
-	    (coding (plist-get args :coding))
-	    (noquery (plist-get args :noquery))
-	    (connection-type
-	     (or (plist-get args :connection-type) process-connection-type))
-	    (filter (plist-get args :filter))
-	    (sentinel (plist-get args :sentinel))
-	    (stderr (plist-get args :stderr)))
-	(unless (stringp name)
-	  (signal 'wrong-type-argument (list #'stringp name)))
-	(unless (or (bufferp buffer) (string-or-null-p buffer))
-	  (signal 'wrong-type-argument (list #'bufferp buffer)))
-	(unless (consp command)
-	  (signal 'wrong-type-argument (list #'consp command)))
-	(unless (or (null coding)
-		    (and (symbolp coding) (memq coding coding-system-list))
-		    (and (consp coding)
-			 (memq (car coding) coding-system-list)
-			 (memq (cdr coding) coding-system-list)))
-	  (signal 'wrong-type-argument (list #'symbolp coding)))
-	(when (eq connection-type t)
-	  (setq connection-type 'pty))
-	(unless (or (and (consp connection-type)
-			 (memq (car connection-type) '(nil pipe pty))
-			 (memq (cdr connection-type) '(nil pipe pty)))
-		    (memq connection-type '(nil pipe pty)))
-	  (signal 'wrong-type-argument (list #'symbolp connection-type)))
-	(unless (or (null filter) (eq filter t) (functionp filter))
-	  (signal 'wrong-type-argument (list #'functionp filter)))
-	(unless (or (null sentinel) (functionp sentinel))
-	  (signal 'wrong-type-argument (list #'functionp sentinel)))
-	(unless (or (null stderr) (bufferp stderr))
-	  (signal 'wrong-type-argument (list #'bufferp stderr)))
-	(let* ((buffer
-		(if buffer
-		    (get-buffer-create buffer)
-		  ;; BUFFER can be nil.  We use a temporary buffer.
-		  (generate-new-buffer tramp-temp-buffer-name)))
-	       (orig-command command)
-	       (env (mapcar
-		     (lambda (elt)
-		       (when (tramp-compat-string-search "=" elt) elt))
-		     tramp-remote-process-environment))
-	       ;; We use as environment the difference to toplevel
-	       ;; `process-environment'.
-	       (env (dolist (elt process-environment env)
-		      (when
-			  (and
-			   (tramp-compat-string-search "=" elt)
-			   (not
-			    (member
-			     elt (default-toplevel-value 'process-environment))))
-			(setq env (cons elt env)))))
-	       ;; Add remote path if exists.
-	       (env (let ((remote-path
-			   (string-join (tramp-get-remote-path v) ":")))
-		      (setenv-internal env "PATH" remote-path 'keep)))
-	       (env (setenv-internal
-		     env "INSIDE_EMACS" (tramp-inside-emacs) 'keep))
-	       (env (mapcar #'tramp-shell-quote-argument (delq nil env)))
-	       ;; Quote command.
-	       (command (mapconcat #'tramp-shell-quote-argument command " "))
-	       ;; Set cwd and environment variables.
-	       (command
-	        (append
-		 `("cd" ,(tramp-shell-quote-argument localname) "&&" "(" "env")
-		 env `(,command ")")))
-	       ;; Add remote shell if needed.
-	       (command
-		(if (consp (tramp-get-method-parameter v 'tramp-direct-async))
-		    (append
-		     (tramp-get-method-parameter v 'tramp-direct-async)
-                     `(,(string-join command " ")))
-		  command))
-               p)
-          ;; Generate a command to start the process using `su' with
-          ;; suitable options for specifying the mount namespace and
-          ;; suchlike.
-	  (setq
-	   p (let ((android-use-exec-loader nil))
-               (make-process
-	        :name name
-                :buffer buffer
-	        :command
+  (tramp-skeleton-make-process args nil nil
+    (let* ((env (mapcar
+		 (lambda (elt)
+		   (when (tramp-compat-string-search "=" elt) elt))
+		 tramp-remote-process-environment))
+	   ;; We use as environment the difference to toplevel
+	   ;; `process-environment'.
+	   (env (dolist (elt process-environment env)
+		  (when
+		      (and
+		       (tramp-compat-string-search "=" elt)
+		       (not
+			(member
+			 elt (default-toplevel-value 'process-environment))))
+		    (setq env (cons elt env)))))
+	   ;; Add remote path if exists.
+	   (env (let ((remote-path (string-join (tramp-get-remote-path v) ":")))
+		  (setenv-internal env "PATH" remote-path 'keep)))
+	   (env (setenv-internal env "INSIDE_EMACS" (tramp-inside-emacs) 'keep))
+	   (env (mapcar #'tramp-shell-quote-argument (delq nil env)))
+	   ;; Quote command.
+	   (command (mapconcat #'tramp-shell-quote-argument command " "))
+	   ;; Set cwd and environment variables.
+	   (command
+	    (append
+	     `("cd" ,(tramp-shell-quote-argument localname) "&&" "(" "env")
+	     env `(,command ")")))
+	   ;; Add remote shell if needed.
+	   (command
+	    (if (consp (tramp-get-method-parameter v 'tramp-direct-async))
+		(append
+		 (tramp-get-method-parameter v 'tramp-direct-async)
+                 `(,(string-join command " ")))
+	      command))
+           p)
+      ;; Generate a command to start the process using `su' with
+      ;; suitable options for specifying the mount namespace and
+      ;; suchlike.
+      ;; Suppress `internal-default-process-sentinel', which is set
+      ;; when :sentinel is nil.  (Bug#71049)
+      (setq
+       p (let ((android-use-exec-loader nil))
+           (make-process
+	    :name name
+            :buffer buffer
+	    :command
+            (if (equal user "root")
+                ;; Invoke su in the simplest manner possible, that
+                ;; is to say, without specifying the user, which
+                ;; certain implementations cannot parse when a
+                ;; command is also present, if it may be omitted, so
+                ;; that starting inferior shells on systems with
+                ;; such implementations does not needlessly fail.
                 (if (tramp-get-connection-property v "remote-namespace")
-                    (append (list "su" "-mm" "-" user "-c") command)
-                  (append (list "su" "-" user "-c") command))
-	        :coding coding
-                :noquery noquery
-                :connection-type connection-type
-	        :sentinel sentinel
-                :stderr stderr)))
-	  ;; Set filter.  Prior Emacs 29.1, it doesn't work reliably
-	  ;; to provide it as `make-process' argument when filter is
-	  ;; t.  See Bug#51177.
-	  (when filter
-	    (set-process-filter p filter))
-	  (tramp-post-process-creation p v)
-	  ;; Query flag is overwritten in `tramp-post-process-creation',
-	  ;; so we reset it.
-	  (set-process-query-on-exit-flag p (null noquery))
-	  ;; This is needed for ssh or PuTTY based processes, and
-	  ;; only if the respective options are set.  Perhaps, the
-	  ;; setting could be more fine-grained.
-	  ;; (process-put p 'tramp-shared-socket t)
-	  (process-put p 'remote-command orig-command)
-	  (tramp-set-connection-property p "remote-command" orig-command)
-	  (when (bufferp stderr)
-	    (tramp-taint-remote-process-buffer stderr))
-	  p)))))
+                    (append (list "su" "-mm" "-c") command)
+                  (append (list "su" "-c") command))
+              (if (tramp-get-connection-property v "remote-namespace")
+                  (append (list "su" "-mm" "-" user "-c") command)
+                (append (list "su" "-" user "-c") command)))
+	    :coding coding
+            :noquery noquery
+            :connection-type connection-type
+	    :sentinel (or sentinel #'ignore)
+            :stderr stderr)))
+      ;; Set filter.  Prior Emacs 29.1, it doesn't work reliably to
+      ;; provide it as `make-process' argument when filter is t.  See
+      ;; Bug#51177.
+      (when filter
+	(set-process-filter p filter))
+      (tramp-post-process-creation p v)
+      ;; Query flag is overwritten in `tramp-post-process-creation',
+      ;; so we reset it.
+      (set-process-query-on-exit-flag p (null noquery))
+      (process-put p 'remote-command orig-command)
+      (tramp-set-connection-property p "remote-command" orig-command)
+      (when (bufferp stderr)
+	(tramp-taint-remote-process-buffer stderr))
+      p)))
 
 (defalias 'tramp-androidsu-handle-make-symbolic-link
   #'tramp-sh-handle-make-symbolic-link)

@@ -1465,6 +1465,11 @@ The problems cleaned up are:
    If `whitespace-style' includes the value
    `space-after-tab::space', replace TABs by SPACEs.
 
+5. missing newline at end of file.
+   If `whitespace-style' includes the value `missing-newline-at-eof',
+   and the cleanup region includes the end of file, add a final newline
+   if it is not there already.
+
 See `whitespace-style', `indent-tabs-mode' and `tab-width' for
 documentation."
   (interactive "@r")
@@ -1545,7 +1550,16 @@ documentation."
          ((memq 'space-before-tab::space whitespace-style)
           (whitespace-replace-action
            'untabify rstart rend
-           whitespace-space-before-tab-regexp 2))))
+           whitespace-space-before-tab-regexp 2)))
+        ;; PROBLEM 5: missing newline at end of file
+        (and (memq 'missing-newline-at-eof whitespace-style)
+             (> (point-max) (point-min))
+             (= (point-max) (without-restriction (point-max)))
+             (/= (char-before (point-max)) ?\n)
+             (not (and (eq selective-display t)
+                       (= (char-before (point-max)) ?\r)))
+             (goto-char (point-max))
+             (ignore-errors (insert "\n"))))
       (set-marker rend nil))))		; point marker to nowhere
 
 
@@ -2474,7 +2488,7 @@ purposes)."
   (let ((i (length vec)))
     (when (> i 0)
       (while (and (>= (setq i (1- i)) 0)
-		  (whitespace-char-valid-p (aref vec i))))
+		  (whitespace-char-valid-p (glyph-char (aref vec i)))))
       (< i 0))))
 
 

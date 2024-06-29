@@ -357,7 +357,9 @@ This function is meant for debugging purposes."
   (let ((tramp-verbose (if force 10 tramp-verbose)))
     (when (>= tramp-verbose 10)
       (tramp-message
-       vec-or-proc 10 "\n%s" (with-output-to-string (backtrace))))))
+       ;; In batch-mode, we want to see it on stderr.
+       vec-or-proc (if (and force noninteractive) 1 10)
+       "\n%s" (with-output-to-string (backtrace))))))
 
 (defsubst tramp-error (vec-or-proc signal fmt-string &rest arguments)
   "Emit an error.
@@ -458,6 +460,15 @@ the resulting error message."
     `(condition-case-unless-debug ,err
          (progn ,@body)
        (error (tramp-message ,vec-or-proc 3 ,format ,err) nil))))
+
+(defsubst tramp-warning (vec-or-proc fmt-string &rest arguments)
+  "Show a warning.
+VEC-OR-PROC identifies the connection to use, remaining arguments passed
+to `tramp-message'."
+  (declare (tramp-suppress-trace t))
+  (let (signal-hook-function)
+    (apply 'tramp-message vec-or-proc 2 fmt-string arguments)
+    (lwarn 'tramp :warning fmt-string arguments)))
 
 (defun tramp-test-message (fmt-string &rest arguments)
   "Emit a Tramp message according `default-directory'."

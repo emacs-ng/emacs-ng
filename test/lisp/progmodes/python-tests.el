@@ -21,6 +21,7 @@
 
 ;;; Code:
 
+(require 'cl-extra)
 (require 'ert)
 (require 'ert-x)
 (require 'python)
@@ -391,7 +392,11 @@ p = (1 + 2)
   (python-tests-assert-faces
    "b: Tuple[Optional[int], Union[Sequence[str], str]] = (None, 'foo')"
    '((1 . font-lock-variable-name-face) (2)
+     (4 . font-lock-type-face) (9)
+     (10 . font-lock-type-face) (18)
      (19 . font-lock-builtin-face) (22)
+     (25 . font-lock-type-face) (30)
+     (31 . font-lock-type-face) (39)
      (40 . font-lock-builtin-face) (43)
      (46 . font-lock-builtin-face) (49)
      (52 . font-lock-operator-face) (53)
@@ -402,12 +407,14 @@ p = (1 + 2)
   (python-tests-assert-faces
    "c: Collection = {1, 2, 3}"
    '((1 . font-lock-variable-name-face) (2)
+     (4 . font-lock-type-face) (14)
      (15 . font-lock-operator-face) (16))))
 
 (ert-deftest python-font-lock-assignment-statement-13 ()
   (python-tests-assert-faces
    "d: Mapping[int, str] = {1: 'bar', 2: 'baz'}"
    '((1 . font-lock-variable-name-face) (2)
+     (4 . font-lock-type-face) (11)
      (12 . font-lock-builtin-face) (15)
      (17 . font-lock-builtin-face) (20)
      (22 . font-lock-operator-face) (23)
@@ -472,13 +479,37 @@ def f(x: CustomInt) -> CustomInt:
      (58 . font-lock-operator-face) (59)
      (62 . font-lock-operator-face) (63)
      (70 . font-lock-variable-name-face) (72)
+     (74 . font-lock-type-face) (82)
+     (83 . font-lock-type-face) (92)
      (94 . font-lock-operator-face) (95)
      (102 . font-lock-operator-face) (103)
      (111 . font-lock-variable-name-face) (114)
+     (116 . font-lock-type-face) (125)
      (126 . font-lock-operator-face) (127)
      (128 . font-lock-builtin-face) (131)
      (136 . font-lock-operator-face) (137)
      (144 . font-lock-keyword-face) (150))))
+
+(ert-deftest python-font-lock-assignment-statement-19 ()
+  (python-tests-assert-faces
+   "a: List[List[CustomInt], List[CustomInt]] = []"
+   '((1 . font-lock-variable-name-face) (2)
+     (4 . font-lock-type-face) (8)
+     (9 . font-lock-type-face) (13)
+     (14 . font-lock-type-face) (23)
+     (26 . font-lock-type-face) (30)
+     (31 . font-lock-type-face) (40)
+     (43 . font-lock-operator-face) (44))))
+
+(ert-deftest python-font-lock-assignment-statement-20 ()
+  (python-tests-assert-faces
+   "a = b = c = 1"
+   '((1 . font-lock-variable-name-face) (2)
+     (3 . font-lock-operator-face) (4)
+     (5 . font-lock-variable-name-face) (6)
+     (7 . font-lock-operator-face) (8)
+     (9 . font-lock-variable-name-face) (10)
+     (11 . font-lock-operator-face) (12))))
 
 (ert-deftest python-font-lock-operator-1 ()
   (python-tests-assert-faces
@@ -2117,6 +2148,15 @@ def test_re(string):
    (python-tests-look-at "else:")
    (should (= (python-indent-calculate-indentation) 4))))
 
+(ert-deftest python-indent-badly-indented-block-end ()
+  "Test BUG 65870 regression."
+  (python-tests-with-temp-buffer
+   "
+return
+"
+   (goto-char (point-max))
+   (should (= (python-indent-calculate-indentation) 0))))
+
 
 ;;; Filling
 
@@ -3718,7 +3758,78 @@ if x:
 
 ;;; Shell integration
 
-(defvar python-tests-shell-interpreter "python")
+(defvar python-tests-shell-interpreters nil
+  "List of Python interpreter information.
+Set this variable to nil to rescan interpreters.")
+
+(defmacro python-tests-with-shell-interpreter (pred &rest body)
+  "Bind `python-shell-interpreter' and execute BODY.
+`python-shell-interpreter' is bound to the result of calling
+`python-tests-get-shell-interpreter' with PRED argument.  The calling
+ERT is skipped if `python-tests-get-shell-interpreter' returned nil."
+  `(let ((python-shell-interpreter
+          (python-tests-get-shell-interpreter ,pred)))
+     (skip-unless python-shell-interpreter)
+     ,@body))
+
+(defmacro python-tests-with-temp-buffer-with-shell-interpreter
+    (pred contents &rest body)
+  "Variant of `python-tests-with-temp-buffer-with-shell'.
+It binds `python-shell-interpreter' to the result of calling
+`python-tests-get-shell-interpreter' with PRED argument, and calls
+`python-tests-with-temp-buffer-with-shell' with CONTENTS and BODY."
+  `(python-tests-with-shell-interpreter
+    ,pred
+    (python-tests-with-temp-buffer-with-shell ,contents ,@body)))
+
+(defun python-tests-get-shell-interpreter (&optional pred)
+  "Get the shell interpreter.
+If an optional PRED is specified, an interpreter is selected that
+matches the predicate.  PRED must return the absolute file name if the
+condition is met.  If env string EMACS_PYTHON_INTERPRETER exists, use it
+as preferred one."
+  (unless python-tests-shell-interpreters
+    (setq python-tests-shell-interpreters
+          (if-let ((interpreter (getenv "EMACS_PYTHON_INTERPRETER")))
+              (if-let ((info (python-tests--get-interpreter-info interpreter)))
+                  (list info)
+                (error "Couldn't find EMACS_PYTHON_INTERPRETER(%s) in path"
+                       interpreter))
+            ;; Use the same order as for the default value of
+            ;; `python-shell-interpreter'.
+            (delq nil (mapcar #'python-tests--get-interpreter-info
+                              '("python3" "python" "python2"))))))
+  (cl-some (or pred #'car) python-tests-shell-interpreters))
+
+(defun python-tests--get-interpreter-info (name)
+  "Get Python interpreter information specified by NAME.
+The information returned is a cons cell consisting of the file path and
+the version string."
+  (when-let ((interpreter (executable-find name)))
+    (with-temp-buffer
+      (and (equal (call-process interpreter nil t nil "--version") 0)
+           (goto-char (point-min))
+           (looking-at
+            (rx (seq "Python" (+ space) (group (+ (any digit ?.))))))
+           (cons interpreter (match-string-no-properties 1))))))
+
+(defun python-tests-interpreter-3-p (info)
+  "Return the absolute file name if the interpreter major version in INFO is 3.
+This function is intended to be used as the PRED argument of
+`python-tests-get-shell-interpreter'."
+  (when (string= (car (split-string (cdr info) "\\.")) "3")
+    (car info)))
+
+(defun python-tests-interpreter-2-6-higher-p (info)
+  "Check if the interpreter major version in INFO is 2.6 or higher.
+This function is intended to be used as the PRED argument of
+`python-tests-get-shell-interpreter'."
+  (let* ((version (split-string (cdr info) "\\."))
+         (major (string-to-number (car version)))
+         (minor (string-to-number (cadr version))))
+    (when (or (>= major 3)
+              (and (= major 2) (>= minor 6)))
+      (car info))))
 
 (ert-deftest python-shell-get-process-name-1 ()
   "Check process name calculation sans `buffer-file-name'."
@@ -3980,61 +4091,59 @@ if x:
 
 (ert-deftest python-shell-make-comint-1 ()
   "Check comint creation for global shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
   ;; The interpreter can get killed too quickly to allow it to clean
   ;; up the tempfiles that the default python-shell-setup-codes create,
   ;; so it leaves tempfiles behind, which is a minor irritation.
-  (let* ((python-shell-setup-codes nil)
-         (python-shell-interpreter
-          (executable-find python-tests-shell-interpreter))
-         (proc-name (python-shell-get-process-name nil))
-         (shell-buffer
-          (python-tests-with-temp-buffer
-           "" (python-shell-make-comint
-               (python-shell-calculate-command) proc-name)))
-         (process (get-buffer-process shell-buffer)))
-    (unwind-protect
-        (progn
-          (set-process-query-on-exit-flag process nil)
-          (should (process-live-p process))
-          (with-current-buffer shell-buffer
-            (should (eq major-mode 'inferior-python-mode))
-            (should (string= (buffer-name) (format "*%s*" proc-name)))))
-      (kill-buffer shell-buffer))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((python-shell-setup-codes nil)
+          (proc-name (python-shell-get-process-name nil))
+          (shell-buffer
+           (python-tests-with-temp-buffer
+            "" (python-shell-make-comint
+                (python-shell-calculate-command) proc-name)))
+          (process (get-buffer-process shell-buffer)))
+     (unwind-protect
+         (progn
+           (set-process-query-on-exit-flag process nil)
+           (should (process-live-p process))
+           (with-current-buffer shell-buffer
+             (should (eq major-mode 'inferior-python-mode))
+             (should (string= (buffer-name) (format "*%s*" proc-name)))))
+       (kill-buffer shell-buffer)))))
 
 (ert-deftest python-shell-make-comint-2 ()
   "Check comint creation for internal shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((python-shell-setup-codes nil)
-         (python-shell-interpreter
-          (executable-find python-tests-shell-interpreter))
-         (proc-name (python-shell-internal-get-process-name))
-         (shell-buffer
-          (python-tests-with-temp-buffer
-           "" (python-shell-make-comint
-               (python-shell-calculate-command) proc-name nil t)))
-         (process (get-buffer-process shell-buffer)))
-    (unwind-protect
-        (progn
-          (set-process-query-on-exit-flag process nil)
-          (should (process-live-p process))
-          (with-current-buffer shell-buffer
-            (should (eq major-mode 'inferior-python-mode))
-            (should (string= (buffer-name) (format " *%s*" proc-name)))))
-      (kill-buffer shell-buffer))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((python-shell-setup-codes nil)
+          (proc-name (python-shell-internal-get-process-name))
+          (shell-buffer
+           (python-tests-with-temp-buffer
+            "" (python-shell-make-comint
+                (python-shell-calculate-command) proc-name nil t)))
+          (process (get-buffer-process shell-buffer)))
+     (unwind-protect
+         (progn
+           (set-process-query-on-exit-flag process nil)
+           (should (process-live-p process))
+           (with-current-buffer shell-buffer
+             (should (eq major-mode 'inferior-python-mode))
+             (should (string= (buffer-name) (format " *%s*" proc-name)))))
+       (kill-buffer shell-buffer)))))
 
 (ert-deftest python-shell-make-comint-3 ()
   "Check comint creation with overridden python interpreter and args.
 The command passed to `python-shell-make-comint' as argument must
 locally override global values set in `python-shell-interpreter'
 and `python-shell-interpreter-args' in the new shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
+  (skip-unless (python-tests-get-shell-interpreter))
   (let* ((python-shell-setup-codes nil)
          (python-shell-interpreter "interpreter")
          (python-shell-interpreter-args "--some-args")
          (proc-name (python-shell-get-process-name nil))
          (interpreter-override
-          (concat (executable-find python-tests-shell-interpreter) " " "-i"))
+          (concat (python-tests-get-shell-interpreter) " " "-i"))
          (shell-buffer
           (python-tests-with-temp-buffer
            "" (python-shell-make-comint interpreter-override proc-name nil)))
@@ -4047,64 +4156,62 @@ and `python-shell-interpreter-args' in the new shell buffer."
             (should (eq major-mode 'inferior-python-mode))
             (should (file-equal-p
                      python-shell-interpreter
-                     (executable-find python-tests-shell-interpreter)))
+                     (python-tests-get-shell-interpreter)))
             (should (string= python-shell-interpreter-args "-i"))))
       (kill-buffer shell-buffer))))
 
 (ert-deftest python-shell-make-comint-4 ()
   "Check shell calculated prompts regexps are set."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((process-environment process-environment)
-         (python-shell-setup-codes nil)
-         (python-shell-interpreter
-          (executable-find python-tests-shell-interpreter))
-         (python-shell-interpreter-args "-i")
-         (python-shell--prompt-calculated-input-regexp nil)
-         (python-shell--prompt-calculated-output-regexp nil)
-         (python-shell-prompt-detect-enabled t)
-         (python-shell-prompt-input-regexps '("extralargeinputprompt" "sml"))
-         (python-shell-prompt-output-regexps '("extralargeoutputprompt" "sml"))
-         (python-shell-prompt-regexp "in")
-         (python-shell-prompt-block-regexp "block")
-         (python-shell-prompt-pdb-regexp "pdf")
-         (python-shell-prompt-output-regexp "output")
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = 'py> '\n"
-                               "sys.ps2 = '..> '\n"
-                               "sys.ps3 = 'out '\n"))
-         (startup-file (python-shell--save-temp-file startup-code))
-         (proc-name (python-shell-get-process-name nil))
-         (shell-buffer
-          (progn
-            (setenv "PYTHONSTARTUP" startup-file)
-            (python-tests-with-temp-buffer
-             "" (python-shell-make-comint
-                 (python-shell-calculate-command) proc-name nil))))
-         (process (get-buffer-process shell-buffer)))
-    (unwind-protect
-        (progn
-          (set-process-query-on-exit-flag process nil)
-          (should (process-live-p process))
-          (with-current-buffer shell-buffer
-            (should (eq major-mode 'inferior-python-mode))
-            (should (string=
-                     python-shell--prompt-calculated-input-regexp
-                     (concat "^\\(extralargeinputprompt\\|\\.\\.> \\|"
-                             "block\\|py> \\|pdf\\|sml\\|in\\)")))
-            (should (string=
-                     python-shell--prompt-calculated-output-regexp
-                     "^\\(extralargeoutputprompt\\|output\\|out \\|sml\\)"))))
-      (delete-file startup-file)
-      (kill-buffer shell-buffer))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((process-environment process-environment)
+          (python-shell-setup-codes nil)
+          (python-shell-interpreter-args "-i")
+          (python-shell--prompt-calculated-input-regexp nil)
+          (python-shell--prompt-calculated-output-regexp nil)
+          (python-shell-prompt-detect-enabled t)
+          (python-shell-prompt-input-regexps '("extralargeinputprompt" "sml"))
+          (python-shell-prompt-output-regexps '("extralargeoutputprompt" "sml"))
+          (python-shell-prompt-regexp "in")
+          (python-shell-prompt-block-regexp "block")
+          (python-shell-prompt-pdb-regexp "pdf")
+          (python-shell-prompt-output-regexp "output")
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = 'py> '\n"
+                                "sys.ps2 = '..> '\n"
+                                "sys.ps3 = 'out '\n"))
+          (startup-file (python-shell--save-temp-file startup-code))
+          (proc-name (python-shell-get-process-name nil))
+          (shell-buffer
+           (progn
+             (setenv "PYTHONSTARTUP" startup-file)
+             (python-tests-with-temp-buffer
+              "" (python-shell-make-comint
+                  (python-shell-calculate-command) proc-name nil))))
+          (process (get-buffer-process shell-buffer)))
+     (unwind-protect
+         (progn
+           (set-process-query-on-exit-flag process nil)
+           (should (process-live-p process))
+           (with-current-buffer shell-buffer
+             (should (eq major-mode 'inferior-python-mode))
+             (should (string=
+                      python-shell--prompt-calculated-input-regexp
+                      (concat "^\\(extralargeinputprompt\\|\\.\\.> \\|"
+                              "block\\|py> \\|pdf\\|sml\\|in\\)")))
+             (should (string=
+                      python-shell--prompt-calculated-output-regexp
+                      "^\\(extralargeoutputprompt\\|output\\|out \\|sml\\)"))))
+       (delete-file startup-file)
+       (kill-buffer shell-buffer)))))
 
 (ert-deftest python-shell-get-process-1 ()
   "Check dedicated shell process preference over global."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-file
-      ""
+  (python-tests-with-shell-interpreter
+   nil
+   (python-tests-with-temp-file
+    ""
     (let* ((python-shell-setup-codes nil)
-           (python-shell-interpreter
-            (executable-find python-tests-shell-interpreter))
            (global-proc-name (python-shell-get-process-name nil))
            (dedicated-proc-name (python-shell-get-process-name t))
            (global-shell-buffer
@@ -4128,129 +4235,151 @@ and `python-shell-interpreter-args' in the new shell buffer."
             ;; No buffer available.
             (should (not (python-shell-get-process))))
         (ignore-errors (kill-buffer global-shell-buffer))
-        (ignore-errors (kill-buffer dedicated-shell-buffer))))))
+        (ignore-errors (kill-buffer dedicated-shell-buffer)))))))
 
 (ert-deftest python-shell-internal-get-or-create-process-1 ()
   "Check internal shell process creation fallback."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-file
-   ""
-   (should (not (process-live-p (python-shell-internal-get-process-name))))
-   (let* ((python-shell-interpreter
-           (executable-find python-tests-shell-interpreter))
-          (internal-process-name (python-shell-internal-get-process-name))
-          (internal-process (python-shell-internal-get-or-create-process))
-          (internal-shell-buffer (process-buffer internal-process)))
-     (unwind-protect
-         (progn
-           (set-process-query-on-exit-flag internal-process nil)
-           (should (equal (process-name internal-process)
-                          internal-process-name))
-           (should (equal internal-process
-                          (python-shell-internal-get-or-create-process)))
-           ;; Assert the internal process is not a user process
-           (should (not (python-shell-get-process)))
-           (kill-buffer internal-shell-buffer))
-       (ignore-errors (kill-buffer internal-shell-buffer))))))
+  (python-tests-with-shell-interpreter
+   nil
+   (python-tests-with-temp-file
+    ""
+    (should (not (process-live-p (python-shell-internal-get-process-name))))
+    (let* ((internal-process-name (python-shell-internal-get-process-name))
+           (internal-process (python-shell-internal-get-or-create-process))
+           (internal-shell-buffer (process-buffer internal-process)))
+      (unwind-protect
+          (progn
+            (set-process-query-on-exit-flag internal-process nil)
+            (should (equal (process-name internal-process)
+                           internal-process-name))
+            (should (equal internal-process
+                           (python-shell-internal-get-or-create-process)))
+            ;; Assert the internal process is not a user process
+            (should (not (python-shell-get-process)))
+            (kill-buffer internal-shell-buffer))
+        (ignore-errors (kill-buffer internal-shell-buffer)))))))
 
 (ert-deftest python-shell-prompt-detect-1 ()
   "Check prompt autodetection."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let ((process-environment process-environment))
-    ;; Ensure no startup file is enabled
-    (setenv "PYTHONSTARTUP" "")
-    (should python-shell-prompt-detect-enabled)
-    (should (equal (python-shell-prompt-detect) '(">>> " "... " "")))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let ((process-environment process-environment))
+     ;; Ensure no startup file is enabled
+     (setenv "PYTHONSTARTUP" "")
+     (should python-shell-prompt-detect-enabled)
+     (should (equal (python-shell-prompt-detect) '(">>> " "... " ""))))))
 
 (ert-deftest python-shell-prompt-detect-2 ()
   "Check prompt autodetection with startup file.  Bug#17370."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((process-environment process-environment)
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = 'py> '\n"
-                               "sys.ps2 = '..> '\n"
-                               "sys.ps3 = 'out '\n"))
-         (startup-file (python-shell--save-temp-file startup-code)))
-    (unwind-protect
-        (progn
-          ;; Ensure startup file is enabled
-          (setenv "PYTHONSTARTUP" startup-file)
-          (should python-shell-prompt-detect-enabled)
-          (should (equal (python-shell-prompt-detect) '("py> " "..> " "out "))))
-      (ignore-errors (delete-file startup-file)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((process-environment process-environment)
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = 'py> '\n"
+                                "sys.ps2 = '..> '\n"
+                                "sys.ps3 = 'out '\n"))
+          (startup-file (python-shell--save-temp-file startup-code)))
+     (unwind-protect
+         (progn
+           ;; Ensure startup file is enabled
+           (setenv "PYTHONSTARTUP" startup-file)
+           (should python-shell-prompt-detect-enabled)
+           (should (equal (python-shell-prompt-detect) '("py> " "..> " "out "))))
+       (ignore-errors (delete-file startup-file))))))
 
 (ert-deftest python-shell-prompt-detect-3 ()
   "Check prompts are not autodetected when feature is disabled."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let ((process-environment process-environment)
-        (python-shell-prompt-detect-enabled nil))
-    ;; Ensure no startup file is enabled
-    (should (not python-shell-prompt-detect-enabled))
-    (should (not (python-shell-prompt-detect)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let ((process-environment process-environment)
+         (python-shell-prompt-detect-enabled nil))
+     ;; Ensure no startup file is enabled
+     (should (not python-shell-prompt-detect-enabled))
+     (should (not (python-shell-prompt-detect))))))
 
 (ert-deftest python-shell-prompt-detect-4 ()
   "Check warning is shown when detection fails."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((process-environment process-environment)
-         ;; Trigger failure by removing prompts in the startup file
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = ''\n"
-                               "sys.ps2 = ''\n"
-                               "sys.ps3 = ''\n"))
-         (startup-file (python-shell--save-temp-file startup-code)))
-    (unwind-protect
-        (progn
-          (kill-buffer (get-buffer-create "*Warnings*"))
-          (should (not (get-buffer "*Warnings*")))
-          (setenv "PYTHONSTARTUP" startup-file)
-          (should python-shell-prompt-detect-failure-warning)
-          (should python-shell-prompt-detect-enabled)
-          (should (not (python-shell-prompt-detect)))
-          (should (get-buffer "*Warnings*")))
-      (ignore-errors (delete-file startup-file)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((process-environment process-environment)
+          ;; Trigger failure by removing prompts in the startup file
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = ''\n"
+                                "sys.ps2 = ''\n"
+                                "sys.ps3 = ''\n"))
+          (startup-file (python-shell--save-temp-file startup-code)))
+     (unwind-protect
+         (progn
+           (kill-buffer (get-buffer-create "*Warnings*"))
+           (should (not (get-buffer "*Warnings*")))
+           (setenv "PYTHONSTARTUP" startup-file)
+           (should python-shell-prompt-detect-failure-warning)
+           (should python-shell-prompt-detect-enabled)
+           (should (not (python-shell-prompt-detect)))
+           (should (get-buffer "*Warnings*")))
+       (ignore-errors (delete-file startup-file))))))
 
 (ert-deftest python-shell-prompt-detect-5 ()
   "Check disabled warnings are not shown when detection fails."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((process-environment process-environment)
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = ''\n"
-                               "sys.ps2 = ''\n"
-                               "sys.ps3 = ''\n"))
-         (startup-file (python-shell--save-temp-file startup-code))
-         (python-shell-prompt-detect-failure-warning nil))
-    (unwind-protect
-        (progn
-          (kill-buffer (get-buffer-create "*Warnings*"))
-          (should (not (get-buffer "*Warnings*")))
-          (setenv "PYTHONSTARTUP" startup-file)
-          (should (not python-shell-prompt-detect-failure-warning))
-          (should python-shell-prompt-detect-enabled)
-          (should (not (python-shell-prompt-detect)))
-          (should (not (get-buffer "*Warnings*"))))
-      (ignore-errors (delete-file startup-file)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((process-environment process-environment)
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = ''\n"
+                                "sys.ps2 = ''\n"
+                                "sys.ps3 = ''\n"))
+          (startup-file (python-shell--save-temp-file startup-code))
+          (python-shell-prompt-detect-failure-warning nil))
+     (unwind-protect
+         (progn
+           (kill-buffer (get-buffer-create "*Warnings*"))
+           (should (not (get-buffer "*Warnings*")))
+           (setenv "PYTHONSTARTUP" startup-file)
+           (should (not python-shell-prompt-detect-failure-warning))
+           (should python-shell-prompt-detect-enabled)
+           (should (not (python-shell-prompt-detect)))
+           (should (not (get-buffer "*Warnings*"))))
+       (ignore-errors (delete-file startup-file))))))
 
 (ert-deftest python-shell-prompt-detect-6 ()
   "Warnings are not shown when detection is disabled."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((process-environment process-environment)
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = ''\n"
-                               "sys.ps2 = ''\n"
-                               "sys.ps3 = ''\n"))
-         (startup-file (python-shell--save-temp-file startup-code))
-         (python-shell-prompt-detect-failure-warning t)
-         (python-shell-prompt-detect-enabled nil))
-    (unwind-protect
-        (progn
-          (kill-buffer (get-buffer-create "*Warnings*"))
-          (should (not (get-buffer "*Warnings*")))
-          (setenv "PYTHONSTARTUP" startup-file)
-          (should python-shell-prompt-detect-failure-warning)
-          (should (not python-shell-prompt-detect-enabled))
-          (should (not (python-shell-prompt-detect)))
-          (should (not (get-buffer "*Warnings*"))))
-      (ignore-errors (delete-file startup-file)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((process-environment process-environment)
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = ''\n"
+                                "sys.ps2 = ''\n"
+                                "sys.ps3 = ''\n"))
+          (startup-file (python-shell--save-temp-file startup-code))
+          (python-shell-prompt-detect-failure-warning t)
+          (python-shell-prompt-detect-enabled nil))
+     (unwind-protect
+         (progn
+           (kill-buffer (get-buffer-create "*Warnings*"))
+           (should (not (get-buffer "*Warnings*")))
+           (setenv "PYTHONSTARTUP" startup-file)
+           (should python-shell-prompt-detect-failure-warning)
+           (should (not python-shell-prompt-detect-enabled))
+           (should (not (python-shell-prompt-detect)))
+           (should (not (get-buffer "*Warnings*"))))
+       (ignore-errors (delete-file startup-file))))))
+
+(ert-deftest python-shell-prompt-detect-7 ()
+  "Check prompt autodetection with escape sequences.  Bug#71440."
+  (python-tests-with-shell-interpreter
+   #'python-tests-interpreter-2-6-higher-p
+   (let* ((process-environment process-environment)
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = '\033[32mpy> \033[0m'\n"
+                                "sys.ps2 = '\033[32m..> \033[0m'\n"
+                                "sys.ps3 = '\033[32mout \033[0m'\n"))
+          (startup-file (python-shell--save-temp-file startup-code)))
+     (unwind-protect
+         (progn
+           (setenv "PYTHONSTARTUP" startup-file)
+           (should python-shell-prompt-detect-enabled)
+           (should (equal (python-shell-prompt-detect) '("py> " "..> " "out "))))
+       (ignore-errors (delete-file startup-file))))))
 
 (ert-deftest python-shell-prompt-validate-regexps-1 ()
   "Check `python-shell-prompt-input-regexps' are validated."
@@ -4396,31 +4525,32 @@ and `python-shell-interpreter-args' in the new shell buffer."
 
 (ert-deftest python-shell-prompt-set-calculated-regexps-6 ()
   "Check detected prompts are included `regexp-quote'd."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((python-shell-prompt-input-regexps '(""))
-         (python-shell-prompt-output-regexps '(""))
-         (python-shell-prompt-regexp "")
-         (python-shell-prompt-block-regexp "")
-         (python-shell-prompt-pdb-regexp "")
-         (python-shell-prompt-output-regexp "")
-         (python-shell--prompt-calculated-input-regexp nil)
-         (python-shell--prompt-calculated-output-regexp nil)
-         (python-shell-prompt-detect-enabled t)
-         (process-environment process-environment)
-         (startup-code (concat "import sys\n"
-                               "sys.ps1 = 'p.> '\n"
-                               "sys.ps2 = '..> '\n"
-                               "sys.ps3 = 'o.t '\n"))
-         (startup-file (python-shell--save-temp-file startup-code)))
-    (unwind-protect
-        (progn
-          (setenv "PYTHONSTARTUP" startup-file)
-          (python-shell-prompt-set-calculated-regexps)
-          (should (string= python-shell--prompt-calculated-input-regexp
-                           "^\\(\\.\\.> \\|p\\.> \\|\\)"))
-          (should (string= python-shell--prompt-calculated-output-regexp
-                           "^\\(o\\.t \\|\\)")))
-      (ignore-errors (delete-file startup-file)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((python-shell-prompt-input-regexps '(""))
+          (python-shell-prompt-output-regexps '(""))
+          (python-shell-prompt-regexp "")
+          (python-shell-prompt-block-regexp "")
+          (python-shell-prompt-pdb-regexp "")
+          (python-shell-prompt-output-regexp "")
+          (python-shell--prompt-calculated-input-regexp nil)
+          (python-shell--prompt-calculated-output-regexp nil)
+          (python-shell-prompt-detect-enabled t)
+          (process-environment process-environment)
+          (startup-code (concat "import sys\n"
+                                "sys.ps1 = 'p.> '\n"
+                                "sys.ps2 = '..> '\n"
+                                "sys.ps3 = 'o.t '\n"))
+          (startup-file (python-shell--save-temp-file startup-code)))
+     (unwind-protect
+         (progn
+           (setenv "PYTHONSTARTUP" startup-file)
+           (python-shell-prompt-set-calculated-regexps)
+           (should (string= python-shell--prompt-calculated-input-regexp
+                            "^\\(\\.\\.> \\|p\\.> \\|\\)"))
+           (should (string= python-shell--prompt-calculated-output-regexp
+                            "^\\(o\\.t \\|\\)")))
+       (ignore-errors (delete-file startup-file))))))
 
 (ert-deftest python-shell-buffer-substring-1 ()
   "Selecting a substring of the whole buffer must match its contents."
@@ -4779,8 +4909,8 @@ def foo():
     (should (python-shell-completion-native-interpreter-disabled-p))))
 
 (ert-deftest python-shell-completion-at-point-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    ""
    (python-shell-with-shell-buffer
      (skip-unless python-shell-readline-completer-delims)
@@ -4793,8 +4923,8 @@ def foo():
      (should-not (nth 2 (python-shell-completion-at-point))))))
 
 (ert-deftest python-shell-completion-at-point-native-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    ""
    (python-shell-completion-native-turn-on)
    (python-shell-with-shell-buffer
@@ -4872,27 +5002,28 @@ def foo():
   "Return Jedi readline setup file if PYTHONSTARTUP is not set."
   (or (getenv "PYTHONSTARTUP")
       (with-temp-buffer
-        (if (eql 0 (call-process python-tests-shell-interpreter
+        (if (eql 0 (call-process python-shell-interpreter
                                  nil t nil "-m" "jedi" "repl"))
             (string-trim (buffer-string))
           ""))))
 
 (ert-deftest python-shell-completion-at-point-jedi-completer ()
   "Check if Python shell completion works when Jedi completer is used."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (with-environment-variables
-      (("PYTHONSTARTUP" (python-tests--pythonstartup-file)))
-    (python-tests-with-temp-buffer-with-shell
-     ""
-     (python-shell-with-shell-buffer
-       (skip-unless (string= python-shell-readline-completer-delims ""))
-       (python-shell-completion-native-turn-off)
-       (python-tests--completion-module)
-       (python-tests--completion-parameters)
-       (python-shell-completion-native-turn-on)
-       (python-tests--completion-module)
-       (python-tests--completion-parameters)
-       (python-tests--completion-extra-context)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (with-environment-variables
+       (("PYTHONSTARTUP" (python-tests--pythonstartup-file)))
+     (python-tests-with-temp-buffer-with-shell
+      ""
+      (python-shell-with-shell-buffer
+        (skip-unless (string= python-shell-readline-completer-delims ""))
+        (python-shell-completion-native-turn-off)
+        (python-tests--completion-module)
+        (python-tests--completion-parameters)
+        (python-shell-completion-native-turn-on)
+        (python-tests--completion-module)
+        (python-tests--completion-parameters)
+        (python-tests--completion-extra-context))))))
 
 (ert-deftest python-shell-completion-at-point-ipython ()
   "Check if Python shell completion works for IPython."
@@ -4923,8 +5054,8 @@ def foo():
 ;;; Symbol completion
 
 (ert-deftest python-completion-at-point-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -4941,8 +5072,8 @@ import abc
 
 (ert-deftest python-completion-at-point-2 ()
   "Should work regardless of the point in the Shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -4959,8 +5090,8 @@ import abc
 
 (ert-deftest python-completion-at-point-pdb-1 ()
   "Should not complete PDB commands in Python buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import pdb
 
@@ -4978,8 +5109,8 @@ print('Hello')
 
 (ert-deftest python-completion-at-point-while-running-1 ()
   "Should not try to complete when a program is running in the Shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import time
 
@@ -4994,8 +5125,8 @@ time.sleep(3)
      (should-not (with-timeout (1 t) (completion-at-point))))))
 
 (ert-deftest python-completion-at-point-native-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -5013,8 +5144,8 @@ import abc
 
 (ert-deftest python-completion-at-point-native-2 ()
   "Should work regardless of the point in the Shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -5031,8 +5162,8 @@ import abc
      (should (completion-at-point)))))
 
 (ert-deftest python-completion-at-point-native-with-ffap-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -5049,8 +5180,8 @@ import abc
      (should (completion-at-point)))))
 
 (ert-deftest python-completion-at-point-native-with-eldoc-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
 import abc
 "
@@ -5076,8 +5207,8 @@ import abc
 ;;; FFAP
 
 (ert-deftest python-ffap-module-path-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import abc
 "
@@ -5088,8 +5219,8 @@ import abc
 
 (ert-deftest python-ffap-module-path-while-running-1 ()
   "Should not get module path when a program is running in the Shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import abc
 import time
@@ -5164,8 +5295,8 @@ some_symbol   some_other_symbol
                     "some_symbol"))))
 
 (ert-deftest python-eldoc--get-doc-at-point-1 ()
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import time
 "
@@ -5177,8 +5308,8 @@ import time
 
 (ert-deftest python-eldoc--get-doc-at-point-while-running-1 ()
   "Should not get documentation when a program is running in the Shell buffer."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
    "
 import time
 
@@ -7362,6 +7493,24 @@ def f():
 "))))
 
 
+(ert-deftest python-hideshow-hide-block-2 ()
+  "Should hide the comment at the end of the block."
+  (python-tests-with-temp-buffer
+   "
+def f():
+    a = 1  # Comment
+"
+   (hs-minor-mode 1)
+   (python-tests-look-at "def")
+   (hs-hide-block)
+   (should
+    (string=
+     (python-tests-visible-string)
+     "
+def f():
+"))))
+
+
 (ert-deftest python-tests--python-nav-end-of-statement--infloop ()
   "Checks that `python-nav-end-of-statement' doesn't infloop in a
 buffer with overlapping strings."
@@ -7395,17 +7544,18 @@ buffer with overlapping strings."
 ;; interpreter.
 (ert-deftest python-tests--run-python-selects-window ()
   "Test for bug#31398.  See also bug#44421 and bug#52380."
-  (skip-unless (executable-find python-tests-shell-interpreter))
-  (let* ((buffer (process-buffer (run-python nil nil 'show)))
-         (window (get-buffer-window buffer)))
-    ;; We look at `selected-window' rather than `current-buffer'
-    ;; because as `(elisp)Current buffer' says, the latter will only
-    ;; be synchronized with the former when returning to the "command
-    ;; loop"; until then, `current-buffer' can change arbitrarily.
-    (should (eq window (selected-window)))
-    (pop-to-buffer (other-buffer))
-    (run-python nil nil 'show)
-    (should (eq window (selected-window)))))
+  (python-tests-with-shell-interpreter
+   nil
+   (let* ((buffer (process-buffer (run-python nil nil 'show)))
+          (window (get-buffer-window buffer)))
+     ;; We look at `selected-window' rather than `current-buffer'
+     ;; because as `(elisp)Current buffer' says, the latter will only
+     ;; be synchronized with the former when returning to the "command
+     ;; loop"; until then, `current-buffer' can change arbitrarily.
+     (should (eq window (selected-window)))
+     (pop-to-buffer (other-buffer))
+     (run-python nil nil 'show)
+     (should (eq window (selected-window))))))
 
 (ert-deftest python-tests--fill-long-first-line ()
   (should
@@ -7465,6 +7615,33 @@ buffer with overlapping strings."
                          "Unused import a.b.c (unused-import)"
                        "W0611: Unused import a.b.c (unused-import)"))))))
 
+(ert-deftest python-test--shell-send-block ()
+  (python-tests-with-temp-buffer-with-shell-interpreter
+   nil
+   "print('current 0')
+for x in range(1,3):
+    print('current %s' % x)
+print('current 3')"
+   (goto-char (point-min))
+   (should-error (python-shell-send-block) :type 'user-error)
+   (forward-line)
+   (python-shell-send-block t) ;; send block with header
+   (python-tests-shell-wait-for-prompt)
+   (python-shell-with-shell-buffer
+     (goto-char (point-min))
+     (should-not (re-search-forward "current 0" nil t))
+     (should (re-search-forward "current 1" nil t))
+     (should (re-search-forward "current 2" nil t))
+     (should-not (re-search-forward "current 3" nil t)))
+   (forward-line)
+   (python-shell-send-block) ;; send block body only
+   (python-tests-shell-wait-for-prompt)
+   (python-shell-with-shell-buffer
+     ;; should only 1 line output from the block body
+     (should (re-search-forward "current"))
+     (should (looking-at " 2"))
+     (should-not (re-search-forward "current" nil t)))))
+
 ;;; python-ts-mode font-lock tests
 
 (defmacro python-ts-tests-with-temp-buffer (contents &rest body)
@@ -7492,12 +7669,12 @@ always located at the beginning of buffer."
      (forward-to-word 1)
      (should (eq (face-at-point) font-lock-keyword-face)))))
 
-(ert-deftest python-ts-mode-named-assignement-face-1 ()
+(ert-deftest python-ts-mode-named-assignment-face-1 ()
   (python-ts-tests-with-temp-buffer
    "var := 3"
    (should (eq (face-at-point) font-lock-variable-name-face))))
 
-(ert-deftest python-ts-mode-assignement-face-2 ()
+(ert-deftest python-ts-mode-assignment-face-2 ()
   (python-ts-tests-with-temp-buffer
    "var, *rest = call()"
    (dolist (test '("var" "rest"))
@@ -7545,6 +7722,9 @@ always located at the beginning of buffer."
 (ert-deftest python-ts-mode-types-face-1 ()
   (python-ts-tests-with-temp-buffer
    "def f(val: Callable[[Type0], (Type1, Type2)]):"
+   (search-forward "val")
+   (goto-char (match-beginning 0))
+   (should (eq (face-at-point) font-lock-variable-name-face))
    (dolist (test '("Callable" "Type0" "Type1" "Type2"))
      (search-forward test)
      (goto-char (match-beginning 0))

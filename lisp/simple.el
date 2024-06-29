@@ -31,12 +31,12 @@
 (eval-when-compile (require 'cl-lib))
 
 (declare-function widget-convert "wid-edit" (type &rest args))
-(declare-function shell-mode "shell" ())
 
 ;;; From compile.el
 (defvar compilation-current-error)
 (defvar compilation-context-lines)
 
+(make-obsolete-variable 'idle-update-delay 'which-func-update-delay "30.1")
 (defcustom idle-update-delay 0.5
   "Idle time delay before updating various things on the screen.
 Various Emacs features that update auxiliary information when point moves
@@ -915,7 +915,9 @@ In programming language modes, this is the same as TAB.
 In some text modes, where TAB inserts a tab, this indents to the
 column specified by the function `current-left-margin'."
   (interactive "*")
-  (let ((pos (point))
+  ;; Use a marker because the call to 'newline' below could insert some
+  ;; text, e.g., if 'abbrev-mode' is turned on.
+  (let ((pos (point-marker))
         (electric-indent-mode nil))
     ;; Be careful to insert the newline before indenting the line.
     ;; Otherwise, the indentation might be wrong.
@@ -1762,7 +1764,9 @@ not at the start of a line.
 
 When IGNORE-INVISIBLE-LINES is non-nil, invisible lines are not
 included in the count."
-  (declare (side-effect-free t))
+  (declare (ftype (function ((or integer marker) (or integer marker) &optional t)
+                           integer))
+           (side-effect-free t))
   (save-excursion
     (save-restriction
       (narrow-to-region start end)
@@ -1825,8 +1829,7 @@ in *Help* buffer.  See also the command `describe-char'."
   (interactive "P")
   (let* ((char (following-char))
          (char-name (and what-cursor-show-names
-                         (or (get-char-code-property char 'name)
-                             (get-char-code-property char 'old-name))))
+                         (char-to-name char)))
          (char-name-fmt (if char-name
                             (format ", %s" char-name)
                           ""))
@@ -2703,15 +2706,14 @@ function as needed."
                        (or (stringp doc)
                            (fixnump doc) (fixnump (cdr-safe doc))))))
     (pcase function
-      ((pred byte-code-function-p)
+      ((pred closurep)
        (when (> (length function) 4)
          (let ((doc (aref function 4)))
            (when (funcall docstring-p doc) doc))))
       ((or (pred stringp) (pred vectorp)) "Keyboard macro.")
       (`(keymap . ,_)
        "Prefix command (definition is a keymap associating keystrokes with commands).")
-      ((or `(lambda ,_args . ,body) `(closure ,_env ,_args . ,body)
-           `(autoload ,_file . ,body))
+      ((or `(lambda ,_args . ,body) `(autoload ,_file . ,body))
        (let ((doc (car body)))
 	 (when (funcall docstring-p doc)
            doc)))
@@ -2875,11 +2877,13 @@ Normally, history elements are matched case-insensitively if
 makes the search case-sensitive.
 See also `minibuffer-history-case-insensitive-variables'."
   (interactive
-   (let* ((enable-recursive-minibuffers t)
+   (let* ((n (prefix-numeric-value current-prefix-arg))
+          (enable-recursive-minibuffers t)
 	  (regexp (read-from-minibuffer
-                   (format-prompt "Previous element matching regexp"
+                   (format-prompt "%s element matching regexp"
                                   (and minibuffer-history-search-history
-                                       (car minibuffer-history-search-history)))
+                                       (car minibuffer-history-search-history))
+                                  (if (>= n 0) "Previous" "Next"))
 		   nil minibuffer-local-map nil
 		   'minibuffer-history-search-history
 		   (car minibuffer-history-search-history))))
@@ -2887,9 +2891,9 @@ See also `minibuffer-history-case-insensitive-variables'."
      (list (if (string= regexp "")
 	       (if minibuffer-history-search-history
 		   (car minibuffer-history-search-history)
-		 (user-error "No previous history search regexp"))
+                 (user-error "No history search regexp"))
 	     regexp)
-	   (prefix-numeric-value current-prefix-arg))))
+           n)))
   (unless (zerop n)
     (if (and (zerop minibuffer-history-position)
 	     (null minibuffer-text-before-history))
@@ -2947,20 +2951,23 @@ Normally, history elements are matched case-insensitively if
 `case-fold-search' is non-nil, but an uppercase letter in REGEXP
 makes the search case-sensitive."
   (interactive
-   (let* ((enable-recursive-minibuffers t)
-	  (regexp (read-from-minibuffer "Next element matching (regexp): "
-					nil
-					minibuffer-local-map
-					nil
-					'minibuffer-history-search-history
- 					(car minibuffer-history-search-history))))
+   (let* ((n (prefix-numeric-value current-prefix-arg))
+          (enable-recursive-minibuffers t)
+          (regexp (read-from-minibuffer
+                   (format-prompt "%s element matching regexp"
+                                  (and minibuffer-history-search-history
+                                       (car minibuffer-history-search-history))
+                                  (if (>= n 0) "Next" "Previous"))
+                   nil minibuffer-local-map nil
+                   'minibuffer-history-search-history
+                   (car minibuffer-history-search-history))))
      ;; Use the last regexp specified, by default, if input is empty.
      (list (if (string= regexp "")
 	       (if minibuffer-history-search-history
 		   (car minibuffer-history-search-history)
-		 (user-error "No previous history search regexp"))
+                 (user-error "No history search regexp"))
 	     regexp)
-	   (prefix-numeric-value current-prefix-arg))))
+           n)))
   (previous-matching-history-element regexp (- n)))
 
 (defvar minibuffer-temporary-goal-position nil)
@@ -4054,7 +4061,7 @@ REASON describes the reason that the boundary is being added; see
 (defun undo-auto--boundaries (cause)
   "Check recently changed buffers and add a boundary if necessary.
 REASON describes the reason that the boundary is being added; see
-`undo-last-boundary' for more information."
+`undo-auto--last-boundary-cause' for more information."
   ;; (Bug #23785) All commands should ensure that there is an undo
   ;; boundary whether they have changed the current buffer or not.
   (when (eq cause 'command)
@@ -4481,9 +4488,10 @@ to execute it asynchronously.
 
 The output appears in OUTPUT-BUFFER, which could be a buffer or
 the name of a buffer, and defaults to `shell-command-buffer-name-async'
-if nil or omitted.  That buffer is in shell mode.  Note that, unlike
-with `shell-command', OUTPUT-BUFFER can only be a buffer, a buffer's
-name (a string), or nil.
+if nil or omitted.  That buffer is in major mode specified by the
+variable `async-shell-command-mode'.  Note that, unlike with
+`shell-command', OUTPUT-BUFFER can only be a buffer, a buffer's name
+(a string), or nil.
 
 You can customize `async-shell-command-buffer' to specify what to do
 when the buffer specified by `shell-command-buffer-name-async' is
@@ -4516,7 +4524,7 @@ a shell (with its need to quote arguments)."
 				 (dired-get-filename nil t)))))
 			  (and filename (file-relative-name filename))))
     nil
-    ;; FIXME: the following argument is always ignored by 'shell-commnd',
+    ;; FIXME: the following argument is always ignored by 'shell-command',
     ;; when the command is invoked asynchronously, except, perhaps, when
     ;; 'default-directory' is remote.
     shell-command-default-error-buffer))
@@ -4526,6 +4534,9 @@ a shell (with its need to quote arguments)."
 
 (declare-function comint-output-filter "comint" (process string))
 (declare-function comint-term-environment "comint" ())
+
+(defvar async-shell-command-mode 'shell-command-mode
+  "Major mode to use for the output of asynchronous `shell-command'.")
 
 (defun shell-command (command &optional output-buffer error-buffer)
   "Execute string COMMAND in inferior shell; display output, if any.
@@ -4537,9 +4548,9 @@ directory in the prompt.
 
 If COMMAND ends in `&', execute it asynchronously.
 The output appears in the buffer whose name is specified
-by `shell-command-buffer-name-async'.  That buffer is in shell
-mode.  You can also use `async-shell-command' that automatically
-adds `&'.
+by `shell-command-buffer-name-async'.  That buffer is in major mode
+specified by the variable `async-shell-command-mode'.  You can also use
+`async-shell-command' that automatically adds `&'.
 
 Otherwise, COMMAND is executed synchronously.  The output appears in
 the buffer named by `shell-command-buffer-name'.  If the output is
@@ -4715,7 +4726,7 @@ impose the use of a shell (with its need to quote arguments)."
 		  (setq proc
 			(start-process-shell-command "Shell" buffer command)))
 		(setq mode-line-process '(":%s"))
-                (shell-mode)
+                (funcall async-shell-command-mode)
                 (setq-local revert-buffer-function
                             (lambda (&rest _)
                               (async-shell-command command buffer)))
@@ -4857,11 +4868,14 @@ and are used only if a pop-up buffer is displayed."
 ;; We have a sentinel to prevent insertion of a termination message
 ;; in the buffer itself, and to set the point in the buffer when
 ;; `shell-command-dont-erase-buffer' is non-nil.
+;; For remote shells, `process-command' does not serve the proper shell
+;; command.  We use process property `remote-command' instead.  (Bug#71049)
 (defun shell-command-sentinel (process signal)
   (when (memq (process-status process) '(exit signal))
     (shell-command-set-point-after-cmd (process-buffer process))
     (message "%s: %s."
-             (car (cdr (cdr (process-command process))))
+             (car (cdr (cdr (or (process-get process 'remote-command)
+                                (process-command process)))))
              (substring signal 0 -1))))
 
 (defun shell-command-on-region (start end command
@@ -4922,7 +4936,14 @@ interactively, this is t.
 Non-nil REGION-NONCONTIGUOUS-P means that the region is composed of
 noncontiguous pieces.  The most common example of this is a
 rectangular region, where the pieces are separated by newline
-characters."
+characters.
+
+If COMMAND names a shell (e.g., via `shell-file-name'), keep in mind
+that behavior of various shells when commands are piped to their
+standard input is shell- and system-dependent, and thus non-portable.
+The differences are especially prominent when the region includes
+more than one line, i.e. when piping to a shell commands with embedded
+newlines."
   (interactive (let (string)
 		 (unless (mark)
 		   (user-error "The mark is not set now, so there is no region"))
@@ -5104,7 +5125,13 @@ other cases, consider alternatives such as `call-process' or
 `process-lines', which do not invoke the shell.  Consider using
 built-in functions like `rename-file' instead of the external
 command \"mv\".  For more information, see Info node
-`(elisp)Security Considerations'."
+`(elisp)Security Considerations'.
+
+If COMMAND includes several separate commands to run one after
+the other, the separator between the individual commands needs
+to be shell- and system-dependent.  In particular, the MS-Windows
+shell cmd.exe doesn't support commands with embedded newlines;
+use the \"&&\" separator instead."
   (with-output-to-string
     (with-current-buffer standard-output
       (shell-command command t))))
@@ -5391,7 +5418,8 @@ Runs `prefix-command-preserve-state-hook'."
 (add-hook 'prefix-command-preserve-state-hook
           #'universal-argument--preserve)
 (defun universal-argument--preserve ()
-  (setq prefix-arg current-prefix-arg))
+  (setq prefix-arg current-prefix-arg)
+  (setq current-prefix-arg last-prefix-arg))
 
 (defvar universal-argument-map
   (let ((map (make-sparse-keymap))
@@ -6675,28 +6703,53 @@ If ARG is zero, kill current line but exclude the trailing newline."
   (unless (eq last-command 'kill-region)
     (kill-new "")
     (setq last-command 'kill-region))
-  (cond ((zerop arg)
-	 ;; We need to kill in two steps, because the previous command
-	 ;; could have been a kill command, in which case the text
-	 ;; before point needs to be prepended to the current kill
-	 ;; ring entry and the text after point appended.  Also, we
-	 ;; need to use save-excursion to avoid copying the same text
-	 ;; twice to the kill ring in read-only buffers.
-	 (save-excursion
-	   (kill-region (point) (progn (forward-visible-line 0) (point))))
-	 (kill-region (point) (progn (end-of-visible-line) (point))))
-	((< arg 0)
-	 (save-excursion
-	   (kill-region (point) (progn (end-of-visible-line) (point))))
-	 (kill-region (point)
-		      (progn (forward-visible-line (1+ arg))
-			     (unless (bobp) (backward-char))
-			     (point))))
-	(t
-	 (save-excursion
-	   (kill-region (point) (progn (forward-visible-line 0) (point))))
-	 (kill-region (point)
-		      (progn (forward-visible-line arg) (point))))))
+  ;; - We need to kill in two steps, because the previous command
+  ;;   could have been a kill command, in which case the text before
+  ;;   point needs to be prepended to the current kill ring entry and
+  ;;   the text after point appended.
+  ;; - We need to be careful to avoid copying text twice to the kill
+  ;;   ring in read-only buffers.
+  ;; - We need to determine the boundaries of visible lines before we
+  ;;   do the first kill.  Otherwise `after-change-functions' may
+  ;;   change visibility (bug#65734).
+  (let (;; The beginning of both regions to kill
+        (regions-begin (point-marker))
+        ;; The end of the first region to kill.  Moreover, after
+        ;; evaluation of the value form, (point) will be the end of
+        ;; the second region to kill.
+        (region1-end (cond ((zerop arg)
+                            (prog1 (save-excursion
+                                     (forward-visible-line 0)
+                                     (point-marker))
+                              (end-of-visible-line)))
+	                   ((< arg 0)
+	                    (prog1 (save-excursion
+                                     (end-of-visible-line)
+                                     (point-marker))
+                              (forward-visible-line (1+ arg))
+	                      (unless (bobp) (backward-char))))
+	                   (t
+	                    (prog1 (save-excursion
+                                     (forward-visible-line 0)
+                                     (point-marker))
+	                      (forward-visible-line arg))))))
+    ;; - Pass the marker positions and not the markers themselves.
+    ;;   kill-region determines whether to prepend or append to a
+    ;;   previous kill by checking the direction of the region.  But
+    ;;   it deletes the content and hence moves the markers before
+    ;;   that.  That effectively makes every region delimited by
+    ;;   markers an (empty) forward region.
+    ;; - Make the first kill-region emit a non-local exit only if the
+    ;;   second kill-region below would not operate on a non-empty
+    ;;   region.
+    (let ((kill-read-only-ok (or kill-read-only-ok
+                                 (/= regions-begin (point)))))
+      (kill-region (marker-position regions-begin)
+                   (marker-position region1-end)))
+    (kill-region (marker-position regions-begin)
+                 (point))
+    (set-marker regions-begin nil)
+    (set-marker region1-end nil)))
 
 (defun forward-visible-line (arg)
   "Move forward by ARG lines, ignoring currently invisible newlines only.
@@ -6883,7 +6936,8 @@ is active, and returns an integer or nil in the usual way.
 
 If you are using this in an editing command, you are most likely making
 a mistake; see the documentation of `set-mark'."
-  (declare (side-effect-free t))
+  (declare (ftype (function (&optional t) (or integer null)))
+           (side-effect-free t))
   (if (or force (not transient-mark-mode) mark-active mark-even-if-inactive)
       (marker-position (mark-marker))
     (signal 'mark-inactive nil)))
@@ -9856,16 +9910,6 @@ Its value is a list of the form (START END) where START is the place
 where the completion should be inserted and END (if non-nil) is the end
 of the text to replace.  If END is nil, point is used instead.")
 
-(defvar completion-base-affixes nil
-  "Base context of the text corresponding to the shown completions.
-This variable is used in the *Completions* buffer.
-Its value is a list of the form (PREFIX SUFFIX) where PREFIX is the text
-before the place where completion should be inserted, and SUFFIX is the text
-after the completion.")
-
-(defvar completion-use-base-affixes nil
-  "Non-nil means to restore original prefix and suffix in the minibuffer.")
-
 (defvar completion-list-insert-choice-function #'completion--replace
   "Function to use to insert the text chosen in *Completions*.
 Called with three arguments (BEG END TEXT), it should replace the text
@@ -10126,14 +10170,13 @@ minibuffer, but don't quit the completions window."
   (with-current-buffer (window-buffer (posn-window (event-start event)))
     (let ((buffer completion-reference-buffer)
           (base-position completion-base-position)
-          (base-affixes completion-base-affixes)
           (insert-function completion-list-insert-choice-function)
           (completion-no-auto-exit (if no-exit t completion-no-auto-exit))
           (choice
            (if choose-completion-deselect-if-after
-               (if-let ((str (get-text-property (posn-point (event-start event)) 'completion--string)))
-                   (substring-no-properties str)
-                 (error "No completion here"))
+               (or (get-text-property (posn-point (event-start event))
+                                      'completion--string)
+                   (error "No completion here"))
            (save-excursion
              (goto-char (posn-point (event-start event)))
              (let (beg)
@@ -10148,8 +10191,7 @@ minibuffer, but don't quit the completions window."
                (setq beg (or (previous-single-property-change
                               beg 'completion--string)
                              beg))
-               (substring-no-properties
-                (get-text-property beg 'completion--string)))))))
+               (get-text-property beg 'completion--string))))))
 
       (unless (buffer-live-p buffer)
         (error "Destination buffer is dead"))
@@ -10159,13 +10201,7 @@ minibuffer, but don't quit the completions window."
       (with-current-buffer buffer
         (choose-completion-string
          choice buffer
-         ;; Don't allow affixes to replace the whole buffer when not
-         ;; in the minibuffer.  Thus check for `completion-in-region-mode'
-         ;; to ignore non-nil value of `completion-use-base-affixes' set by
-         ;; `minibuffer-choose-completion'.
-         (or (and (not completion-in-region-mode)
-                  completion-use-base-affixes base-affixes)
-             base-position
+         (or base-position
              ;; If all else fails, just guess.
              (list (choose-completion-guess-base-position choice)))
          insert-function)))))
@@ -10321,11 +10357,9 @@ Called from `temp-buffer-show-hook'."
                 (buffer-substring (minibuffer-prompt-end) (point)))))))
     (with-current-buffer standard-output
       (let ((base-position completion-base-position)
-            (base-affixes completion-base-affixes)
             (insert-fun completion-list-insert-choice-function))
         (completion-list-mode)
         (setq-local completion-base-position base-position)
-        (setq-local completion-base-affixes base-affixes)
         (setq-local completion-list-insert-choice-function insert-fun))
       (setq-local completion-reference-buffer mainbuf)
       (if base-dir (setq default-directory base-dir))
@@ -10675,8 +10709,10 @@ Returns the newly created indirect buffer."
      (list (if current-prefix-arg
 	       (read-buffer "Name of indirect buffer: " (current-buffer)))
 	   t)))
-  (let ((pop-up-windows t))
-    (clone-indirect-buffer newname display-flag norecord)))
+  ;; For compatibility, don't display the buffer if display-flag is nil.
+  (let ((buffer (clone-indirect-buffer newname nil norecord)))
+    (when display-flag
+      (switch-to-buffer-other-window buffer norecord))))
 
 
 ;;; Handling of Backspace and Delete keys.
@@ -11164,7 +11200,8 @@ killed."
 
 (defun lax-plist-get (plist prop)
   "Extract a value from a property list, comparing with `equal'."
-  (declare (pure t) (side-effect-free t) (obsolete plist-get "29.1"))
+  (declare (ftype (function (list t) t))
+           (pure t) (side-effect-free t) (obsolete plist-get "29.1"))
   (plist-get plist prop #'equal))
 
 (defun lax-plist-put (plist prop val)

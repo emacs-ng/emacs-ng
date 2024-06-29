@@ -180,9 +180,7 @@ lines."))))
       (insert string4)
       (let ((fill-column 39)) (log-edit-fill-entry))
       (should (equal (buffer-string)
-                     ;; There is whitespace after "file2.txt" which
-                     ;; should not be erased!
-                     "* file2.txt 
+                     "* file2.txt\s
 (abcdefghijklmnopqrstuvwxyz):")))))
 
 (ert-deftest log-edit-fill-entry-space-substitution ()
@@ -228,7 +226,7 @@ division.
 (sfnt_round_none, sfnt_round_to_grid, sfnt_round_to_double_grid)
 "
           wanted "
-* src/sfnt.c 
+* src/sfnt.c\s
 (xmalloc, xrealloc):
 Improve behavior
 upon allocation
@@ -330,7 +328,7 @@ new line.
 (but_this_entry_should_not): With the prose displaced to the
 next line instead."
           wanted "
-* src/sfnt.c 
+* src/sfnt.c\s
 (long_entry_1): This
 entry should be
 placed on a new
@@ -342,6 +340,24 @@ next line instead.")
     (with-temp-buffer
       (insert string)
       (let ((fill-column 20)) (log-edit-fill-entry))
+      (should (equal (buffer-string) wanted)))))
+
+(ert-deftest log-edit-fill-entry-no-defun-list-wrapping ()
+  ;; This test verifies that the opening defun list of an entry is never
+  ;; broken, even in the event its length in total exceeds the fill
+  ;; column.
+  (let (string wanted)
+    (setq string "
+* src/androidfns.c (Fxw_display_color_p):
+(Fx_display_grayscale_p): Report color and/or grayscale properly.
+"
+          wanted "
+* src/androidfns.c (Fxw_display_color_p, Fx_display_grayscale_p):
+Report color and/or grayscale properly.
+")
+    (with-temp-buffer
+      (insert string)
+      (let ((fill-column 64)) (log-edit-fill-entry))
       (should (equal (buffer-string) wanted)))))
 
 ;;; log-edit-tests.el ends here

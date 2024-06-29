@@ -479,7 +479,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
   Lisp_Object *top = NULL;
   unsigned char const *pc = NULL;
 
-  Lisp_Object bytestr = AREF (fun, COMPILED_BYTECODE);
+  Lisp_Object bytestr = AREF (fun, CLOSURE_CODE);
 
  setup_frame: ;
   eassert (!STRING_MULTIBYTE (bytestr));
@@ -489,8 +489,8 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
      when returning, to detect unwind imbalances.  This would require adding
      a field to the frame header.  */
 
-  Lisp_Object vector = AREF (fun, COMPILED_CONSTANTS);
-  Lisp_Object maxdepth = AREF (fun, COMPILED_STACK_DEPTH);
+  Lisp_Object vector = AREF (fun, CLOSURE_CONSTANTS);
+  Lisp_Object maxdepth = AREF (fun, CLOSURE_STACK_DEPTH);
   ptrdiff_t const_length = ASIZE (vector);
   ptrdiff_t bytestr_length = SCHARS (bytestr);
   Lisp_Object *vectorp = XVECTOR (vector)->contents;
@@ -792,14 +792,14 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    /* Calls to symbols-with-pos don't need to be on the fast path.  */
 	    if (BARE_SYMBOL_P (call_fun))
 	      call_fun = XBARE_SYMBOL (call_fun)->u.s.function;
-	    if (COMPILEDP (call_fun))
+	    if (CLOSUREP (call_fun))
 	      {
-		Lisp_Object template = AREF (call_fun, COMPILED_ARGLIST);
+		Lisp_Object template = AREF (call_fun, CLOSURE_ARGLIST);
 		if (FIXNUMP (template))
 		  {
 		    /* Fast path for lexbound functions.  */
 		    fun = call_fun;
-		    bytestr = AREF (call_fun, COMPILED_BYTECODE),
+		    bytestr = AREF (call_fun, CLOSURE_CODE),
 		    args_template = XFIXNUM (template);
 		    nargs = call_nargs;
 		    args = call_args;
@@ -808,7 +808,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	      }
 
 	    Lisp_Object val;
-	    if (SUBRP (call_fun) && !SUBR_NATIVE_COMPILED_DYNP (call_fun))
+	    if (SUBRP (call_fun) && !NATIVE_COMP_FUNCTION_DYNP (call_fun))
 	      val = funcall_subr (XSUBR (call_fun), call_nargs, call_args);
 	    else
 	      val = funcall_general (original_fun, call_nargs, call_args);
@@ -897,8 +897,8 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 		bc->fp = fp;
 
 		Lisp_Object fun = fp->fun;
-		Lisp_Object bytestr = AREF (fun, COMPILED_BYTECODE);
-		Lisp_Object vector = AREF (fun, COMPILED_CONSTANTS);
+		Lisp_Object bytestr = AREF (fun, CLOSURE_CODE);
+		Lisp_Object vector = AREF (fun, CLOSURE_CONSTANTS);
 		bytestr_data = SDATA (bytestr);
 		vectorp = XVECTOR (vector)->contents;
 		if (BYTE_CODE_SAFE)
@@ -974,8 +974,8 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 		struct bc_frame *fp = bc->fp;
 
 		Lisp_Object fun = fp->fun;
-		Lisp_Object bytestr = AREF (fun, COMPILED_BYTECODE);
-		Lisp_Object vector = AREF (fun, COMPILED_CONSTANTS);
+		Lisp_Object bytestr = AREF (fun, CLOSURE_CODE);
+		Lisp_Object vector = AREF (fun, CLOSURE_CONSTANTS);
 		bytestr_data = SDATA (bytestr);
 		vectorp = XVECTOR (vector)->contents;
 		if (BYTE_CODE_SAFE)

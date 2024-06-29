@@ -8,7 +8,7 @@ To learn more about JavaScript and TypeScript, check out [Getting Started](./get
 
 ### Using Async I/O
 
-We expose the async IO functionality included with Deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor. 
+We expose the async IO functionality included with Deno. Users can fetch data async from their local file system, or the network. They can use that data to interact with the editor.
 
 An example would be:
 

@@ -123,9 +123,16 @@ ARG is passed to `fill-paragraph'."
     (let ((node (treesit-node-at (point))))
       (when (string-match-p c-ts-common--comment-regexp
                             (treesit-node-type node))
-        (if (save-excursion
-              (goto-char (treesit-node-start node))
-              (looking-at "//"))
+        (if (or (save-excursion
+                  (goto-char (treesit-node-start node))
+                  (looking-at "//"))
+                ;; In rust, NODE will be the body of a comment, and the
+                ;; parent will be the whole comment.
+                (if-let ((start (treesit-node-start
+                                 (treesit-node-parent node))))
+                    (save-excursion
+                      (goto-char start)
+                      (looking-at "//"))))
             (fill-comment-paragraph arg)
           (c-ts-common--fill-block-comment arg)))
       ;; Return t so `fill-paragraph' doesn't attempt to fill by
@@ -284,7 +291,7 @@ and /* */ comments.  SOFT works the same as in
   ;; I want to experiment with explicitly listing out all each cases and
   ;; handle them separately, as opposed to fiddling with `comment-start'
   ;; and friends.  This will have more duplicate code and will be less
-  ;; generic, but in the same time might save us from writting cryptic
+  ;; generic, but in the same time might save us from writing cryptic
   ;; code to handle all sorts of edge cases.
   ;;
   ;; For this command, let's try to make it basic: if the current line
@@ -293,31 +300,53 @@ and /* */ comments.  SOFT works the same as in
   ;; auto-fill or other smart features.
   (cond
    ;; Line starts with //, or ///, or ////...
+   ;; Or //! (used in rust).
    ((save-excursion
       (beginning-of-line)
-      (looking-at (rx "//" (group (* "/") (* " ")))))
-    (let ((whitespaces (match-string 1)))
+      (re-search-forward
+       (rx "//" (group (* (any "/!")) (* " ")))
+       (line-end-position)
+       t nil))
+    (let ((offset (- (match-beginning 0) (line-beginning-position)))
+          (whitespaces (match-string 1)))
       (if soft (insert-and-inherit ?\n) (newline 1))
       (delete-region (line-beginning-position) (point))
-      (insert "//" whitespaces)))
+      (insert (make-string offset ?\s) "//" whitespaces)))
 
-   ;; Line starts with /* or /**
+   ;; Line starts with /* or /**.
    ((save-excursion
       (beginning-of-line)
-      (looking-at (rx "/*" (group (? "*") (* " ")))))
-    (let ((whitespace-and-star-len (length (match-string 1))))
+      (re-search-forward
+       (rx "/*" (group (? "*") (* " ")))
+       (line-end-position)
+       t nil))
+    (let ((offset (- (match-beginning 0) (line-beginning-position)))
+          (whitespace-and-star-len (length (match-string 1))))
       (if soft (insert-and-inherit ?\n) (newline 1))
       (delete-region (line-beginning-position) (point))
-      (insert " *" (make-string whitespace-and-star-len ?\s))))
+      (insert
+       (make-string offset ?\s)
+       " *"
+       (make-string whitespace-and-star-len ?\s))))
 
-   ;; Line starts with *
+   ;; Line starts with *.
    ((save-excursion
       (beginning-of-line)
-      (looking-at (rx (group (* " ") (or "*" "|") (* " ")))))
+      (looking-at (rx (group (* " ") (any "*|") (* " ")))))
     (let ((prefix (match-string 1)))
       (if soft (insert-and-inherit ?\n) (newline 1))
       (delete-region (line-beginning-position) (point))
-      (insert prefix)))))
+      (insert prefix)))
+
+   ;; Line starts with whitespaces or no space.  This is basically the
+   ;; default case since (rx (* " ")) matches anything.
+   ((save-excursion
+      (beginning-of-line)
+      (looking-at (rx (* " "))))
+    (let ((whitespaces (match-string 0)))
+      (if soft (insert-and-inherit ?\n) (newline 1))
+      (delete-region (line-beginning-position) (point))
+      (insert whitespaces)))))
 
 ;;; Statement indent
 

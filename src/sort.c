@@ -36,17 +36,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Reverse a slice of a vector in place, from lo up to (exclusive) hi. */
 static void
-reverse_slice(Lisp_Object *lo, Lisp_Object *hi)
+reverse_slice (Lisp_Object *lo, Lisp_Object *hi)
 {
-    eassert (lo && hi);
-
-    --hi;
-    while (lo < hi) {
-        Lisp_Object t = *lo;
-        *lo = *hi;
-        *hi = t;
-        ++lo;
-        --hi;
+  --hi;
+  while (lo < hi)
+    {
+      Lisp_Object t = *lo;
+      *lo = *hi;
+      *hi = t;
+      ++lo;
+      --hi;
     }
 }
 
@@ -58,7 +57,8 @@ reverse_slice(Lisp_Object *lo, Lisp_Object *hi)
    Several convenience routines are provided here, so that keys and
    values are always moved in sync.  */
 
-typedef struct {
+typedef struct
+{
   Lisp_Object *keys;
   Lisp_Object *values;
 } sortslice;
@@ -1052,9 +1052,9 @@ merge_compute_minrun (ptrdiff_t n)
 static void
 reverse_sortslice (sortslice *s, const ptrdiff_t n)
 {
-  reverse_slice(s->keys, &s->keys[n]);
+  reverse_slice (s->keys, &s->keys[n]);
   if (s->values != NULL)
-    reverse_slice(s->values, &s->values[n]);
+    reverse_slice (s->values, &s->values[n]);
 }
 
 static Lisp_Object
@@ -1095,7 +1095,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
   Lisp_Object *allocated_keys = NULL;
   merge_state ms;
 
-  if (reverse)
+  if (reverse && 0 < length)
     reverse_slice (seq, seq + length);    /* preserve stability */
 
   if (NILP (keyfunc))
@@ -1130,7 +1130,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
       keys[i] = call1 (keyfunc, seq[i]);
 
   /* FIXME: This is where we would check the keys for interesting
-     properties for more optimised comparison (such as all being fixnums
+     properties for more optimized comparison (such as all being fixnums
      etc).  */
 
   /* March over the array once, left to right, finding natural runs,
@@ -1161,7 +1161,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
     ms.pending[ms.n].len = n;
     ++ms.n;
     /* Advance to find the next run.  */
-    sortslice_advance(&lo, n);
+    sortslice_advance (&lo, n);
     nremaining -= n;
   } while (nremaining);
 

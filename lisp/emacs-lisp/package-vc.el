@@ -774,6 +774,9 @@ conflicts with its remote repository state."
         (package-vc-upgrade pkg-desc))))
   (message "Done upgrading packages."))
 
+(declare-function vc-dir-prepare-status-buffer "vc-dir"
+                  (bname dir backend &optional create-new))
+
 ;;;###autoload
 (defun package-vc-upgrade (pkg-desc)
   "Upgrade the package described by PKG-DESC from package's VC repository.
@@ -810,7 +813,10 @@ with the remote repository state."
                   (remove-hook 'vc-post-command-functions post-upgrade))))))
     (add-hook 'vc-post-command-functions post-upgrade)
     (with-demoted-errors "Failed to fetch: %S"
-      (let ((default-directory pkg-dir))
+      (require 'vc-dir)
+      (with-current-buffer (vc-dir-prepare-status-buffer
+                            (format " *package-vc-dir: %s*" pkg-dir)
+                            pkg-dir (vc-responsible-backend pkg-dir))
         (vc-pull)))))
 
 (defun package-vc--archives-initialize ()
@@ -1018,6 +1024,13 @@ See also `vc-prepare-patch'."
   (let ((default-directory (package-desc-dir pkg-desc)))
     (vc-prepare-patch (package-maintainers pkg-desc t)
                       subject revisions)))
+
+(defun package-vc-log-incoming (pkg-desc)
+  "Call `vc-log-incoming' for the package PKG-DESC."
+  (interactive
+   (list (package-vc--read-package-desc "Incoming log for package: " t)))
+  (let ((default-directory (package-desc-dir pkg-desc)))
+    (call-interactively #'vc-log-incoming)))
 
 (provide 'package-vc)
 ;;; package-vc.el ends here

@@ -1692,7 +1692,7 @@ authentication tokens:
     items))
 
 (cl-defun auth-source-secrets-create (&rest spec
-                                      &key backend host port create
+                                      &key backend host port create user
                                       &allow-other-keys)
   (let* ((base-required '(host user port secret label))
          ;; we know (because of an assertion in auth-source-search) that the
@@ -1700,6 +1700,7 @@ authentication tokens:
          (create-extra (if (eq t create) nil create))
          (current-data (car (auth-source-search :max 1
                                                 :host host
+                                                :user user
                                                 :port port)))
          (required (append base-required create-extra))
          (collection (oref backend source))
@@ -2162,7 +2163,7 @@ entries for git.gnus.org:
     items))
 
 (cl-defun auth-source-plstore-create (&rest spec
-                                      &key backend host port create
+                                      &key backend host port create user
                                       &allow-other-keys)
   (let* ((base-required '(host user port secret))
          (base-secret '(secret))
@@ -2172,9 +2173,11 @@ entries for git.gnus.org:
          (create-extra-secret (plist-get create :encrypted))
          (create-extra (if (eq t create) nil
                          (or (append (plist-get create :unencrypted)
-                                     create-extra-secret) create)))
+                                     create-extra-secret)
+                             create)))
          (current-data (car (auth-source-search :max 1
                                                 :host host
+                                                :user user
                                                 :port port)))
          (required (append base-required create-extra))
          (required-secret (append base-secret create-extra-secret))
@@ -2489,22 +2492,30 @@ point is moved into the passwords (see `authinfo-hide-elements').
   "Toggle minibuffer contents visibility.
 Adapt also mode line."
   (interactive)
-  (setq read-passwd--hide-password (not read-passwd--hide-password))
-  (with-current-buffer read-passwd--mode-line-buffer
-    (setq read-passwd--mode-line-icon
-          `(:propertize
-            ,(if icon-preference
-                 (icon-string
-                  (if read-passwd--hide-password
-                      'read-passwd--show-password-icon
-                    'read-passwd--hide-password-icon))
-               "")
-            mouse-face mode-line-highlight
-            local-map
-            (keymap
-             (mode-line keymap (mouse-1 . read-passwd-toggle-visibility)))))
-    (force-mode-line-update))
-  (read-passwd--hide-password))
+  (let ((win (active-minibuffer-window)))
+    (unless win (error "No active minibuffer"))
+    ;; FIXME: In case of a recursive minibuffer, this may select the wrong
+    ;; mini-buffer.
+    (with-current-buffer (window-buffer win)
+      (setq read-passwd--hide-password (not read-passwd--hide-password))
+      (with-current-buffer read-passwd--mode-line-buffer
+        (setq read-passwd--mode-line-icon
+              `(:propertize
+                ,(if icon-preference
+                     (icon-string
+                      (if read-passwd--hide-password
+                          'read-passwd--show-password-icon
+                        'read-passwd--hide-password-icon))
+                   "")
+                mouse-face mode-line-highlight
+                keymap
+                ,(eval-when-compile
+                   (let ((map (make-sparse-keymap)))
+                     (define-key map [mode-line mouse-1]
+                                 #'read-passwd-toggle-visibility)
+                     map))))
+        (force-mode-line-update))
+      (read-passwd--hide-password))))
 
 (defvar read-passwd-map
   ;; BEWARE: `defconst' would purecopy it, breaking the sharing with

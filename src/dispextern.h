@@ -69,12 +69,6 @@ typedef struct
   unsigned width, height;
 } Emacs_Rectangle;
 
-#else
-
-typedef struct android_rectangle Emacs_Rectangle;
-
-#endif
-
 /* XGCValues-like struct used by non-X GUI code.  */
 typedef struct
 {
@@ -87,6 +81,19 @@ typedef struct
    need these.  */
 #define GCForeground 0x01
 #define GCBackground 0x02
+
+#else
+
+typedef struct android_rectangle Emacs_Rectangle;
+typedef struct android_gc_values Emacs_GC;
+
+#define GCForeground		ANDROID_GC_FOREGROUND
+#define GCBackground		ANDROID_GC_BACKGROUND
+#define GCFillStyle		ANDROID_GC_FILL_STYLE
+#define GCStipple		ANDROID_GC_STIPPLE
+#define FillOpaqueStippled	ANDROID_FILL_OPAQUE_STIPPLED
+
+#endif
 
 #endif /* HAVE_X_WINDOWS */
 
@@ -1706,13 +1713,15 @@ enum face_box_type
 
 enum face_underline_type
 {
+  /* Note: order matches the order of the Smulx terminfo extension, and
+     is also relied on to remain in its present order by
+     x_draw_glyph_string and company.  */
   FACE_NO_UNDERLINE = 0,
-  FACE_UNDER_LINE,
-  FACE_UNDER_WAVE,
-#ifdef USE_WEBRENDER
-  FACE_UNDER_DOTTED,
-  FACE_UNDER_DASHED,
-#endif /* #USE_WEBRENDER */
+  FACE_UNDERLINE_SINGLE,
+  FACE_UNDERLINE_DOUBLE_LINE,
+  FACE_UNDERLINE_WAVE,
+  FACE_UNDERLINE_DOTS,
+  FACE_UNDERLINE_DASHES,
 };
 
 /* Structure describing a realized face.
@@ -1796,11 +1805,7 @@ struct face
   ENUM_BF (face_box_type) box : 2;
 
   /* Style of underlining. */
-#ifdef USE_WEBRENDER
-  ENUM_BF (face_underline_type) underline : 4;
-#else
-  ENUM_BF (face_underline_type) underline : 2;
-#endif /* #USE_WEBRENDER */
+  ENUM_BF (face_underline_type) underline : 3;
 
   /* If `box' above specifies a 3D type, true means use box_color for
      drawing shadows.  */
@@ -1832,7 +1837,6 @@ struct face
      string meaning the default color of the TTY.  */
   bool_bf tty_bold_p : 1;
   bool_bf tty_italic_p : 1;
-  bool_bf tty_underline_p : 1;
   bool_bf tty_reverse_p : 1;
   bool_bf tty_strike_through_p : 1;
 
@@ -2436,7 +2440,9 @@ struct it
   bool_bf string_from_display_prop_p : 1;
 
   /* True means `string' comes from a `line-prefix' or `wrap-prefix'
-     property.  */
+     property, and that these properties were already handled, even if
+     their value is not a string.  This is used to avoid processing
+     the same line/wrap prefix more than once for the same glyph row.  */
   bool_bf string_from_prefix_prop_p : 1;
 
   /* True means we are iterating an object that came from a value of a
@@ -2638,6 +2644,11 @@ struct it
   /* If true, glyphs for line number display were already produced for
      the current row.  */
   bool_bf line_number_produced_p : 1;
+
+  /* If true, the :align-to argument should be counted relative to the
+     beginning of the screen line, not the logical line.  Used by
+     'wrap-prefix'.  */
+  bool_bf align_visually_p : 1;
 
   enum line_wrap_method line_wrap;
 
@@ -3303,6 +3314,11 @@ struct image_cache
 
   /* Reference count (number of frames sharing this cache).  */
   ptrdiff_t refcount;
+
+  /* Column width by which images whose QCscale property is Qdefault
+     will be scaled, which is 10 or FRAME_COLUMN_WIDTH of each frame
+     assigned this image cache, whichever is greater.  */
+  int scaling_col_width;
 };
 
 /* Size of bucket vector of image caches.  Should be prime.  */
@@ -3451,6 +3467,7 @@ enum tool_bar_item_image
 #define TTY_CAP_DIM		0x08
 #define TTY_CAP_ITALIC  	0x10
 #define TTY_CAP_STRIKE_THROUGH	0x20
+#define TTY_CAP_UNDERLINE_STYLED	(0x32 & TTY_CAP_UNDERLINE)
 
 
 /***********************************************************************
@@ -3631,6 +3648,7 @@ extern void update_redisplay_ticks (int, struct window *);
 
 #ifdef HAVE_WINDOW_SYSTEM
 
+extern void clear_image_cache (struct frame *, Lisp_Object);
 extern ptrdiff_t image_bitmap_pixmap (struct frame *, ptrdiff_t);
 extern void image_reference_bitmap (struct frame *, ptrdiff_t);
 extern ptrdiff_t image_create_bitmap_from_data (struct frame *, char *,
@@ -3717,6 +3735,9 @@ int smaller_face (struct frame *, int, int);
 int face_with_height (struct frame *, int, int);
 int lookup_derived_face (struct window *, struct frame *,
                          Lisp_Object, int, bool);
+#ifdef HAVE_WINDOW_SYSTEM
+extern struct image_cache *share_image_cache (struct frame *f);
+#endif /* HAVE_WINDOW_SYSTEM */
 void init_frame_faces (struct frame *);
 void free_frame_faces (struct frame *);
 void recompute_basic_faces (struct frame *);
@@ -3821,6 +3842,7 @@ extern void gui_update_window_end (struct window *, bool, bool);
 #endif
 void do_pending_window_change (bool);
 void change_frame_size (struct frame *, int, int, bool, bool, bool);
+extern bool frame_size_change_delayed (struct frame *);
 void init_display (void);
 void syms_of_display (void);
 extern void spec_glyph_lookup_face (struct window *, GLYPH *);
