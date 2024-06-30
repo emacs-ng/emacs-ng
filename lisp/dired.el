@@ -36,6 +36,7 @@
 
 (eval-when-compile (require 'subr-x))
 (eval-when-compile (require 'cl-lib))
+(eval-when-compile (require 'autorevert))
 ;; When bootstrapping dired-loaddefs has not been generated.
 (require 'dired-loaddefs nil t)
 (require 'dnd)
@@ -443,8 +444,9 @@ is anywhere on its Dired line, except the beginning of the line."
 
 (defcustom dired-guess-shell-alist-user nil
   "User-defined alist of rules for suggested commands.
-These rules take precedence over the predefined rules in the variable
-`dired-guess-shell-alist-default' (to which they are prepended).
+These rules take precedence over the predefined rules in the variables
+`dired-guess-shell-alist-default' and `dired-guess-shell-alist-optional'
+\(to which they are prepended).
 
 Each element of this list looks like
 
@@ -509,7 +511,8 @@ Possible non-nil values:
  * `cycle':   when moving from the last/first visible line, cycle back
               to the first/last visible line.
  * `bounded': don't move up/down if the current line is the
-              first/last visible line."
+              first/last visible line.
+Any other non-nil value is treated as `bounded'."
   :type '(choice (const :tag "Move to any line" nil)
                  (const :tag "Cycle through non-empty lines" cycle)
                  (const :tag "Stop on last/first non-empty line" bounded))
@@ -1709,9 +1712,10 @@ see `dired-use-ls-dired' for more details.")
       (cond ((and dir-wildcard (files--use-insert-directory-program-p))
              (setq switches (concat "-d " switches))
              (let* ((default-directory (car dir-wildcard))
+                    (ls (or (and remotep "ls")
+                            insert-directory-program))
                     (script (format "%s %s %s"
-                                    insert-directory-program
-                                    switches (cdr dir-wildcard)))
+                                    ls switches (cdr dir-wildcard)))
                     (sh (or (and remotep "/bin/sh")
                             (executable-find shell-file-name)
                             (executable-find "sh")))
@@ -2275,9 +2279,10 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
   "~"       #'dired-flag-backup-files
   ;; Upper case keys (except !) for operating on the marked files
   "A"       #'dired-do-find-regexp
-  "C"       #'dired-do-copy
   "B"       #'dired-do-byte-compile
+  "C"       #'dired-do-copy
   "D"       #'dired-do-delete
+  "E"       #'dired-do-open
   "G"       #'dired-do-chgrp
   "H"       #'dired-do-hardlink
   "I"       #'dired-do-info
@@ -2482,7 +2487,9 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
     ["Display Image" image-dired-dired-display-image
      :help "Display sized image in a separate window"]
     ["Display Image Externally" image-dired-dired-display-external
-     :help "Display image in external viewer"]))
+     :help "Display image in external viewer"]
+    ["Display Externally" dired-do-open
+     :help "Display file in external viewer"]))
 
 (easy-menu-define dired-mode-regexp-menu dired-mode-map
   "Regexp menu for Dired mode."
@@ -2642,7 +2649,7 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
            :help "Edit file at mouse click in other window"]
           ,@(when shell-command-guess-open
               '(["Open" dired-do-open
-                 :help "Open externally"]))
+                 :help "Open this file with the default application"]))
           ,@(when commands
               (list (cons "Open With"
                           (append
@@ -2653,7 +2660,13 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
                                          (interactive)
                                          (dired-do-async-shell-command
                                           ,command nil (list ,filename)))])
-                                   commands)))))))
+                                   commands)))))
+          ,@(when (eq system-type 'windows-nt)
+              `(["Select system app"
+                 (lambda ()
+                   (interactive)
+                   (w32-shell-execute "openas" ,filename))
+                 :help "Choose one of the apps available on your system"]))))
       (dolist (item (reverse (lookup-key easy-menu [menu-bar immediate])))
         (when (consp item)
           (define-key menu (vector (car item)) (cdr item))))))
@@ -2874,7 +2887,7 @@ is controlled by `dired-movement-style'."
                          (point-max))))
           (setq wrapped t))
          ;; `bounded': go back to the last non-empty line.
-         ((eq dired-movement-style 'bounded)
+         (dired-movement-style ; Either 'bounded or anything else non-nil.
           (while (and (dired-between-files) (not (zerop arg)))
             (funcall jumpfun (- moving-down))
             ;; Point not moving means infinite loop.
@@ -4004,7 +4017,11 @@ non-empty directories is allowed."
               (dired-move-to-filename)
 	      (let ((inhibit-read-only t))
 		(condition-case err
-		    (let ((fn (car (car l))))
+		    (let ((fn (car (car l)))
+                          ;; Temporarily prevent auto-revert while
+                          ;; deleting entry in the dired buffer
+                          ;; (bug#71264).
+                          (auto-revert-mode nil))
 		      (dired-delete-file fn dired-recursive-deletes trash)
 		      ;; if we get here, removing worked
 		      (setq succ (1+ succ))

@@ -633,6 +633,7 @@ typedef struct {
   gcc_jit_function *func; /* Current function being compiled.  */
   bool func_has_non_local; /* From comp-func has-non-local slot.  */
   EMACS_INT func_speed; /* From comp-func speed slot.  */
+  EMACS_INT func_safety; /* From comp-func safety slot.  */
   gcc_jit_block *block;  /* Current basic block being compiled.  */
   gcc_jit_lvalue *scratch; /* Used as scratch slot for some code sequence (switch).  */
   ptrdiff_t frame_size; /* Size of the following array in elements. */
@@ -744,7 +745,7 @@ static Lisp_Object
 comp_hash_string (Lisp_Object string)
 {
   Lisp_Object digest = make_uninit_string (MD5_DIGEST_SIZE * 2);
-  md5_buffer (SSDATA (string), SCHARS (string), SSDATA (digest));
+  md5_buffer (SSDATA (string), SBYTES (string), SSDATA (digest));
   hexbuf_digest (SSDATA (digest), SDATA (digest), MD5_DIGEST_SIZE);
 
   return Fsubstring (digest, Qnil, make_fixnum (HASH_LENGTH));
@@ -877,7 +878,7 @@ bcall0 (Lisp_Object f)
 }
 
 static gcc_jit_block *
-retrive_block (Lisp_Object block_name)
+retrieve_block (Lisp_Object block_name)
 {
   Lisp_Object value = Fgethash (block_name, comp.func_blocks_h, Qnil);
 
@@ -2297,7 +2298,7 @@ emit_limple_insn (Lisp_Object insn)
   if (EQ (op, Qjump))
     {
       /* Unconditional branch.  */
-      gcc_jit_block *target = retrive_block (arg[0]);
+      gcc_jit_block *target = retrieve_block (arg[0]);
       gcc_jit_block_end_with_jump (comp.block, NULL, target);
     }
   else if (EQ (op, Qcond_jump))
@@ -2305,8 +2306,8 @@ emit_limple_insn (Lisp_Object insn)
       /* Conditional branch.  */
       gcc_jit_rvalue *a = emit_mvar_rval (arg[0]);
       gcc_jit_rvalue *b = emit_mvar_rval (arg[1]);
-      gcc_jit_block *target1 = retrive_block (arg[2]);
-      gcc_jit_block *target2 = retrive_block (arg[3]);
+      gcc_jit_block *target1 = retrieve_block (arg[2]);
+      gcc_jit_block *target2 = retrieve_block (arg[3]);
 
       if ((!NILP (CALL1I (comp-cstr-imm-vld-p, arg[0]))
 	   && NILP (CALL1I (comp-cstr-imm, arg[0])))
@@ -2329,8 +2330,8 @@ emit_limple_insn (Lisp_Object insn)
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.ptrdiff_type,
 					     XFIXNUM (arg[0]));
-      gcc_jit_block *target1 = retrive_block (arg[1]);
-      gcc_jit_block *target2 = retrive_block (arg[2]);
+      gcc_jit_block *target1 = retrieve_block (arg[1]);
+      gcc_jit_block *target2 = retrieve_block (arg[2]);
       gcc_jit_rvalue *test = gcc_jit_context_new_comparison (
 			       comp.ctxt,
 			       NULL,
@@ -2359,8 +2360,8 @@ emit_limple_insn (Lisp_Object insn)
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.int_type,
 					     h_num);
-      gcc_jit_block *handler_bb = retrive_block (arg[2]);
-      gcc_jit_block *guarded_bb = retrive_block (arg[3]);
+      gcc_jit_block *handler_bb = retrieve_block (arg[2]);
+      gcc_jit_block *guarded_bb = retrieve_block (arg[3]);
       emit_limple_push_handler (handler, handler_type, handler_bb, guarded_bb,
 				arg[0]);
     }
@@ -2586,7 +2587,8 @@ emit_call_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			  Lisp_Object type)
 {
   bool hint_match =
-    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
+    !comp.func_safety
+    && !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       gcc_jit_context_new_rvalue_from_int (comp.ctxt,
@@ -2602,7 +2604,8 @@ emit_call2_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			   Lisp_Object type)
 {
   bool hint_match =
-    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
+    !comp.func_safety
+    && !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       emit_mvar_rval (THIRD (insn)),
@@ -4282,6 +4285,7 @@ compile_function (Lisp_Object func)
 
   comp.func_has_non_local = !NILP (CALL1I (comp-func-has-non-local, func));
   comp.func_speed = XFIXNUM (CALL1I (comp-func-speed, func));
+  comp.func_safety = XFIXNUM (CALL1I (comp-func-safety, func));
 
   comp.func_relocs_local =
     gcc_jit_function_new_local (comp.func,
@@ -4342,7 +4346,7 @@ compile_function (Lisp_Object func)
 	declare_block (block_name);
     }
 
-  gcc_jit_block_add_assignment (retrive_block (Qentry),
+  gcc_jit_block_add_assignment (retrieve_block (Qentry),
 				NULL,
 				comp.func_relocs_local,
 				gcc_jit_lvalue_as_rvalue (comp.func_relocs));
@@ -4357,7 +4361,7 @@ compile_function (Lisp_Object func)
 	xsignal1 (Qnative_ice,
 		  build_string ("basic block is missing or empty"));
 
-      comp.block = retrive_block (block_name);
+      comp.block = retrieve_block (block_name);
       while (CONSP (insns))
 	{
 	  Lisp_Object insn = XCAR (insns);
@@ -5199,7 +5203,7 @@ maybe_defer_native_compilation (Lisp_Object function_name,
   if (!native_comp_jit_compilation
       || noninteractive
       || !NILP (Vpurify_flag)
-      || !COMPILEDP (definition)
+      || !CLOSUREP (definition)
       || !STRINGP (Vload_true_file_name)
       || !suffix_p (Vload_true_file_name, ".elc")
       || !NILP (Fgethash (Vload_true_file_name, V_comp_no_native_file_h, Qnil)))
@@ -5293,12 +5297,12 @@ check_comp_unit_relocs (struct Lisp_Native_Comp_Unit *comp_u)
       Lisp_Object x = data_imp_relocs[i];
       if (EQ (x, Qlambda_fixup))
 	return false;
-      else if (SUBR_NATIVE_COMPILEDP (x))
+      else if (NATIVE_COMP_FUNCTIONP (x))
 	{
 	  if (NILP (Fgethash (x, comp_u->lambda_gc_guard_h, Qnil)))
 	    return false;
 	}
-      else if (!EQ (data_imp_relocs[i], AREF (comp_u->data_impure_vec, i)))
+      else if (!EQ (x, AREF (comp_u->data_impure_vec, i)))
 	return false;
     }
   return true;

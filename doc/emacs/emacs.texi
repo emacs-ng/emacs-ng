@@ -220,7 +220,7 @@ Appendices
 * GNU Free Documentation License:: The license for this documentation.
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
-* Antinews::            Information about Emacs version 28.
+* Antinews::            Information about Emacs version 29.
 * Mac OS / GNUstep::     Using Emacs under macOS and GNUstep.
 * Haiku::               Using Emacs on Haiku.
 * Android::             Using Emacs on Android.
@@ -529,6 +529,7 @@ Multiple Windows
 * Temporary Displays::  Displaying non-editable buffers.
 * Window Convenience::  Convenience functions for window handling.
 * Tab Line::            Window tab line.
+* Window Tool Bar::     A tool bar that is attached to windows.
 
 Displaying a Buffer in a Window
 
@@ -1167,6 +1168,10 @@ Local Variables in Files
 
 * Specifying File Variables:: Specifying file local variables.
 * Safe File Variables::       Making sure file local variables are safe.
+
+Local Variables in Directories
+
+* EditorConfig support::  Per-Directory Variables via EditorConfig
 
 Customizing Key Bindings
 

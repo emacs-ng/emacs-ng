@@ -572,7 +572,7 @@ MODE is either `c' or `cpp'."
                   "not" "not_eq" "operator" "or"
                   "or_eq" "override" "private" "protected"
                   "public" "requires" "template" "throw"
-                  "try" "typename" "using" "virtual"
+                  "try" "typename" "using"
                   "xor" "xor_eq"))
       (append '("auto") c-keywords))))
 
@@ -597,8 +597,9 @@ MODE is either `c' or `cpp'."
   (treesit-font-lock-rules
    :language mode
    :feature 'comment
-   `((comment) @font-lock-comment-face
-     (comment) @contextual)
+   `(((comment) @font-lock-doc-face
+      (:match ,(rx bos "/**") @font-lock-doc-face))
+     (comment) @font-lock-comment-face)
 
    :language mode
    :feature 'preprocessor
@@ -616,8 +617,11 @@ MODE is either `c' or `cpp'."
      (preproc_params
       (identifier) @font-lock-variable-name-face)
 
-     (preproc_defined) @font-lock-preprocessor-face
-     (preproc_defined (identifier) @font-lock-variable-name-face)
+     (preproc_defined
+      "defined" @font-lock-preprocessor-face
+      "(" @font-lock-preprocessor-face
+      (identifier) @font-lock-variable-name-face
+      ")" @font-lock-preprocessor-face)
      [,@c-ts-mode--preproc-keywords] @font-lock-preprocessor-face)
 
    :language mode
@@ -631,7 +635,8 @@ MODE is either `c' or `cpp'."
    `([,@(c-ts-mode--keywords mode)] @font-lock-keyword-face
      ,@(when (eq mode 'cpp)
          '((auto) @font-lock-keyword-face
-           (this) @font-lock-keyword-face)))
+           (this) @font-lock-keyword-face
+           (virtual) @font-lock-keyword-face)))
 
    :language mode
    :feature 'operator
@@ -659,9 +664,11 @@ MODE is either `c' or `cpp'."
          '((type_qualifier) @font-lock-type-face
 
            (qualified_identifier
-            scope: (namespace_identifier) @font-lock-type-face)
+            scope: (namespace_identifier) @font-lock-constant-face)
 
-           (operator_cast) type: (type_identifier) @font-lock-type-face))
+           (operator_cast) type: (type_identifier) @font-lock-type-face
+
+           (namespace_identifier) @font-lock-constant-face))
      [,@c-ts-mode--type-keywords] @font-lock-type-face)
 
    :language mode

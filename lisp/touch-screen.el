@@ -23,8 +23,8 @@
 ;;; Commentary:
 
 ;; This file provides code to recognize simple touch screen gestures.
-;; It is used on X and Android, currently the only systems where Emacs
-;; supports touch input.
+;; It is used on X, PGTK, and Android, currently the only systems where
+;; Emacs supports touch input.
 ;;
 ;; See (elisp)Touchscreen Events for a description of the details of
 ;; touch events.
@@ -153,6 +153,17 @@ selected.")
   "The start and end positions of the first word to be selected.
 Used in an attempt to keep this word selected during later
 dragging.")
+
+;; Should this variable be documented?
+(defvar-local touch-screen-keyboard-function nil
+  "Function that decides whether to display the on screen keyboard.
+If set, this function is called with point set to the position of the
+tap involved when a command listed in `touch-screen-set-point-commands'
+is about to be invoked in response to a tap, the current buffer, or the
+text beneath point (in the case of an `inhibit-read-only' text
+property), is not read only, and `touch-screen-display-keyboard' is nil,
+and should return non-nil if it is appropriate to display the on-screen
+keyboard afterwards.")
 
 
 
@@ -351,7 +362,8 @@ word around EVENT; otherwise, set point to the location of EVENT."
                   touch-screen-word-select-bounds nil)
             (push-mark point)
             (goto-char point)
-            (activate-mark))
+            (activate-mark)
+            (setq deactivate-mark nil))
         ;; Start word selection by trying to obtain the position
         ;; around point.
         (let ((word-start nil)
@@ -381,7 +393,8 @@ word around EVENT; otherwise, set point to the location of EVENT."
                       touch-screen-word-select-initial-word nil)
                 (push-mark point)
                 (goto-char point)
-                (activate-mark))
+                (activate-mark)
+                (setq deactivate-mark nil))
             ;; Otherwise, select the word.  Move point to either the
             ;; end or the start of the word, depending on which is
             ;; closer to EVENT.
@@ -420,10 +433,12 @@ word around EVENT; otherwise, set point to the location of EVENT."
                   (progn
                     (push-mark word-start)
                     (activate-mark)
+                    (setq deactivate-mark nil)
                     (goto-char word-end))
                 (progn
                     (push-mark word-end)
                     (activate-mark)
+                    (setq deactivate-mark nil)
                     (goto-char word-start)))
               ;; Record the bounds of the selected word.
               (setq touch-screen-word-select-bounds
@@ -837,7 +852,8 @@ area."
                       ;; Display a preview of the line now around
                       ;; point if requested by the user.
                       (when touch-screen-preview-select
-                        (touch-screen-preview-select))))))))))))))
+                        (touch-screen-preview-select)))))))))))
+      (setq deactivate-mark nil))))
 
 (defun touch-screen-restart-drag (event)
   "Restart dragging to select text.
@@ -921,8 +937,8 @@ text scale by the ratio therein."
                               (aset touch-screen-aux-tool 7
                                     current-scale)))
         ;; Set the text scale.
-        (text-scale-set (+ start-scale
-                           (round (log scale text-scale-mode-step))))
+        (text-scale-set (floor (+ (round (log scale text-scale-mode-step))
+                                  start-scale)))
         ;; Subsequently move the row which was at the centrum to its Y
         ;; position.
         (if (and (not (eq current-scale
@@ -1195,48 +1211,35 @@ last such event."
             (initial-distance (aref touch-screen-aux-tool 4))
             (initial-centrum (aref touch-screen-aux-tool 5)))
         (let* ((ratio (/ distance initial-distance))
-               (ratio-diff (- ratio (aref touch-screen-aux-tool 6)))
-               (diff (abs (- ratio (aref touch-screen-aux-tool 6))))
-               (centrum-diff (+ (abs (- (car initial-centrum)
-                                        (car centrum)))
-                                (abs (- (cdr initial-centrum)
-                                        (cdr centrum))))))
-          ;; If the difference in ratio has surpassed a threshold of
-          ;; 0.2 or the centrum difference exceeds the frame's char
-          ;; width, send a touchscreen-pinch event with this
-          ;; information and update that saved in
-          ;; touch-screen-aux-tool.
-          (when (or (> diff 0.2)
-                    (> centrum-diff
-                       (/ (frame-char-width) 2)))
-            (aset touch-screen-aux-tool 5 centrum)
-            (aset touch-screen-aux-tool 6 ratio)
-            (throw 'input-event
-                   (list 'touchscreen-pinch
-                         (if (or (<= (car centrum) 0)
-                                 (<= (cdr centrum) 0))
+               (ratio-diff (- ratio (aref touch-screen-aux-tool 6))))
+          ;; Update the internal record of its position and generate an
+          ;; event.
+          (aset touch-screen-aux-tool 5 centrum)
+          (aset touch-screen-aux-tool 6 ratio)
+          (throw 'input-event
+                 (list 'touchscreen-pinch
+                       (if (or (<= (car centrum) 0)
+                               (<= (cdr centrum) 0))
+                           (list window nil centrum nil nil
+                                 nil nil nil nil nil)
+                         (let ((posn (posn-at-x-y (car centrum)
+                                                  (cdr centrum)
+                                                  window)))
+                           (if (eq (posn-window posn)
+                                   window)
+                               posn
+                             ;; Return a placeholder outside the window
+                             ;; if the centrum has moved beyond the
+                             ;; confines of the window where the gesture
+                             ;; commenced.
                              (list window nil centrum nil nil
-                                   nil nil nil nil nil)
-                           (let ((posn (posn-at-x-y (car centrum)
-                                                    (cdr centrum)
-                                                    window)))
-                             (if (eq (posn-window posn)
-                                     window)
-                                 posn
-                               ;; Return a placeholder
-                               ;; outside the window if
-                               ;; the centrum has moved
-                               ;; beyond the confines of
-                               ;; the window where the
-                               ;; gesture commenced.
-                               (list window nil centrum nil nil
-                                     nil nil nil nil nil))))
-                         ratio
-                         (- (car centrum)
-                            (car initial-centrum))
-                         (- (cdr centrum)
-                            (cdr initial-centrum))
-                         ratio-diff))))))))
+                                   nil nil nil nil nil))))
+                       ratio
+                       (- (car centrum)
+                          (car initial-centrum))
+                       (- (cdr centrum)
+                          (cdr initial-centrum))
+                       ratio-diff)))))))
 
 (defun touch-screen-window-selection-changed (frame)
   "Notice that FRAME's selected window has changed.
@@ -1334,7 +1337,9 @@ is not read-only."
                  ;; Now simulate a mouse click there.  If there is a
                  ;; link or a button, use mouse-2 to push it.
                  (let* ((event (list (if (or (mouse-on-link-p posn)
-                                             (and point (button-at point)))
+                                             (and point
+                                                  (get-char-property
+                                                   point 'button)))
                                          'mouse-2
                                        'mouse-1)
                                      posn))
@@ -1351,21 +1356,38 @@ is not read-only."
                    ;; Figure out if the on screen keyboard needs to be
                    ;; displayed.
                    (when command
-                     (if (memq command touch-screen-set-point-commands)
+                     (if (or (memq command touch-screen-set-point-commands)
+                             ;; Users of packages that redefine
+                             ;; `mouse-set-point', or other commands
+                             ;; recognized as defining the point, should
+                             ;; not find the on screen keyboard
+                             ;; inaccessible even with
+                             ;; `touch-screen-display-keyboard' enabled.
+                             touch-screen-display-keyboard)
                          (if touch-screen-translate-prompt
                              ;; Forgo displaying the virtual keyboard
-                             ;; should touch-screen-translate-prompt be
+                             ;; should `touch-screen-translate-prompt' be
                              ;; set, for then the key won't be delivered
                              ;; to the command loop, but rather to a
-                             ;; caller of read-key-sequence such as
-                             ;; describe-key.
+                             ;; caller of `read-key-sequence' such as
+                             ;; `describe-key'.
                              (throw 'input-event event)
-                           (if (and (or (not buffer-read-only)
-                                        touch-screen-display-keyboard)
-                                    ;; Detect the splash screen and
-                                    ;; avoid displaying the on screen
-                                    ;; keyboard there.
-                                    (not (equal (buffer-name) "*GNU Emacs*")))
+                           (if (or touch-screen-display-keyboard
+                                   (and (or (not buffer-read-only)
+                                            inhibit-read-only
+                                            ;; Display the on screen
+                                            ;; keyboard even if just the
+                                            ;; text under point is not
+                                            ;; read-only.
+                                            (get-text-property
+                                             point 'inhibit-read-only))
+                                        ;; If the major mode has defined
+                                        ;; bespoke criteria for
+                                        ;; displaying the on screen
+                                        ;; keyboard, consult it here.
+                                        (or (not touch-screen-keyboard-function)
+                                            (funcall
+                                             touch-screen-keyboard-function))))
                                ;; Once the on-screen keyboard has been
                                ;; opened, add
                                ;; `touch-screen-window-selection-changed'
@@ -1729,6 +1751,7 @@ functions undertaking event management themselves to call
 
 (put 'mouse-drag-region 'ignored-mouse-command t)
 
+;;;###autoload
 (defun touch-screen-translate-touch (prompt)
   "Translate touch screen events into a sequence of mouse events.
 PROMPT is the prompt string given to `read-key-sequence', or nil
@@ -1817,10 +1840,17 @@ if POSN is on a link or a button, or `mouse-1' otherwise."
         ;; no key events have been translated.
         (if event (or (and prefix (consp event)
                            ;; Only generate virtual function keys for
-                           ;; mouse events.
+                           ;; mouse events...
                            (memq (car event)
                                  '(down-mouse-1 mouse-1
                                    mouse-2 mouse-movement))
+                           ;; .. and provided that Emacs has never
+                           ;; previously encountered an event of this
+                           ;; description, so that its `event-kind'
+                           ;; property has yet to be initialized and
+                           ;; keyboard.c will not understand whether and
+                           ;; how to append a function key prefix.
+                           (null (get (car event) 'event-kind))
                            ;; If this is a mode line event, then
                            ;; generate the appropriate function key.
                            (vector prefix event))
@@ -2035,10 +2065,10 @@ sent until the touch sequence currently being translated ends.
 Must be called from a command bound to a `touchscreen-hold' or
 `touchscreen-drag' event."
   (let* ((tool touch-screen-current-tool)
-         (current-what (nth 4 tool)))
-    ;; Signal an error if no hold or drag is in progress.
-    (when (and (not (eq current-what 'hold)
-                    (eq current-what 'drag)))
+         (current-what (nth 3 tool)))
+    ;; Signal an error if no hold and no drag is in progress.
+    (when (and (not (eq current-what 'held))
+               (not (eq current-what 'drag)))
       (error "Calling `touch-screen-inhibit-drag' outside hold or drag"))
     ;; Now set the fourth element of tool to `command-inhibit'.
     (setcar (nthcdr 3 tool) 'command-inhibit)))

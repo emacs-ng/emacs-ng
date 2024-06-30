@@ -140,6 +140,12 @@ typedef struct w32_bitmap_record Bitmap_Record;
 #define PIX_MASK_RETAIN	0
 #define PIX_MASK_DRAW	1
 
+#define XBM_BIT_SHUFFLE(b) (~(b))
+
+#else
+
+#define XBM_BIT_SHUFFLE(b) (b)
+
 #endif /* HAVE_NTGUI */
 
 #ifdef HAVE_NS
@@ -225,6 +231,9 @@ typedef android_pixmap Pixmap;
 #define GREEN16_FROM_ULONG(color)	(GREEN_FROM_ULONG (color) * 0x101)
 #define BLUE16_FROM_ULONG(color)	(BLUE_FROM_ULONG (color) * 0x101)
 
+/* DPYINFO->n_planes is unsuitable for this file, because it accepts
+   values that may not be supported for pixmap creation.  */
+#define n_planes n_image_planes
 #endif
 
 static void image_disable_image (struct frame *, struct image *);
@@ -236,6 +245,11 @@ static unsigned long lookup_rgb_color (struct frame *f, int r, int g, int b);
 #ifdef COLOR_TABLE_SUPPORT
 static void free_color_table (void);
 static unsigned long *colors_in_color_table (int *n);
+#endif
+
+#ifdef HAVE_NTGUI
+static HBITMAP w32_create_pixmap_from_bitmap_data (int, int, char *);
+
 #endif
 
 #if defined (HAVE_WEBP) || defined (HAVE_GIF)
@@ -446,7 +460,7 @@ x_bitmap_stipple (struct frame *f, Pixmap pixmap)
 #endif	/* USE_CAIRO */
 #endif
 
-#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI)
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI) || defined (HAVE_ANDROID)
 ptrdiff_t
 image_bitmap_pixmap (struct frame *f, ptrdiff_t id)
 {
@@ -620,13 +634,31 @@ image_create_bitmap_from_data (struct frame *f, char *bits,
 #endif /* HAVE_ANDROID && !defined ANDROID_STUBIFY */
 
 #ifdef HAVE_NTGUI
-  Lisp_Object frame UNINIT;	/* The value is not used.  */
-  Emacs_Pixmap bitmap;
-  bitmap = CreateBitmap (width, height,
-			 FRAME_DISPLAY_INFO (XFRAME (frame))->n_planes,
-			 FRAME_DISPLAY_INFO (XFRAME (frame))->n_cbits,
-			 bits);
-  if (! bitmap)
+  Emacs_Pixmap stipple;
+  Emacs_Pixmap bitmap = CreateBitmap (width, height, dpyinfo->n_planes,
+				      dpyinfo->n_cbits, bits);
+
+  /* Convert X bitmap to W32 bitmap.  */
+  /* Windows mono bitmaps are reversed compared with X.  */
+  USE_SAFE_ALLOCA;
+
+  {
+    char *invertedBits;
+    int nbytes = (width + CHAR_BIT - 1) / CHAR_BIT * height, i;
+
+    invertedBits = bits;
+
+    SAFE_NALLOCA (bits, 1, nbytes);
+
+    for (i = 0; i < nbytes; i++)
+      bits[i] = XBM_BIT_SHUFFLE (invertedBits[i]);
+  }
+
+  stipple = w32_create_pixmap_from_bitmap_data (width, height, bits);
+
+  SAFE_FREE ();
+
+  if (!bitmap || !stipple)
     return -1;
 #endif /* HAVE_NTGUI */
 
@@ -705,6 +737,7 @@ image_create_bitmap_from_data (struct frame *f, char *bits,
 
 #ifdef HAVE_NTGUI
   dpyinfo->bitmaps[id - 1].pixmap = bitmap;
+  dpyinfo->bitmaps[id - 1].stipple = stipple;
   dpyinfo->bitmaps[id - 1].hinst = NULL;
   dpyinfo->bitmaps[id - 1].depth = 1;
 #endif /* HAVE_NTGUI */
@@ -723,7 +756,7 @@ typedef int image_fd;
 #endif /* defined HAVE_ANDROID && !defined ANDROID_STUBIFY */
 
 #if defined HAVE_HAIKU || defined HAVE_NS || defined HAVE_PGTK	\
-  || defined HAVE_ANDROID
+  || defined HAVE_ANDROID || defined HAVE_NTGUI
 static char *slurp_file (image_fd, ptrdiff_t *);
 static Lisp_Object image_find_image_fd (Lisp_Object, image_fd *);
 static bool xbm_read_bitmap_data (struct frame *, char *, char *,
@@ -735,11 +768,57 @@ static bool xbm_read_bitmap_data (struct frame *, char *, char *,
 ptrdiff_t
 image_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 {
-#if defined (HAVE_NTGUI)
+#ifdef USE_WEBRENDER
   return -1;  /* W32_TODO : bitmap support */
-#elif defined (USE_WEBRENDER)
-#else
+#endif
+
   Display_Info *dpyinfo = FRAME_DISPLAY_INFO (f);
+
+#ifdef HAVE_NTGUI
+  ptrdiff_t id, size;
+  int width, height, rc;
+  image_fd fd;
+  char *contents, *data;
+  Emacs_Pixmap bitmap;
+
+  if (!STRINGP (image_find_image_fd (file, &fd)))
+    return -1;
+
+  contents = slurp_file (fd, &size);
+
+  if (!contents)
+    return -1;
+
+  rc = xbm_read_bitmap_data (f, contents, contents + size,
+			     &width, &height, &data, 0);
+
+  if (!rc)
+    {
+      xfree (contents);
+      return -1;
+    }
+
+  {
+    /* Windows mono bitmaps are reversed compared with X.  */
+
+    int nbytes, i;
+    nbytes = (width + CHAR_BIT - 1) / CHAR_BIT * height;
+
+    for (i = 0; i < nbytes; i++)
+      data[i] = XBM_BIT_SHUFFLE (data[i]);
+  }
+
+  id = image_allocate_bitmap_record (f);
+  bitmap = w32_create_pixmap_from_bitmap_data (width, height, data);
+
+  dpyinfo->bitmaps[id - 1].height = width;
+  dpyinfo->bitmaps[id - 1].width = height;
+  dpyinfo->bitmaps[id - 1].stipple = bitmap;
+  dpyinfo->bitmaps[id - 1].file = xlispstrdup (file);
+
+  xfree (contents);
+  xfree (data);
+  return id;
 #endif
 
 #ifdef HAVE_NS
@@ -791,7 +870,6 @@ image_create_bitmap_from_file (struct frame *f, Lisp_Object file)
   ptrdiff_t id, size;
   int fd, width, height, rc;
   char *contents, *data;
-  void *bitmap;
 
   if (!STRINGP (image_find_image_fd (file, &fd)))
     return -1;
@@ -986,10 +1064,17 @@ image_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 	}
     }
 
-  /* Search bitmap-file-path for the file, if appropriate.  */
-  if (openp (Vx_bitmap_file_path, file, Qnil, &found,
-	     make_fixnum (R_OK), false, false, NULL)
-      < 0)
+  /* Search bitmap-file-path for the file, if appropriate.  If no file
+     extension or directory is specified and no file by this name
+     exists, append the extension ".xbm" and retry.  */
+  if ((openp (Vx_bitmap_file_path, file, Qnil, &found,
+	      make_fixnum (R_OK), false, false, NULL) < 0)
+      && (NILP (Fequal (Ffile_name_nondirectory (file), file))
+	  || strrchr (SSDATA (file), '.')
+	  || (openp (Vx_bitmap_file_path,
+		     CALLN (Fconcat, file, build_string (".xbm")),
+		     Qnil, &found, make_fixnum (R_OK), false, false,
+		     NULL) < 0)))
     return -1;
 
   if (!STRINGP (image_find_image_fd (file, &fd))
@@ -1060,6 +1145,7 @@ free_bitmap_record (Display_Info *dpyinfo, Bitmap_Record *bm)
 
 #ifdef HAVE_NTGUI
   DeleteObject (bm->pixmap);
+  DeleteObject (bm->stipple);
 #endif /* HAVE_NTGUI */
 
 #ifdef HAVE_NS
@@ -2144,6 +2230,8 @@ make_image_cache (void)
   c->used = c->refcount = 0;
   c->images = xmalloc (c->size * sizeof *c->images);
   c->buckets = xzalloc (IMAGE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+  /* This value should never be encountered.  */
+  c->scaling_col_width = -1;
   return c;
 }
 
@@ -2276,7 +2364,7 @@ free_image_cache (struct frame *f)
    If image-cache-eviction-delay is non-nil, this frees images in the cache
    which weren't displayed for at least that many seconds.  */
 
-static void
+void
 clear_image_cache (struct frame *f, Lisp_Object filter)
 {
   struct image_cache *c = FRAME_IMAGE_CACHE (f);
@@ -2619,17 +2707,49 @@ image_get_dimension (struct image *img, Lisp_Object symbol)
   return -1;
 }
 
-/* Compute the desired size of an image with native size WIDTH x HEIGHT.
-   Use IMG to deduce the size.  Store the desired size into
-   *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the native size is OK.  */
+/* Compute the desired size of an image with native size WIDTH x HEIGHT,
+   which is to be displayed on F.  Use IMG to deduce the size.  Store
+   the desired size into *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the
+   native size is OK.  */
+
 static void
-compute_image_size (double width, double height,
+compute_image_size (struct frame *f, double width, double height,
 		    struct image *img,
 		    int *d_width, int *d_height)
 {
   double scale = 1;
   Lisp_Object value = image_spec_value (img->spec, QCscale, NULL);
-  if (NUMBERP (value))
+
+  if (EQ (value, Qdefault))
+    {
+      Lisp_Object sval = Vimage_scaling_factor;
+
+      /* Compute the scale from factors specified by the value of
+	 Vimage_scaling_factor.  */
+
+    invalid_value:
+      if (EQ (sval, Qauto))
+	{
+	  /* This is a tag with which callers of `clear_image_cache' can
+	     refer to this image and its likenesses.  */
+	  img->dependencies = Fcons (Qauto, img->dependencies);
+	  scale = (FRAME_COLUMN_WIDTH (f) > 10
+		   ? (FRAME_COLUMN_WIDTH (f) / 10.0f) : 1);
+	}
+      else if (NUMBERP (sval))
+	scale = XFLOATINT (sval);
+      else
+	{
+	  image_error ("Invalid `image-scaling-factor': %s",
+		       Vimage_scaling_factor);
+
+	  /* If Vimage_scaling_factor is set to an invalid value, treat
+	     it as though it were the default.  */
+	  sval = Qauto;
+	  goto invalid_value;
+	}
+    }
+  else if (NUMBERP (value))
     {
       double dval = XFLOATINT (value);
       if (0 <= dval)
@@ -2960,7 +3080,8 @@ image_set_transform (struct frame *f, struct image *img)
     }
   else
 #endif
-    compute_image_size (img->width, img->height, img, &width, &height);
+    compute_image_size (f, img->width, img->height, img, &width,
+			&height);
 
   /* Determine rotation.  */
   double rotation = 0.0;
@@ -3544,7 +3665,10 @@ cache_image (struct frame *f, struct image *img)
   ptrdiff_t i;
 
   if (!c)
-    c = FRAME_IMAGE_CACHE (f) = make_image_cache ();
+    {
+      c = FRAME_IMAGE_CACHE (f) = share_image_cache (f);
+      c->refcount++;
+    }
 
   /* Find a free slot in c->images.  */
   for (i = 0; i < c->used; ++i)
@@ -4836,12 +4960,6 @@ convert_mono_to_color_image (struct frame *f, struct image *img,
   else
     img->pixmap = new_pixmap;
 }
-
-#define XBM_BIT_SHUFFLE(b) (~(b))
-
-#else
-
-#define XBM_BIT_SHUFFLE(b) (b)
 
 #endif /* HAVE_NTGUI */
 
@@ -6273,6 +6391,8 @@ xpm_load_image (struct frame *f,
   expect (',');
 
   XSETFRAME (frame, f);
+
+#ifndef HAVE_ANDROID
   if (!NILP (Fxw_display_color_p (frame)))
     best_key = XPM_COLOR_KEY_C;
   else if (!NILP (Fx_display_grayscale_p (frame)))
@@ -6280,6 +6400,14 @@ xpm_load_image (struct frame *f,
 		? XPM_COLOR_KEY_G : XPM_COLOR_KEY_G4);
   else
     best_key = XPM_COLOR_KEY_M;
+#else /* HAVE_ANDROID */
+  /* The color-loading loop has not been taught to progressively settle
+     for less optimal color keys if no colors are defined for best_key,
+     and since libXpm is not available on Android, there is no better
+     option than delegating the task of mapping whatever color values
+     are provided to B/W or grayscale to the display driver.  */
+  best_key = XPM_COLOR_KEY_C;
+#endif /* !HAVE_ANDROID */
 
   color_symbols = image_spec_value (img->spec, QCcolor_symbols, NULL);
   if (chars_per_pixel == 1)
@@ -10753,14 +10881,14 @@ imagemagick_error (MagickWand *wand)
 static char *
 imagemagick_filename_hint (Lisp_Object spec, char hint_buffer[MaxTextExtent])
 {
-  Lisp_Object symbol = intern ("image-format-suffixes");
+  Lisp_Object symbol = Qimage_format_suffixes;
   Lisp_Object val = find_symbol_value (symbol);
   Lisp_Object format;
 
   if (! CONSP (val))
     return NULL;
 
-  format = image_spec_value (spec, intern (":format"), NULL);
+  format = image_spec_value (spec, QCformat, NULL);
   val = Fcar_safe (Fcdr_safe (Fassq (format, val)));
   if (! STRINGP (val))
     return NULL;
@@ -11125,7 +11253,7 @@ imagemagick_load_image (struct frame *f, struct image *img,
   }
 
 #ifndef DONT_CREATE_TRANSFORMED_IMAGEMAGICK_IMAGE
-  compute_image_size (MagickGetImageWidth (image_wand),
+  compute_image_size (f, MagickGetImageWidth (image_wand),
 		      MagickGetImageHeight (image_wand),
 		      img, &desired_width, &desired_height);
 #else
@@ -12098,7 +12226,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 #endif
 
 #ifdef HAVE_NATIVE_TRANSFORMS
-  compute_image_size (viewbox_width, viewbox_height, img,
+  compute_image_size (f, viewbox_width, viewbox_height, img,
                       &width, &height);
 
   width = scale_image_size (width, 1, FRAME_SCALE_FACTOR (f));
@@ -12509,7 +12637,7 @@ gs_load (struct frame *f, struct image *img)
   XSETFRAME (frame, f);
   loader = image_spec_value (img->spec, QCloader, NULL);
   if (NILP (loader))
-    loader = intern ("gs-load-image");
+    loader = Qgs_load_image;
 
   img->lisp_data = call6 (loader, frame, img->spec,
 			  make_fixnum (img->width),
@@ -12776,7 +12904,7 @@ static struct image_type const image_types[] =
 };
 
 #if HAVE_NATIVE_IMAGE_API
-struct image_type native_image_type =
+static struct image_type native_image_type =
   { SYMBOL_INDEX (Qnative_image), native_image_p, native_image_load,
     image_clear_image };
 #endif
@@ -12841,6 +12969,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qcount, "count");
   DEFSYM (Qextension_data, "extension-data");
   DEFSYM (Qdelay, "delay");
+  DEFSYM (Qauto, "auto");
 
   /* Keywords.  */
   DEFSYM (QCascent, ":ascent");
@@ -12885,6 +13014,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (QCloader, ":loader");
   DEFSYM (QCpt_width, ":pt-width");
   DEFSYM (QCpt_height, ":pt-height");
+  DEFSYM (Qgs_load_image, "gs-load-image");
 #endif /* HAVE_GHOSTSCRIPT */
 
 #ifdef HAVE_NTGUI
@@ -13071,6 +13201,17 @@ The value can also be nil, meaning the cache is never cleared.
 
 The function `clear-image-cache' disregards this variable.  */);
   Vimage_cache_eviction_delay = make_fixnum (300);
+
+  DEFVAR_LISP ("image-scaling-factor", Vimage_scaling_factor,
+    doc: /* When displaying images, apply this scaling factor before displaying.
+This is not supported for all image types, and is mostly useful
+when you have a high-resolution monitor.
+The value is either a floating point number (where numbers higher
+than 1 means to increase the size and lower means to shrink the
+size), or the symbol `auto', which will compute a scaling factor
+based on the font pixel size.  */);
+  Vimage_scaling_factor = Qauto;
+
 #ifdef HAVE_IMAGEMAGICK
   DEFVAR_INT ("imagemagick-render-type", imagemagick_render_type,
     doc: /* Integer indicating which ImageMagick rendering method to use.
@@ -13083,5 +13224,8 @@ The options are:
 */);
   /* MagickExportImagePixels is in 6.4.6-9, but not 6.4.4-10.  */
   imagemagick_render_type = 0;
-#endif
+
+  DEFSYM (Qimage_format_suffixes, "image-format-suffixes");
+  DEFSYM (QCformat, ":format");
+#endif /* HAVE_IMAGEMAGICK */
 }

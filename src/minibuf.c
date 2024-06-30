@@ -494,12 +494,11 @@ confirm the aborting of the current minibuffer and all contained ones.  */)
 	     to abort any extra non-minibuffer recursive edits.  Thus,
 	     the number of recursive edits we have to abort equals the
 	     number of minibuffers we have to abort.  */
-	  CALLN (Ffuncall, intern ("minibuffer-quit-recursive-edit"),
-		 array[1]);
+	  call1 (Qminibuffer_quit_recursive_edit, array[1]);
 	}
     }
   else
-    CALLN (Ffuncall, intern ("minibuffer-quit-recursive-edit"));
+    call0 (Qminibuffer_quit_recursive_edit);
   return Qnil;
 }
 
@@ -564,7 +563,8 @@ If the current buffer is not a minibuffer, return its entire contents.  */)
 
    DEFALT specifies the default value for the sake of history commands.
 
-   If ALLOW_PROPS, do not throw away text properties.
+   If ALLOW_PROPS or `minibuffer-allow-text-properties' (possibly
+   buffer-local) is non-nil, do not throw away text properties.
 
    if INHERIT_INPUT_METHOD, the minibuffer inherits the
    current input method.  */
@@ -929,7 +929,7 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
 
   /* Make minibuffer contents into a string.  */
   Fset_buffer (minibuffer);
-  if (allow_props)
+  if (allow_props || minibuffer_allow_text_properties)
     val = Fminibuffer_contents ();
   else
     val = Fminibuffer_contents_no_properties ();
@@ -1322,7 +1322,8 @@ Sixth arg DEFAULT-VALUE, if non-nil, should be a string, which is used
 Seventh arg INHERIT-INPUT-METHOD, if non-nil, means the minibuffer inherits
  the current input method and the setting of `enable-multibyte-characters'.
 
-If the variable `minibuffer-allow-text-properties' is non-nil,
+If the variable `minibuffer-allow-text-properties' is non-nil
+ (either let-bound or buffer-local in the minibuffer),
  then the string which is returned includes whatever text properties
  were present in the minibuffer.  Otherwise the value has no text properties.
 
@@ -1366,6 +1367,20 @@ and some related functions, which use zero-indexing for POSITION.  */)
     histvar = Qminibuffer_history;
   if (NILP (histpos))
     XSETFASTINT (histpos, 0);
+
+#ifdef HAVE_TEXT_CONVERSION
+  /* If overriding-text-conversion-style is set, assume that it was
+     changed prior to this call and force text conversion to be reset,
+     since redisplay might conclude that the value was retained
+     unmodified from a previous call to Fread_from_minibuffer as the
+     selected window will not have changed.  */
+  if (!EQ (Voverriding_text_conversion_style, Qlambda)
+      /* Separate minibuffer frames are not material here, since they
+         will already be selected if the situation that this is meant to
+         prevent is possible.  */
+      && FRAME_WINDOW_P (SELECTED_FRAME ()))
+    reset_frame_conversion (SELECTED_FRAME ());
+#endif /* HAVE_TEXT_CONVERSION */
 
   val = read_minibuf (keymap, initial_contents, prompt,
 		      !NILP (read),
@@ -1525,12 +1540,12 @@ function, instead of the usual behavior.  */)
 					      STRING_MULTIBYTE (prompt));
 	    }
 
-	  prompt = CALLN (Ffuncall, intern("format-prompt"),
+	  prompt = CALLN (Ffuncall, Qformat_prompt,
 			  prompt,
 			  CONSP (def) ? XCAR (def) : def);
 	}
 
-      result = Fcompleting_read (prompt, intern ("internal-complete-buffer"),
+      result = Fcompleting_read (prompt, Qinternal_complete_buffer,
 				 predicate, require_match, Qnil,
 				 Qbuffer_name_history, def, Qnil);
     }
@@ -2018,7 +2033,7 @@ See also `completing-read-function'.  */)
   (Lisp_Object prompt, Lisp_Object collection, Lisp_Object predicate, Lisp_Object require_match, Lisp_Object initial_input, Lisp_Object hist, Lisp_Object def, Lisp_Object inherit_input_method)
 {
   return CALLN (Ffuncall,
-		Fsymbol_value (intern ("completing-read-function")),
+		Fsymbol_value (Qcompleting_read_function),
 		prompt, collection, predicate, require_match, initial_input,
 		hist, def, inherit_input_method);
 }
@@ -2451,9 +2466,10 @@ basic completion functions like `try-completion' and `all-completions'.  */);
   DEFVAR_BOOL ("minibuffer-allow-text-properties",
 	       minibuffer_allow_text_properties,
 	       doc: /* Non-nil means `read-from-minibuffer' should not discard text properties.
-This also affects `read-string', but it does not affect `read-minibuffer',
-`read-no-blanks-input', or any of the functions that do minibuffer input
-with completion; they always discard text properties.  */);
+The value could be let-bound or buffer-local in the minibuffer.
+This also affects `read-string', or any of the functions that do
+minibuffer input with completion, but it does not affect `read-minibuffer'
+that always discards text properties.  */);
   minibuffer_allow_text_properties = 0;
 
   DEFVAR_LISP ("minibuffer-prompt-properties", Vminibuffer_prompt_properties,
@@ -2517,4 +2533,8 @@ showing the *Completions* buffer, if any.  */);
   defsubr (&Stest_completion);
   defsubr (&Sassoc_string);
   defsubr (&Scompleting_read);
+  DEFSYM (Qminibuffer_quit_recursive_edit, "minibuffer-quit-recursive-edit");
+  DEFSYM (Qinternal_complete_buffer, "internal-complete-buffer");
+  DEFSYM (Qcompleting_read_function, "completing-read-function");
+  DEFSYM (Qformat_prompt, "format-prompt");
 }

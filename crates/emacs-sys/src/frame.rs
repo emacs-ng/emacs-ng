@@ -429,7 +429,7 @@ impl FrameRef {
 
     #[cfg(have_window_system)]
     pub fn image_cache(self) -> ImageCacheRef {
-        self.terminal().image_cache()
+        ImageCacheRef::new(self.image_cache as *mut _)
     }
 
     #[cfg(have_window_system)]

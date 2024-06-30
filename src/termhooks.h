@@ -524,11 +524,6 @@ struct terminal
   /* The terminal's keyboard object. */
   struct kboard *kboard;
 
-#ifdef HAVE_WINDOW_SYSTEM
-  /* Cache of images.  */
-  struct image_cache *image_cache;
-#endif /* HAVE_WINDOW_SYSTEM */
-
 #ifdef HAVE_WINIT
   /* Winit terminal global state in Rust */
   void *winit;

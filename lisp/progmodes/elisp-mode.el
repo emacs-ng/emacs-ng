@@ -1557,13 +1557,16 @@ character)."
   (pcase-let*
       ((`(,insert-value ,no-truncate ,char-print-limit)
         (eval-expression-get-print-arguments eval-last-sexp-arg-internal)))
-    ;; Setup the lexical environment if lexical-binding is enabled.
-    (elisp--eval-last-sexp-print-value
-     (eval (macroexpand-all
-            (eval-sexp-add-defvars
-             (elisp--eval-defun-1 (macroexpand (elisp--preceding-sexp)))))
-           lexical-binding)
-     (if insert-value (current-buffer) t) no-truncate char-print-limit)))
+    ;; The expression might change to a different buffer, so record the
+    ;; desired output stream now.
+    (let ((output (if insert-value (current-buffer) t)))
+      ;; Setup the lexical environment if lexical-binding is enabled.
+      (elisp--eval-last-sexp-print-value
+       (eval (macroexpand-all
+              (eval-sexp-add-defvars
+               (elisp--eval-defun-1 (macroexpand (elisp--preceding-sexp)))))
+             lexical-binding)
+       output no-truncate char-print-limit))))
 
 (defun elisp--eval-last-sexp-print-value
     (value output &optional no-truncate char-print-limit)
@@ -1630,7 +1633,10 @@ integer value is also printed as a character of that codepoint.
 If `eval-expression-debug-on-error' is non-nil, which is the default,
 this command arranges for all errors to enter the debugger."
   (interactive "P")
-  (values--store-value
+  (funcall
+   ;; Not sure why commit 4428c27c1ae7d stored into `values' only when
+   ;; `eval-expression-debug-on-error' was nil, but let's preserve that.
+   (if eval-expression-debug-on-error #'identity #'values--store-value)
    (handler-bind ((error (if eval-expression-debug-on-error
                              #'eval-expression--debug #'ignore)))
      (elisp--eval-last-sexp eval-last-sexp-arg-internal))))

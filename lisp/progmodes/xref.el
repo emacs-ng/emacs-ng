@@ -1,7 +1,7 @@
 ;;; xref.el --- Cross-referencing commands              -*-lexical-binding:t-*-
 
 ;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
-;; Version: 1.6.3
+;; Version: 1.7.0
 ;; Package-Requires: ((emacs "26.1"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -993,7 +993,6 @@ point."
     ;; suggested by Johan Claesson "to further reduce finger movement":
     (define-key map (kbd ".") #'xref-next-line)
     (define-key map (kbd ",") #'xref-prev-line)
-    (define-key map (kbd "g") #'xref-revert-buffer)
     (define-key map (kbd "M-,") #'xref-quit-and-pop-marker-stack)
     map))
 
@@ -1011,13 +1010,16 @@ point."
         #'xref--imenu-extract-index-name)
   (setq-local add-log-current-defun-function
               #'xref--add-log-current-defun)
+  (setq-local revert-buffer-function #'xref--revert-buffer)
   (setq-local outline-minor-mode-cycle t)
   (setq-local outline-minor-mode-use-buttons 'insert)
   (setq-local outline-search-function
               (lambda (&optional bound move backward looking-at)
                 (outline-search-text-property
                  'xref-group nil bound move backward looking-at)))
-  (setq-local outline-level (lambda () 1)))
+  (setq-local outline-level (lambda () 1))
+  (add-hook 'revert-buffer-restore-functions
+            #'xref-revert-buffer-restore-point nil t))
 
 (defvar xref--transient-buffer-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1199,11 +1201,9 @@ to that style.  Otherwise it is returned unchanged."
   ;; values themselves (e.g. by piping through some public function),
   ;; or adding a new accessor to locations, like GROUP-TYPE.
   (cl-ecase xref-file-name-display
-    (abs group)
+    (abs (if (file-name-absolute-p group) group (expand-file-name group)))
     (nondirectory
-     (if (file-name-absolute-p group)
-         (file-name-nondirectory group)
-       group))
+     (file-name-nondirectory group))
     (project-relative
      (if (and project-root
               (string-prefix-p project-root group))
@@ -1269,21 +1269,20 @@ Return an alist of the form ((GROUP . (XREF ...)) ...)."
     (erase-buffer)
     (setq overlay-arrow-position nil)
     (xref--insert-xrefs xref-alist)
-    (add-hook 'post-command-hook 'xref--apply-truncation nil t)
+    (add-hook 'post-command-hook #'xref--apply-truncation nil t)
     (goto-char (point-min))
     (setq xref--original-window (assoc-default 'window alist)
           xref--original-window-intent (assoc-default 'display-action alist))
     (setq xref--fetcher fetcher)))
 
-(defun xref-revert-buffer ()
+(defun xref--revert-buffer (&rest _)    ; Ignore `revert-buffer' args.
   "Refresh the search results in the current buffer."
-  (interactive)
   (let ((inhibit-read-only t)
-        (buffer-undo-list t)
-        (inhibit-modification-hooks t))
+        (buffer-undo-list t))
     (save-excursion
       (condition-case err
-          (let ((alist (xref--analyze (funcall xref--fetcher))))
+          (let ((alist (xref--analyze (funcall xref--fetcher)))
+                (inhibit-modification-hooks t))
             (erase-buffer)
             (xref--insert-xrefs alist))
         (user-error
@@ -1292,6 +1291,28 @@ Return an alist of the form ((GROUP . (XREF ...)) ...)."
           (propertize
            (error-message-string err)
            'face 'error)))))))
+
+;;; FIXME: Make this alias obsolete in future release.
+(defalias 'xref-revert-buffer #'revert-buffer)
+
+(defun xref-revert-buffer-restore-point ()
+  "Restore point on a previous item or group after reverting."
+  (let* ((item
+          (when (xref--item-at-point)
+            (buffer-substring-no-properties (pos-bol) (pos-eol))))
+         (group
+          (save-excursion
+            (when (or (get-text-property (point) 'xref-group)
+                      (and item (xref--search-property 'xref-group t)
+                           (get-text-property (point) 'xref-group)))
+              (buffer-substring-no-properties (pos-bol) (pos-eol))))))
+    (when (or item group)
+      (lambda ()
+        (goto-char (point-min))
+        (when (and group (search-forward (concat "\n" group "\n") nil t))
+          (goto-char (pos-bol 0)))
+        (when (and item (search-forward (concat "\n" item "\n") nil t))
+          (goto-char (pos-bol 0)))))))
 
 (defun xref--auto-jump-first (buf value)
   (when value
@@ -1922,7 +1943,9 @@ to control which program to use when looking for matches."
        (hits nil)
        ;; Support for remote files.  The assumption is that, if the
        ;; first file is remote, they all are, and on the same host.
-       (dir (file-name-directory (car files)))
+       (dir (if (file-name-absolute-p (car files))
+                (file-name-directory (car files))
+              default-directory))
        (remote-id (file-remote-p dir))
        ;; The 'auto' default would be fine too, but ripgrep can't handle
        ;; the options we pass in that case.
@@ -2082,12 +2105,17 @@ Such as the current syntax table and the applied syntax properties."
 (defvar xref--last-file-buffer nil)
 (defvar xref--temp-buffer-file-name nil)
 (defvar xref--hits-remote-id nil)
+(defvar xref--hits-file-prefix nil)
 
 (defun xref--convert-hits (hits regexp)
-  (let (xref--last-file-buffer
-        (tmp-buffer (generate-new-buffer " *xref-temp*"))
-        (xref--hits-remote-id (file-remote-p default-directory))
-        (syntax-needed (xref--regexp-syntax-dependent-p regexp)))
+  (let* (xref--last-file-buffer
+         (tmp-buffer (generate-new-buffer " *xref-temp*"))
+         (xref--hits-remote-id (file-remote-p default-directory))
+         (xref--hits-file-prefix (if (and hits (file-name-absolute-p (cadar hits)))
+                                     ;; TODO: Add some test for this.
+                                     xref--hits-remote-id
+                                   (expand-file-name default-directory)))
+         (syntax-needed (xref--regexp-syntax-dependent-p regexp)))
     (unwind-protect
         (mapcan (lambda (hit)
                   (xref--collect-matches hit regexp tmp-buffer syntax-needed))
@@ -2096,9 +2124,8 @@ Such as the current syntax table and the applied syntax properties."
 
 (defun xref--collect-matches (hit regexp tmp-buffer syntax-needed)
   (pcase-let* ((`(,line ,file ,text) hit)
-               (file (and file (concat xref--hits-remote-id file)))
-               (buf (xref--find-file-buffer file))
-               (inhibit-modification-hooks t))
+               (file (and file (concat xref--hits-file-prefix file)))
+               (buf (xref--find-file-buffer file)))
     (if buf
         (with-current-buffer buf
           (save-excursion
@@ -2113,6 +2140,9 @@ Such as the current syntax table and the applied syntax properties."
       ;; Using the temporary buffer is both a performance and a buffer
       ;; management optimization.
       (with-current-buffer tmp-buffer
+        ;; This let is fairly dangerous, but improves performance
+        ;; for large lists, see https://debbugs.gnu.org/53749#227
+        (let ((inhibit-modification-hooks t))
         (erase-buffer)
         (when (and syntax-needed
                    (not (equal file xref--temp-buffer-file-name)))
@@ -2127,8 +2157,10 @@ Such as the current syntax table and the applied syntax properties."
           (setq-local xref--temp-buffer-file-name file)
           (setq-local inhibit-read-only t)
           (erase-buffer))
-        (insert text)
+        (insert text))
         (goto-char (point-min))
+        (when syntax-needed
+          (syntax-ppss-flush-cache (point)))
         (xref--collect-matches-1 regexp file line
                                  (point)
                                  (point-max)

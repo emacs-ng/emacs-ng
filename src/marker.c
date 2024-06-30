@@ -21,7 +21,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <config.h>
 
 /* Work around GCC bug 113253.  */
-#if __GNUC__ == 13
+#if __GNUC__ == 13 && __GNUC_MINOR__ < 3
 # pragma GCC diagnostic ignored "-Wanalyzer-deref-before-check"
 #endif
 
@@ -358,11 +358,11 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
     {
       CONSIDER (tail->bytepos, tail->charpos);
 
-      /* If we are down to a range of 50 chars,
+      /* If we are down to a range of DISTANCE bytes,
 	 don't bother checking any other markers;
 	 scan the intervening chars directly now.  */
-      if (best_above - bytepos < distance
-          || bytepos - best_below < distance)
+      if (best_above_byte - bytepos < distance
+          || bytepos - best_below_byte < distance)
 	break;
       else
         distance += BYTECHAR_DISTANCE_INCREMENT;

@@ -236,7 +236,7 @@ To view this manual in other formats, click
 
 Appendices
 
-* Antinews::                Info for users downgrading to Emacs 28.
+* Antinews::                Info for users downgrading to Emacs 29.
 * GNU Free Documentation License:: The license for this documentation.
 * GPL::                     Conditions for copying and changing GNU Emacs.
 * Tips::                    Advice and coding conventions for Emacs Lisp.
@@ -323,7 +323,7 @@ Programming Types
 * Macro Type::          A method of expanding an expression into another
                           expression, more fundamental but less pretty.
 * Primitive Function Type::     A function written in C, callable from Lisp.
-* Byte-Code Type::      A function written in Lisp, then compiled.
+* Closure Type::        A function written in Lisp, then compiled.
 * Record Type::         Compound objects with programmer-defined types.
 * Type Descriptors::    Objects holding information about types.
 * Autoload Type::       A type used for automatically loading seldom-used
@@ -657,7 +657,7 @@ Byte Compilation
 * Docs and Compilation::    Dynamic loading of documentation strings.
 * Eval During Compile::     Code to be evaluated when you compile.
 * Compiler Errors::         Handling compiler error messages.
-* Byte-Code Objects::       The data type used for byte-compiled functions.
+* Closure Objects::         The data type used for byte-compiled functions.
 * Disassembly::             Disassembling byte-code; how to read byte-code.
 
 Native Compilation
@@ -925,6 +925,7 @@ Mode Line Format
 * %-Constructs::            Putting information into a mode line.
 * Properties in Mode::      Using text properties in the mode line.
 * Header Lines::            Like a mode line, but at the top.
+* Tab Lines::               A line that is above the header line.
 * Emulating Mode Line::     Formatting text as the mode line would.
 
 Font Lock Mode

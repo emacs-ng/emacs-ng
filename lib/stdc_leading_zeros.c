@@ -1,6 +1,5 @@
-/* Count the number of 1-bits in a word.
-
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+/* stdc_leading_zeros_* functions.
+   Copyright (C) 2024 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -17,9 +16,5 @@
 
 #include <config.h>
 
-#define COUNT_ONE_BITS_INLINE _GL_EXTERN_INLINE
-#include "count-one-bits.h"
-
-#if 1500 <= _MSC_VER && (defined _M_IX86 || defined _M_X64)
-int popcount_support = -1;
-#endif
+#define _GL_STDC_LEADING_ZEROS_INLINE _GL_EXTERN_INLINE
+#include <stdbit.h>

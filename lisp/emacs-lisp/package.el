@@ -174,7 +174,13 @@ with \"-q\").
 
 Even if the value is nil, you can type \\[package-initialize] to
 make installed packages available at any time, or you can
-call (package-activate-all) in your init-file."
+call (package-activate-all) in your init-file.
+
+Note that this variable must be set to a non-default value in
+your early-init file, as the variable's value is used before
+loading the regular init file.  Therefore, if you customize it
+via Customize, you should save your customized setting into
+your `early-init-file'."
   :type 'boolean
   :version "24.1")
 
@@ -2643,7 +2649,7 @@ will be deleted."
         (message "Nothing to autoremove")))))
 
 (defun package-isolate (packages &optional temp-init)
-  "Start an uncustomised Emacs and only load a set of PACKAGES.
+  "Start an uncustomized Emacs and only load a set of PACKAGES.
 If TEMP-INIT is non-nil, or when invoked with a prefix argument,
 the Emacs user directory is set to a temporary directory."
   (interactive
@@ -2944,7 +2950,7 @@ Helper function for `describe-package'."
         (insert " "))
       (insert "\n"))
     (when maintainers
-      (when (stringp (car maintainers))
+      (unless (and (listp (car maintainers)) (listp (cdr maintainers)))
         (setq maintainers (list maintainers)))
       (package--print-help-section
           (if (cdr maintainers) "Maintainers" "Maintainer"))

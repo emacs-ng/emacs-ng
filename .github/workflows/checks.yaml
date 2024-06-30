@@ -17,12 +17,12 @@ jobs:
     - name: Free up disk space for Ubuntu runner
       if: ${{ matrix.os == 'ubuntu-latest' }}
       uses: ./.github/actions/free-disk-space
-    - uses: cachix/install-nix-action@v26
+    - uses: cachix/install-nix-action@v27
 
     - name: Nix Flake Check
       run: nix -Lv flake check
 
-    - uses: cachix/cachix-action@v14
+    - uses: cachix/cachix-action@v15
       with:
         name: mycache
         authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"

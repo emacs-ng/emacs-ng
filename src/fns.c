@@ -152,7 +152,7 @@ efficient.  */)
     val = MAX_CHAR;
   else if (BOOL_VECTOR_P (sequence))
     val = bool_vector_size (sequence);
-  else if (COMPILEDP (sequence) || RECORDP (sequence))
+  else if (CLOSUREP (sequence) || RECORDP (sequence))
     val = PVSIZE (sequence);
   else
     wrong_type_argument (Qsequencep, sequence);
@@ -481,7 +481,7 @@ string_cmp (Lisp_Object string1, Lisp_Object string2)
       int d = memcmp (SSDATA (string1), SSDATA (string2), n);
       if (d)
 	return d;
-      return n < SCHARS (string2) ? -1 : n > SCHARS (string2);
+      return n < SCHARS (string2) ? -1 : n < SCHARS (string1);
     }
   else if (STRING_MULTIBYTE (string1) && STRING_MULTIBYTE (string2))
     {
@@ -515,7 +515,7 @@ string_cmp (Lisp_Object string1, Lisp_Object string2)
 
       if (b >= nb)
 	/* One string is a prefix of the other.  */
-	return b < nb2 ? -1 : b > nb2;
+	return b < nb2 ? -1 : b < nb1;
 
       /* Now back up to the start of the differing characters:
 	 it's the last byte not having the bit pattern 10xxxxxx.  */
@@ -540,7 +540,7 @@ string_cmp (Lisp_Object string1, Lisp_Object string2)
 	  if (c1 != c2)
 	    return c1 < c2 ? -1 : 1;
 	}
-      return i1 < SCHARS (string2) ? -1 : i1 > SCHARS (string2);
+      return i1 < SCHARS (string2) ? -1 : i1 < SCHARS (string1);
     }
   else
     {
@@ -553,7 +553,7 @@ string_cmp (Lisp_Object string1, Lisp_Object string2)
 	  if (c1 != c2)
 	    return c1 < c2 ? -1 : 1;
 	}
-      return i1 < SCHARS (string2) ? -1 : i1 > SCHARS (string2);
+      return i1 < SCHARS (string2) ? -1 : i1 < SCHARS (string1);
     }
 }
 
@@ -1054,7 +1054,7 @@ concat_to_list (ptrdiff_t nargs, Lisp_Object *args, Lisp_Object last_tail)
       else if (NILP (arg))
 	;
       else if (VECTORP (arg) || STRINGP (arg)
-	       || BOOL_VECTOR_P (arg) || COMPILEDP (arg))
+	       || BOOL_VECTOR_P (arg) || CLOSUREP (arg))
 	{
 	  ptrdiff_t arglen = XFIXNUM (Flength (arg));
 	  ptrdiff_t argindex_byte = 0;
@@ -1114,7 +1114,7 @@ concat_to_vector (ptrdiff_t nargs, Lisp_Object *args)
     {
       Lisp_Object arg = args[i];
       if (!(VECTORP (arg) || CONSP (arg) || NILP (arg) || STRINGP (arg)
-	    || BOOL_VECTOR_P (arg) || COMPILEDP (arg)))
+	    || BOOL_VECTOR_P (arg) || CLOSUREP (arg)))
 	wrong_type_argument (Qsequencep, arg);
       EMACS_INT len = XFIXNAT (Flength (arg));
       result_len += len;
@@ -1170,7 +1170,7 @@ concat_to_vector (ptrdiff_t nargs, Lisp_Object *args)
 	}
       else
 	{
-	  eassert (COMPILEDP (arg));
+	  eassert (CLOSUREP (arg));
 	  ptrdiff_t size = PVSIZE (arg);
 	  memcpy (dst, XVECTOR (arg)->contents, size * sizeof *dst);
 	  dst += size;
@@ -2006,11 +2006,12 @@ TESTFN is called with 2 arguments: a car of an alist element and KEY.  */)
   FOR_EACH_TAIL (tail)
     {
       Lisp_Object car = XCAR (tail);
-      if (CONSP (car)
-	  && (NILP (testfn)
-	      ? (EQ (XCAR (car), key) || !NILP (Fequal
-						(XCAR (car), key)))
-	      : !NILP (call2 (testfn, XCAR (car), key))))
+      if (!CONSP (car))
+	continue;
+      if ((NILP (testfn)
+	   ? (EQ (XCAR (car), key) || !NILP (Fequal
+					     (XCAR (car), key)))
+	   : !NILP (call2 (testfn, XCAR (car), key))))
 	return car;
     }
   CHECK_LIST_END (tail, alist);
@@ -2949,7 +2950,7 @@ internal_equal (Lisp_Object o1, Lisp_Object o2, enum equal_kind equal_kind,
 	if (size & PSEUDOVECTOR_FLAG)
 	  {
 	    if (((size & PVEC_TYPE_MASK) >> PSEUDOVECTOR_AREA_BITS)
-		< PVEC_COMPILED)
+		< PVEC_CLOSURE)
 	      return false;
 	    size &= PSEUDOVECTOR_SIZE_MASK;
 	  }
@@ -3057,7 +3058,7 @@ value_cmp (Lisp_Object a, Lisp_Object b, int maxdepth)
       goto type_mismatch;
 
     case Lisp_Cons:
-      /* FIXME: Optimise for difference in the first element? */
+      /* FIXME: Optimize for difference in the first element? */
       FOR_EACH_TAIL (b)
 	{
 	  int cmp = value_cmp (XCAR (a), XCAR (b), maxdepth - 1);
@@ -3124,10 +3125,12 @@ value_cmp (Lisp_Object a, Lisp_Object b, int maxdepth)
 		  return pa < pb ? -1 : pa > pb;
 		}
 
+#ifdef subprocesses
 	      case PVEC_PROCESS:
 		a = Fprocess_name (a);
 		b = Fprocess_name (b);
 		goto tail_recurse;
+#endif /* subprocesses */
 
 	      case PVEC_BUFFER:
 		{
@@ -3346,7 +3349,7 @@ mapcar1 (EMACS_INT leni, Lisp_Object *vals, Lisp_Object fn, Lisp_Object seq)
 	  tail = XCDR (tail);
 	}
     }
-  else if (VECTORP (seq) || COMPILEDP (seq))
+  else if (VECTORP (seq) || CLOSUREP (seq))
     {
       for (ptrdiff_t i = 0; i < leni; i++)
 	{
@@ -5356,7 +5359,7 @@ hash_string (char const *ptr, ptrdiff_t len)
 	  hash = sxhash_combine (hash, c);
 	}
       while (p + sizeof hash <= end);
-      /* Hash the last wordful of bytes in the string, because that is
+      /* Hash the last word's worth of bytes in the string, because that is
          is often the part where strings differ.  This may cause some
          bytes to be hashed twice but we assume that's not a big problem.  */
       EMACS_UINT c;
@@ -5512,7 +5515,7 @@ sxhash_obj (Lisp_Object obj, int depth)
     case Lisp_Vectorlike:
       {
 	enum pvec_type pvec_type = PSEUDOVECTOR_TYPE (XVECTOR (obj));
-	if (! (PVEC_NORMAL_VECTOR < pvec_type && pvec_type < PVEC_COMPILED))
+	if (! (PVEC_NORMAL_VECTOR < pvec_type && pvec_type < PVEC_CLOSURE))
 	  {
 	    /* According to the CL HyperSpec, two arrays are equal only if
 	       they are 'eq', except for strings and bit-vectors.  In
@@ -6333,7 +6336,7 @@ secure_hash (Lisp_Object algorithm, Lisp_Object object, Lisp_Object start,
   else
     error ("Invalid algorithm arg: %s", SDATA (Fsymbol_name (algorithm)));
 
-  /* allocate 2 x digest_size so that it can be re-used to hold the
+  /* allocate 2 x digest_size so that it can be reused to hold the
      hexified value */
   digest = make_uninit_string (digest_size * 2);
 

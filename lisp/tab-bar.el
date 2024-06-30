@@ -298,9 +298,13 @@ It returns a list of the form (KEY KEY-BINDING CLOSE-P), where:
    nil otherwise."
   (setq tab-bar--dragging-in-progress nil)
   (if (posn-window posn)
-      (let ((caption (car (posn-string posn))))
-        (when caption
-          (get-text-property 0 'menu-item caption)))
+      (let* ((caption (car (posn-string posn)))
+             (menu-item (when caption
+                          (get-text-property 0 'menu-item caption))))
+        (when (equal menu-item '(global ignore nil))
+          (setf (nth 1 menu-item)
+                (key-binding (vector 'tab-bar last-nonmenu-event) t)))
+        menu-item)
     ;; Text-mode emulation of switching tabs on the tab bar.
     ;; This code is used when you click the mouse in the tab bar
     ;; on a console which has no window system but does have a mouse.
@@ -332,7 +336,7 @@ existing tab."
     (setq tab-bar--dragging-in-progress t)
     ;; Don't close the tab when clicked on the close button.  Also
     ;; don't add new tab on down-mouse.  Let `tab-bar-mouse-1' do this.
-    (unless (or (memq (car item) '(add-tab history-back history-forward))
+    (unless (or (memq (car item) '(add-tab history-back history-forward global))
                 (nth 2 item))
       (if (functionp (nth 1 item))
           (call-interactively (nth 1 item))
@@ -347,7 +351,8 @@ regardless of where you click on it.  Also add a new tab."
   (let* ((item (tab-bar--event-to-item (event-start event)))
          (tab-number (tab-bar--key-to-number (nth 0 item))))
     (cond
-     ((and (memq (car item) '(add-tab history-back history-forward))
+     ((and (memq (car item) '(add-tab history-back history-forward global))
+           (not (eq (nth 1 item) 'tab-bar-mouse-1))
            (functionp (nth 1 item)))
       (call-interactively (nth 1 item)))
      ((and (nth 2 item) (not (eq tab-number t)))
@@ -468,8 +473,8 @@ appropriate."
                                  (tab-bar-select-tab number))))
                          ;; Cancel the timer.
                          (cancel-timer timer)))
-                      ((and (memq (car item) '(add-tab history-back
-                                                       history-forward))
+                      ((and (memq (car item) '( add-tab history-back
+                                                history-forward global))
                             (functionp (cadr item)))
                        ;; This is some kind of button.  Wait for the
                        ;; tap to complete and press it.
@@ -1018,7 +1023,11 @@ It should return the formatted tab group name to display in the tab bar."
 
 (defcustom tab-bar-tab-group-face-function #'tab-bar-tab-group-face-default
   "Function to define a tab group face.
-Function gets one argument: a tab."
+Function gets one argument: a tab.
+Please note that if you customized `tab-bar-tab-face-function'
+and want to use the same faces for non-group tabs with
+`tab-bar-format-tabs-groups' as well, then you can set this
+variable to the same function."
   :type 'function
   :group 'tab-bar
   :version "28.1")
@@ -1115,7 +1124,9 @@ When `tab-bar-format-global' is added to `tab-bar-format'
 then modes that display information on the mode line
 using `global-mode-string' will display the same text
 on the tab bar instead."
-  `((global menu-item ,(format-mode-line global-mode-string) ignore)))
+  (mapcar (lambda (string)
+            `(global menu-item ,(format-mode-line string) ignore))
+          global-mode-string))
 
 (defun tab-bar-format-list (format-list)
   (let ((i 0))
@@ -1161,33 +1172,47 @@ length of the tab's name."
   :group 'tab-bar
   :version "29.1")
 
-(defcustom tab-bar-auto-width-max '(220 20)
+(defcustom tab-bar-auto-width-max '((220) 20)
   "Maximum width for automatic resizing of width of tab-bar tabs.
 This determines the maximum width of tabs before their names will be
 truncated on display.
-The value should be a list of two numbers: the first is the maximum
-width of tabs in pixels for GUI frames, the second is the maximum
-width of tabs in characters on TTY frames.
+
+The value should be a list of two values: the first is the maximum width
+of tabs in pixels for GUI frames, the second is the maximum width of
+tabs in characters on TTY frames.  Of these two values both accept
+integers, but the first element that provides a width in pixels can
+further be a list of a single integer, also specifying an integral width
+in pixels, but signifying that it should be scaled by the difference
+between the `frame-char-height' of the tab bar's frame, and 15, when the
+former height exceeds the latter threshold.
+
 If the value of this variable is nil, there is no limit on maximum
 width.
 This variable has effect only when `tab-bar-auto-width' is non-nil."
   :type '(choice
           (const :tag "No limit" nil)
-          (list (integer :tag "Max width (pixels)" :value 220)
+          (list (choice
+                 (integer :tag "Max width (pixels)" :value 220)
+                 (list (integer :tag "Max width (scaled pixels)"
+                                :value 220)))
                 (integer :tag "Max width (chars)" :value 20)))
   :initialize #'custom-initialize-default
   :set (lambda (sym val)
          (set-default sym val)
          (setq tab-bar--auto-width-hash nil))
   :group 'tab-bar
-  :version "29.1")
+  :version "30.1")
 
-(defvar tab-bar-auto-width-min '(20 2)
+(defvar tab-bar-auto-width-min '((20) 2)
   "Minimum width of tabs for automatic resizing under `tab-bar-auto-width'.
 The value should be a list of two numbers, giving the minimum width
 as the number of pixels for GUI frames and the number of characters
 for text-mode frames.  Tabs whose width is smaller than this will not
 be narrowed.
+
+The first value may also be a list, as in `tab-bar-auto-width-max',
+which see.
+
 It's not recommended to change this value since with larger values, the
 tab bar might wrap to the second line when it shouldn't.")
 
@@ -1199,6 +1224,18 @@ tab bar might wrap to the second line when it shouldn't.")
 
 (defvar tab-bar--auto-width-hash nil
   "Memoization table for `tab-bar-auto-width'.")
+
+(defun tab-bar-auto-width-1 (wvalue)
+  "Return scaled value if WVALUE, if necessary.
+If WVALUE is a list of the form accepted as pixel width specifications
+by `tab-bar-auto-width-max' and suchlike, return its value as it should
+be scaled for display on the current frame."
+  (if (consp wvalue)
+      (let ((height (frame-char-height)))
+        (if (< height 15)
+            (car wvalue)
+          (* (car wvalue) (/ height 15.0))))
+    wvalue))
 
 (defun tab-bar-auto-width (items)
   "Return tab-bar items with resized tab names."
@@ -1225,11 +1262,13 @@ tab bar might wrap to the second line when it shouldn't.")
                      (length tabs)))
       (when tab-bar-auto-width-min
         (setq width (max width (if (window-system)
-                                   (nth 0 tab-bar-auto-width-min)
+                                   (tab-bar-auto-width-1
+                                    (nth 0 tab-bar-auto-width-min))
                                  (nth 1 tab-bar-auto-width-min)))))
       (when tab-bar-auto-width-max
         (setq width (min width (if (window-system)
-                                   (nth 0 tab-bar-auto-width-max)
+                                   (tab-bar-auto-width-1
+                                    (nth 0 tab-bar-auto-width-max))
                                  (nth 1 tab-bar-auto-width-max)))))
       (dolist (item tabs)
         (setf (nth 2 item)
@@ -1416,11 +1455,20 @@ and the newly selected tab."
 (defcustom tab-bar-select-restore-windows #'tab-bar-select-restore-windows
   "Function called when selecting a tab to handle windows whose buffer was killed.
 When a tab-bar tab displays a window whose buffer was killed since
-this tab was last selected, this function determines what to do with
-that window.  By default, either a random buffer is displayed instead of
-the killed buffer, or the window gets deleted.  However, with the help
-of `window-restore-killed-buffer-windows' it's possible to handle such
-situations better by displaying an information about the killed buffer."
+this tab was last selected, this variable determines what to do with
+that window.
+
+If this variable is nil, there is no special handling;
+`set-window-configuration' will decide what to do with the window,
+then either a random buffer is displayed instead of the killed buffer,
+or the window gets deleted.
+
+If this variable is a function, display another buffer in that window,
+and pass that buffer to the function.  See the variable
+`window-restore-killed-buffer-windows' for the calling convention.
+
+By default, `tab-bar-select-restore-windows' displays a placeholder buffer
+in the same window to give information about the killed buffer."
   :type '(choice (const :tag "No special handling" nil)
                  (const :tag "Show placeholder buffers"
                         tab-bar-select-restore-windows)
@@ -1440,13 +1488,11 @@ if it was visiting a file."
                      (buffer-file-name old-buffer)))
              (name (or file
                        (and (bufferp old-buffer)
-                            (fboundp 'buffer-last-name)
                             (buffer-last-name old-buffer))
                        old-buffer))
              (new-buffer (generate-new-buffer
-                          (format "*Old buffer %s*" name))))
+                          (format " *Old buffer %s*" name))))
         (with-current-buffer new-buffer
-          (set-auto-mode)
           (insert (format-message "This window displayed the %s `%s'.\n"
                                   (if file "file" "buffer")
                                   name))
@@ -1459,7 +1505,7 @@ if it was visiting a file."
                (set-window-point window (nth 3 quad))))
             (insert "\n"))
           (goto-char (point-min))
-          (setq buffer-read-only t)
+          (special-mode)
           (set-window-buffer window new-buffer))))))
 
 (defcustom tab-bar-select-restore-context t
@@ -1511,7 +1557,7 @@ Negative TAB-NUMBER counts tabs from the end of the tab bar."
     (when (and read-minibuffer-restore-windows minibuffer-was-active
                (not tab-bar-minibuffer-restore-tab))
       (setq-local tab-bar-minibuffer-restore-tab (1+ from-index))
-      (add-hook 'minibuffer-exit-hook 'tab-bar-minibuffer-restore-tab nil t))
+      (add-hook 'minibuffer-exit-hook #'tab-bar-minibuffer-restore-tab nil t))
 
     (unless (eq from-index to-index)
       (let* ((from-tab (tab-bar--tab))

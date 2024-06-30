@@ -1199,7 +1199,7 @@
       (erc-mode)
 
       (cl-letf (((symbol-function 'erc--route-insertion)
-                 (lambda (&rest r) (push r calls))))
+                 (lambda (&rest r) (ignore (push r calls)))))
 
         (ert-info ("Signals when `erc-server-announced-name' unset")
           (should-error (erc-networks--set-name nil (make-erc-response)))
@@ -1243,6 +1243,7 @@
 
   (with-current-buffer (get-buffer-create "irc.foonet.org")
     (erc-mode)
+    (erc--initialize-markers (point) nil)
     (setq erc-network 'FooNet
           erc-server-current-nick "tester"
           erc-server-process (erc-networks-tests--create-live-proc)
@@ -1282,6 +1283,7 @@
     (ert-info ("New buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-process (erc-networks-tests--create-live-proc)
@@ -1522,6 +1524,7 @@
     (ert-info ("New server buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-announced-name "us-east.foonet.org"
@@ -1574,6 +1577,7 @@
     (ert-info ("New server buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-announced-name "us-east.foonet.org" ; east

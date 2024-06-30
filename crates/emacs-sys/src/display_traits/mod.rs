@@ -318,10 +318,9 @@ impl Into<glyph_row_area::Type> for GlyphRowArea {
 pub enum FaceUnderlineType {
     None,
     Line,
+    Double,
     Wave,
-    #[cfg(use_webrender)]
     Dotted,
-    #[cfg(use_webrender)]
     Dashed,
 }
 
@@ -329,13 +328,12 @@ impl From<face_underline_type::Type> for FaceUnderlineType {
     fn from(t: face_underline_type::Type) -> Self {
         match t {
             face_underline_type::FACE_NO_UNDERLINE => FaceUnderlineType::None,
-            face_underline_type::FACE_UNDER_LINE => FaceUnderlineType::Line,
-            #[cfg(use_webrender)]
-            face_underline_type::FACE_UNDER_DOTTED => FaceUnderlineType::Dotted,
-            #[cfg(use_webrender)]
-            face_underline_type::FACE_UNDER_DASHED => FaceUnderlineType::Dashed,
-            face_underline_type::FACE_UNDER_WAVE => FaceUnderlineType::Wave,
-            _ => panic!("unsupported face underline type"),
+            face_underline_type::FACE_UNDERLINE_SINGLE => FaceUnderlineType::Line,
+            face_underline_type::FACE_UNDERLINE_DOUBLE_LINE => FaceUnderlineType::Double,
+            face_underline_type::FACE_UNDERLINE_DOTS => FaceUnderlineType::Dotted,
+            face_underline_type::FACE_UNDERLINE_DASHES => FaceUnderlineType::Dashed,
+            face_underline_type::FACE_UNDERLINE_WAVE => FaceUnderlineType::Wave,
+            _ => FaceUnderlineType::None,
         }
     }
 }
@@ -343,12 +341,11 @@ impl From<face_underline_type::Type> for FaceUnderlineType {
 impl Into<face_underline_type::Type> for FaceUnderlineType {
     fn into(self) -> face_underline_type::Type {
         match self {
-            FaceUnderlineType::Line => face_underline_type::FACE_UNDER_LINE,
-            #[cfg(use_webrender)]
-            FaceUnderlineType::Dotted => face_underline_type::FACE_UNDER_DOTTED,
-            #[cfg(use_webrender)]
-            FaceUnderlineType::Dashed => face_underline_type::FACE_UNDER_DASHED,
-            FaceUnderlineType::Wave => face_underline_type::FACE_UNDER_WAVE,
+            FaceUnderlineType::Line => face_underline_type::FACE_UNDERLINE_SINGLE,
+            FaceUnderlineType::Double => face_underline_type::FACE_UNDERLINE_DOUBLE_LINE,
+            FaceUnderlineType::Dotted => face_underline_type::FACE_UNDERLINE_DOTS,
+            FaceUnderlineType::Dashed => face_underline_type::FACE_UNDERLINE_DASHES,
+            FaceUnderlineType::Wave => face_underline_type::FACE_UNDERLINE_WAVE,
             FaceUnderlineType::None => face_underline_type::FACE_NO_UNDERLINE,
         }
     }

@@ -69,7 +69,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define lread_fd_cmp(n) (fd == (n))
 #define lread_fd_p	(fd >= 0)
 #define lread_close	emacs_close
-#define lread_fstat	fstat
+#define lread_fstat	sys_fstat
 #define lread_read_quit	emacs_read_quit
 #define lread_lseek	lseek
 
@@ -256,15 +256,13 @@ static Lisp_Object oblookup_considering_shorthand (Lisp_Object, const char *,
 						   ptrdiff_t *);
 
 
-/* Functions that read one byte from the current source READCHARFUN
+/* Function that reads one byte from the current source READCHARFUN
    or unreads one byte.  If the integer argument C is -1, it returns
    one read byte, or -1 when there's no more byte in the source.  If C
    is 0 or positive, it unreads C, and the return value is not
    interesting.  */
 
-static int readbyte_for_lambda (int, Lisp_Object);
 static int readbyte_from_file (int, Lisp_Object);
-static int readbyte_from_string (int, Lisp_Object);
 
 /* Handle unreading and rereading of characters.
    Write READCHAR to read a character,
@@ -278,8 +276,8 @@ static int readbyte_from_string (int, Lisp_Object);
 /* Same as READCHAR but set *MULTIBYTE to the multibyteness of the source.  */
 #define READCHAR_REPORT_MULTIBYTE(multibyte) readchar (readcharfun, multibyte)
 
-/* When READCHARFUN is Qget_file_char, Qget_emacs_mule_file_char,
-   Qlambda, or a cons, we use this to keep an unread character because
+/* When READCHARFUN is Qget_file_char or Qget_emacs_mule_file_char,
+   we use this to keep an unread character because
    a file stream can't handle multibyte-char unreading.  The value -1
    means that there's no unread character.  */
 static int unread_char = -1;
@@ -365,12 +363,6 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
       return c;
     }
 
-  if (EQ (readcharfun, Qlambda))
-    {
-      readbyte = readbyte_for_lambda;
-      goto read_multibyte;
-    }
-
   if (EQ (readcharfun, Qget_file_char))
     {
       eassert (infile);
@@ -398,20 +390,6 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
 	  read_from_string_index_byte++;
 	}
       return c;
-    }
-
-  if (CONSP (readcharfun) && STRINGP (XCAR (readcharfun)))
-    {
-      /* This is the case that read_vector is reading from a unibyte
-	 string that contains a byte sequence previously skipped
-	 because of #@NUMBER.  The car part of readcharfun is that
-	 string, and the cdr part is a value of readcharfun given to
-	 read_vector.  */
-      readbyte = readbyte_from_string;
-      eassert (infile);
-      if (EQ (XCDR (readcharfun), Qget_emacs_mule_file_char))
-	emacs_mule_encoding = 1;
-      goto read_multibyte;
     }
 
   if (EQ (readcharfun, Qget_emacs_mule_file_char))
@@ -545,14 +523,6 @@ unreadchar (Lisp_Object readcharfun, int c)
       read_from_string_index_byte
 	= string_char_to_byte (readcharfun, read_from_string_index);
     }
-  else if (CONSP (readcharfun) && STRINGP (XCAR (readcharfun)))
-    {
-      unread_char = c;
-    }
-  else if (EQ (readcharfun, Qlambda))
-    {
-      unread_char = c;
-    }
   else if (FROM_FILE_P (readcharfun))
     {
       unread_char = c;
@@ -560,13 +530,6 @@ unreadchar (Lisp_Object readcharfun, int c)
   else
     call1 (readcharfun, make_fixnum (c));
 }
-
-static int
-readbyte_for_lambda (int c, Lisp_Object readcharfun)
-{
-  return read_bytecode_char (c >= 0);
-}
-
 
 static int
 readbyte_from_stdio (void)
@@ -637,26 +600,6 @@ readbyte_from_file (int c, Lisp_Object readcharfun)
 
   return readbyte_from_stdio ();
 }
-
-static int
-readbyte_from_string (int c, Lisp_Object readcharfun)
-{
-  Lisp_Object string = XCAR (readcharfun);
-
-  if (c >= 0)
-    {
-      read_from_string_index--;
-      read_from_string_index_byte
-	= string_char_to_byte (string, read_from_string_index);
-    }
-
-  return (read_from_string_index < read_from_string_limit
-	  ? fetch_string_char_advance (string,
-				       &read_from_string_index,
-				       &read_from_string_index_byte)
-	  : -1);
-}
-
 
 /* Signal Qinvalid_read_syntax error.
    S is error string of length N (if > 0)  */
@@ -1041,25 +984,21 @@ If `inhibit-interaction' is non-nil, this function will signal an
 	  : make_fixnum (char_resolve_modifier_mask (XFIXNUM (val))));
 }
 
-DEFUN ("get-file-char", Fget_file_char, Sget_file_char, 0, 0, 0,
-       doc: /* Don't use this yourself.  */)
-  (void)
-{
-  if (!infile)
-    error ("get-file-char misused");
-  return make_fixnum (readbyte_from_stdio ());
-}
-
-
 
 
-/* Return true if the lisp code read using READCHARFUN defines a non-nil
-   `lexical-binding' file variable.  After returning, the stream is
-   positioned following the first line, if it is a comment or #! line,
-   otherwise nothing is read.  */
+typedef enum {
+  Cookie_None,			/* no cookie */
+  Cookie_Dyn,			/* explicit dynamic binding */
+  Cookie_Lex			/* explicit lexical binding */
+} lexical_cookie_t;
 
-static bool
-lisp_file_lexically_bound_p (Lisp_Object readcharfun)
+/* Determine if the lisp code read using READCHARFUN defines a
+   `lexical-binding' file variable return its value.
+   After returning, the stream is positioned following the first line,
+   if it is a comment or #! line, otherwise nothing is read.  */
+
+static lexical_cookie_t
+lisp_file_lexical_cookie (Lisp_Object readcharfun)
 {
   int ch = READCHAR;
 
@@ -1070,7 +1009,7 @@ lisp_file_lexically_bound_p (Lisp_Object readcharfun)
         {
           UNREAD (ch);
           UNREAD ('#');
-          return 0;
+          return Cookie_None;
         }
       while (ch != '\n' && ch != EOF)
         ch = READCHAR;
@@ -1083,12 +1022,12 @@ lisp_file_lexically_bound_p (Lisp_Object readcharfun)
     /* The first line isn't a comment, just give up.  */
     {
       UNREAD (ch);
-      return 0;
+      return Cookie_None;
     }
   else
     /* Look for an appropriate file-variable in the first line.  */
     {
-      bool rv = 0;
+      lexical_cookie_t rv = Cookie_None;
       enum {
 	NOMINAL, AFTER_FIRST_DASH, AFTER_ASTERIX
       } beg_end_state = NOMINAL;
@@ -1170,7 +1109,7 @@ lisp_file_lexically_bound_p (Lisp_Object readcharfun)
 	      if (strcmp (var, "lexical-binding") == 0)
 		/* This is it...  */
 		{
-		  rv = (strcmp (val, "nil") != 0);
+		  rv = strcmp (val, "nil") != 0 ? Cookie_Lex : Cookie_Dyn;
 		  break;
 		}
 	    }
@@ -1785,7 +1724,7 @@ Return t if the file exists and loads successfully.  */)
     }
   else
     {
-      if (lisp_file_lexically_bound_p (Qget_file_char))
+      if (lisp_file_lexical_cookie (Qget_file_char) == Cookie_Lex)
         Fset (Qlexical_binding, Qt);
 
       if (! version || version >= 22)
@@ -2643,7 +2582,8 @@ settings in the buffer, and if there is no such setting, the buffer
 will be evaluated without lexical binding.
 
 This function preserves the position of point.  */)
-  (Lisp_Object buffer, Lisp_Object printflag, Lisp_Object filename, Lisp_Object unibyte, Lisp_Object do_allow_print)
+  (Lisp_Object buffer, Lisp_Object printflag, Lisp_Object filename,
+   Lisp_Object unibyte, Lisp_Object do_allow_print)
 {
   specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object tem, buf;
@@ -2667,7 +2607,8 @@ This function preserves the position of point.  */)
   specbind (Qstandard_output, tem);
   record_unwind_protect_excursion ();
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
-  specbind (Qlexical_binding, lisp_file_lexically_bound_p (buf) ? Qt : Qnil);
+  specbind (Qlexical_binding,
+	    lisp_file_lexical_cookie (buf) == Cookie_Lex ? Qt : Qnil);
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
   readevalloop (buf, 0, filename,
 		!NILP (printflag), unibyte, Qnil, Qnil, Qnil);
@@ -2733,7 +2674,7 @@ STREAM or the value of `standard-input' may be:
        minibuffer without a stream, as in (read).  But is this feature
        ever used, and if so, why?  IOW, will anything break if this
        feature is removed !?  */
-    return call1 (intern ("read-minibuffer"),
+    return call1 (Qread_minibuffer,
 		  build_string ("Lisp expression: "));
 
   return read_internal_start (stream, Qnil, Qnil, false);
@@ -2761,7 +2702,7 @@ STREAM or the value of `standard-input' may be:
     stream = Qread_char;
   if (EQ (stream, Qread_char))
     /* FIXME: ?! When is this used !?  */
-    return call1 (intern ("read-minibuffer"),
+    return call1 (Qread_minibuffer,
 		  build_string ("Lisp expression: "));
 
   return read_internal_start (stream, Qnil, Qnil, true);
@@ -3498,52 +3439,65 @@ bytecode_from_rev_list (Lisp_Object elems, Lisp_Object readcharfun)
   Lisp_Object *vec = XVECTOR (obj)->contents;
   ptrdiff_t size = ASIZE (obj);
 
-  if (infile && size >= COMPILED_CONSTANTS)
+  if (infile && size >= CLOSURE_CONSTANTS)
     {
       /* Always read 'lazily-loaded' bytecode (generated by the
          `byte-compile-dynamic' feature prior to Emacs 30) eagerly, to
          avoid code in the fast path during execution.  */
-      if (CONSP (vec[COMPILED_BYTECODE])
-          && FIXNUMP (XCDR (vec[COMPILED_BYTECODE])))
-        vec[COMPILED_BYTECODE] = get_lazy_string (vec[COMPILED_BYTECODE]);
+      if (CONSP (vec[CLOSURE_CODE])
+          && FIXNUMP (XCDR (vec[CLOSURE_CODE])))
+        vec[CLOSURE_CODE] = get_lazy_string (vec[CLOSURE_CODE]);
 
       /* Lazily-loaded bytecode is represented by the constant slot being nil
          and the bytecode slot a (lazily loaded) string containing the
-         print representation of (BYTECODE . CONSTANTS).  Unpack the
-         pieces by coerceing the string to unibyte and reading the result.  */
-      if (NILP (vec[COMPILED_CONSTANTS]) && STRINGP (vec[COMPILED_BYTECODE]))
+         print representation of (BYTECODE . CONSTANTS).  */
+      if (NILP (vec[CLOSURE_CONSTANTS]) && STRINGP (vec[CLOSURE_CODE]))
         {
-          Lisp_Object enc = vec[COMPILED_BYTECODE];
-          Lisp_Object pair = Fread (Fcons (enc, readcharfun));
+          Lisp_Object enc = vec[CLOSURE_CODE];
+	  eassert (!STRING_MULTIBYTE (enc));
+	  /* The string (always unibyte) must be decoded to be parsed.  */
+	  enc = Fdecode_coding_string (enc,
+				       EQ (readcharfun,
+					   Qget_emacs_mule_file_char)
+				       ? Qemacs_mule : Qutf_8_emacs,
+				       Qt, Qnil);
+	  Lisp_Object pair = Fread (enc);
           if (!CONSP (pair))
 	    invalid_syntax ("Invalid byte-code object", readcharfun);
 
-          vec[COMPILED_BYTECODE] = XCAR (pair);
-          vec[COMPILED_CONSTANTS] = XCDR (pair);
+          vec[CLOSURE_CODE] = XCAR (pair);
+          vec[CLOSURE_CONSTANTS] = XCDR (pair);
         }
     }
 
-  if (!(size >= COMPILED_STACK_DEPTH + 1 && size <= COMPILED_INTERACTIVE + 1
-	&& (FIXNUMP (vec[COMPILED_ARGLIST])
-	    || CONSP (vec[COMPILED_ARGLIST])
-	    || NILP (vec[COMPILED_ARGLIST]))
-	&& STRINGP (vec[COMPILED_BYTECODE])
-	&& VECTORP (vec[COMPILED_CONSTANTS])
-	&& FIXNATP (vec[COMPILED_STACK_DEPTH])))
+  if (!(size >= CLOSURE_STACK_DEPTH && size <= CLOSURE_INTERACTIVE + 1
+	&& (FIXNUMP (vec[CLOSURE_ARGLIST])
+	    || CONSP (vec[CLOSURE_ARGLIST])
+	    || NILP (vec[CLOSURE_ARGLIST]))
+	&& ((STRINGP (vec[CLOSURE_CODE]) /* Byte-code function.  */
+	     && VECTORP (vec[CLOSURE_CONSTANTS])
+	     && size > CLOSURE_STACK_DEPTH
+	     && (FIXNATP (vec[CLOSURE_STACK_DEPTH])))
+	    || (CONSP (vec[CLOSURE_CODE]) /* Interpreted function.  */
+	        && (CONSP (vec[CLOSURE_CONSTANTS])
+	            || NILP (vec[CLOSURE_CONSTANTS]))))))
     invalid_syntax ("Invalid byte-code object", readcharfun);
 
-  if (STRING_MULTIBYTE (vec[COMPILED_BYTECODE]))
-    /* BYTESTR must have been produced by Emacs 20.2 or earlier
-       because it produced a raw 8-bit string for byte-code and
-       now such a byte-code string is loaded as multibyte with
-       raw 8-bit characters converted to multibyte form.
-       Convert them back to the original unibyte form.  */
-    vec[COMPILED_BYTECODE] = Fstring_as_unibyte (vec[COMPILED_BYTECODE]);
+  if (STRINGP (vec[CLOSURE_CODE]))
+    {
+      if (STRING_MULTIBYTE (vec[CLOSURE_CODE]))
+        /* BYTESTR must have been produced by Emacs 20.2 or earlier
+           because it produced a raw 8-bit string for byte-code and
+           now such a byte-code string is loaded as multibyte with
+           raw 8-bit characters converted to multibyte form.
+           Convert them back to the original unibyte form.  */
+        vec[CLOSURE_CODE] = Fstring_as_unibyte (vec[CLOSURE_CODE]);
 
-  /* Bytecode must be immovable.  */
-  pin_string (vec[COMPILED_BYTECODE]);
+      /* Bytecode must be immovable.  */
+      pin_string (vec[CLOSURE_CODE]);
+    }
 
-  XSETPVECTYPE (XVECTOR (obj), PVEC_COMPILED);
+  XSETPVECTYPE (XVECTOR (obj), PVEC_CLOSURE);
   return obj;
 }
 
@@ -3757,7 +3711,7 @@ get_lazy_string (Lisp_Object val)
 	 && !(pos >= ss->position && pos < ss->position + ss->length))
     ss++;
   if (ss >= ssend)
-    return get_doc_string (val, 1, 0);
+    return get_doc_string (val, 1);
 
   ptrdiff_t start = pos - ss->position;
   char *str = ss->string;
@@ -3954,6 +3908,27 @@ read_stack_reset (intmax_t sp)
   rdstack.sp = sp;
 }
 
+#define READ_AND_BUFFER(c)			\
+  c = READCHAR;					\
+  if (multibyte)				\
+    p += CHAR_STRING (c, (unsigned char *) p);	\
+  else						\
+    *p++ = c;					\
+  if (end - p < MAX_MULTIBYTE_LENGTH + 1)	\
+    {						\
+       offset = p - read_buffer;		\
+       read_buffer = grow_read_buffer (read_buffer, offset, \
+				       &heapbuf, &read_buffer_size, count); \
+       p = read_buffer + offset;					\
+       end = read_buffer + read_buffer_size;				\
+    }
+
+#define INVALID_SYNTAX_WITH_BUFFER()		\
+  {						\
+    *p = 0;					\
+    invalid_syntax (read_buffer, readcharfun);	\
+  }
+
 /* Read a Lisp object.
    If LOCATE_SYMS is true, symbols are read with position.  */
 static Lisp_Object
@@ -3962,6 +3937,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
   char stackbuf[64];
   char *read_buffer = stackbuf;
   ptrdiff_t read_buffer_size = sizeof stackbuf;
+  ptrdiff_t offset;
   char *heapbuf = NULL;
 
   specpdl_ref base_pdl = SPECPDL_INDEX ();
@@ -4063,7 +4039,13 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
     case '#':
       {
-	int ch = READCHAR;
+	char *p = read_buffer;
+	char *end = read_buffer + read_buffer_size;
+
+	*p++ = '#';
+	int ch;
+	READ_AND_BUFFER (ch);
+
 	switch (ch)
 	  {
 	  case '\'':
@@ -4081,11 +4063,11 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
 	  case 's':
 	    /* #s(...) -- a record or hash-table */
-	    ch = READCHAR;
+	    READ_AND_BUFFER (ch);
 	    if (ch != '(')
 	      {
 		UNREAD (ch);
-		invalid_syntax ("#s", readcharfun);
+		INVALID_SYNTAX_WITH_BUFFER ();
 	      }
 	    read_stack_push ((struct read_stack_entry) {
 		.type = RE_record,
@@ -4098,7 +4080,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	  case '^':
 	    /* #^[...]  -- char-table
 	       #^^[...] -- sub-char-table */
-	    ch = READCHAR;
+	    READ_AND_BUFFER (ch);
 	    if (ch == '^')
 	      {
 		ch = READCHAR;
@@ -4115,7 +4097,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		else
 		  {
 		    UNREAD (ch);
-		    invalid_syntax ("#^^", readcharfun);
+		    INVALID_SYNTAX_WITH_BUFFER ();
 		  }
 	      }
 	    else if (ch == '[')
@@ -4131,7 +4113,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    else
 	      {
 		UNREAD (ch);
-		invalid_syntax ("#^", readcharfun);
+		INVALID_SYNTAX_WITH_BUFFER ();
 	      }
 
 	  case '(':
@@ -4241,12 +4223,12 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		int c;
 		for (;;)
 		  {
-		    c = READCHAR;
+		    READ_AND_BUFFER (c);
 		    if (c < '0' || c > '9')
 		      break;
 		    if (ckd_mul (&n, n, 10)
 			|| ckd_add (&n, n, c - '0'))
-		      invalid_syntax ("#", readcharfun);
+		      INVALID_SYNTAX_WITH_BUFFER ();
 		  }
 		if (c == 'r' || c == 'R')
 		  {
@@ -4287,18 +4269,18 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 			  = XHASH_TABLE (read_objects_map);
 			ptrdiff_t i = hash_lookup (h, make_fixnum (n));
 			if (i < 0)
-			  invalid_syntax ("#", readcharfun);
+			  INVALID_SYNTAX_WITH_BUFFER ();
 			obj = HASH_VALUE (h, i);
 			break;
 		      }
 		    else
-		      invalid_syntax ("#", readcharfun);
+		      INVALID_SYNTAX_WITH_BUFFER ();
 		  }
 		else
-		  invalid_syntax ("#", readcharfun);
+		  INVALID_SYNTAX_WITH_BUFFER ();
 	      }
 	    else
-	      invalid_syntax ("#", readcharfun);
+	      INVALID_SYNTAX_WITH_BUFFER ();
 	  }
 	break;
       }
@@ -4678,7 +4660,7 @@ substitute_object_recurse (struct subst *subst, Lisp_Object subtree)
 	if (BOOL_VECTOR_P (subtree))
 	  return subtree;		/* No sub-objects anyway.  */
 	else if (CHAR_TABLE_P (subtree) || SUB_CHAR_TABLE_P (subtree)
-		 || COMPILEDP (subtree) || HASH_TABLE_P (subtree)
+		 || CLOSUREP (subtree) || HASH_TABLE_P (subtree)
 		 || RECORDP (subtree))
 	  length = PVSIZE (subtree);
 	else if (VECTORP (subtree))
@@ -5840,7 +5822,6 @@ syms_of_lread (void)
   defsubr (&Sread_char);
   defsubr (&Sread_char_exclusive);
   defsubr (&Sread_event);
-  defsubr (&Sget_file_char);
   defsubr (&Smapatoms);
   defsubr (&Slocate_file_internal);
   defsubr (&Sinternal__obarray_buckets);
@@ -6104,7 +6085,12 @@ that are loaded before your customizations are read!  */);
   load_prefer_newer = 0;
 
   DEFVAR_BOOL ("load-no-native", load_no_native,
-               doc: /* Non-nil means not to load a .eln file when a .elc was requested.  */);
+               doc: /* Non-nil means not to load native code unless explicitly requested.
+
+To load a `.eln' file when this variable is non-nil, use `(load FILE)'
+where FILE is the filename of the eln file, including the .eln extension.
+`load-no-native' non-nil will also make Emacs not load native code
+through `require'.  */);
   load_no_native = false;
 
   /* Vsource_directory was initialized in init_lread.  */
@@ -6175,4 +6161,5 @@ Only valid during macro-expansion.  Internal use only. */);
 
   DEFSYM (Qinternal_macroexpand_for_load,
 	  "internal-macroexpand-for-load");
+  DEFSYM (Qread_minibuffer, "read-minibuffer");
 }

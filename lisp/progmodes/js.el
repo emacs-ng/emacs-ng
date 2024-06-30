@@ -3634,7 +3634,32 @@ Check if a node type is available, then return the right indent rules."
    :language 'javascript
    :feature 'escape-sequence
    :override t
-   '((escape_sequence) @font-lock-escape-face))
+   '((escape_sequence) @font-lock-escape-face)
+
+   :language 'jsdoc
+   :override t
+   :feature 'keyword
+   '((tag_name) @font-lock-keyword-face)
+
+   :language 'jsdoc
+   :override t
+   :feature 'bracket
+   '((["{" "}"]) @font-lock-bracket-face)
+
+   :language 'jsdoc
+   :override t
+   :feature 'property
+   '((type) @font-lock-variable-use-face)
+
+   :language 'jsdoc
+   :override t
+   :feature 'definition
+   '((identifier) @font-lock-variable-name-face)
+
+   :language 'jsdoc
+   :override t
+   :feature 'comment
+   '((description) @font-lock-comment-face))
   "Tree-sitter font-lock settings.")
 
 (defun js--fontify-template-string (node override start end &rest _)
@@ -3829,6 +3854,8 @@ See `treesit-thing-settings' for more information.")
 
 (defvar js--treesit-sexp-nodes
   '("expression"
+    "parenthesized_expression"
+    "formal_parameters"
     "pattern"
     "array"
     "function"
@@ -3846,9 +3873,17 @@ See `treesit-thing-settings' for more information.")
     "undefined"
     "arguments"
     "pair"
-    "jsx")
+    "jsx"
+    "statement_block"
+    "object"
+    "object_pattern"
+    "named_imports"
+    "class_body")
   "Nodes that designate sexps in JavaScript.
 See `treesit-thing-settings' for more information.")
+
+(defvar js--treesit-jsdoc-beginning-regexp (rx bos "/**")
+  "Regular expression matching the beginning of a jsdoc block comment.")
 
 ;;;###autoload
 (define-derived-mode js-ts-mode js-base-mode "JavaScript"
@@ -3875,7 +3910,8 @@ See `treesit-thing-settings' for more information.")
     (setq-local syntax-propertize-function #'js-ts--syntax-propertize)
 
     ;; Tree-sitter setup.
-    (treesit-parser-create 'javascript)
+    (setq-local treesit-primary-parser (treesit-parser-create 'javascript))
+
     ;; Indent.
     (setq-local treesit-simple-indent-rules js--treesit-indent-rules)
     ;; Navigation.
@@ -3889,10 +3925,10 @@ See `treesit-thing-settings' for more information.")
 
     (setq-local treesit-thing-settings
                 `((javascript
-                   (sexp ,(regexp-opt js--treesit-sexp-nodes))
-                   (sentence ,(regexp-opt js--treesit-sentence-nodes))
-                   (text ,(regexp-opt '("comment"
-                                        "template_string"))))))
+                   (sexp ,(js--regexp-opt-symbol js--treesit-sexp-nodes))
+                   (sentence ,(js--regexp-opt-symbol js--treesit-sentence-nodes))
+                   (text ,(js--regexp-opt-symbol '("comment"
+                                                   "template_string"))))))
 
     ;; Fontification.
     (setq-local treesit-font-lock-settings js--treesit-font-lock-settings)
@@ -3902,6 +3938,16 @@ See `treesit-thing-settings' for more information.")
                   ( assignment constant escape-sequence jsx number
                     pattern string-interpolation)
                   ( bracket delimiter function operator property)))
+
+    (when (treesit-ready-p 'jsdoc t)
+      (setq-local treesit-range-settings
+                  (treesit-range-rules
+                   :embed 'jsdoc
+                   :host 'javascript
+                   `(((comment) @capture (:match ,js--treesit-jsdoc-beginning-regexp @capture))))))
+
+    (setq-local treesit-language-at-point-function #'js-ts-language-at-point)
+
     ;; Imenu
     (setq-local treesit-simple-imenu-settings
                 `(("Function" "\\`function_declaration\\'" nil nil)
@@ -3942,6 +3988,17 @@ See `treesit-thing-settings' for more information.")
                         (string-to-syntax "|")))))
         (put-text-property ns (1+ ns) 'syntax-table syntax)
         (put-text-property (1- ne) ne 'syntax-table syntax)))))
+
+(defun js-ts-language-at-point (point)
+  "Return the language at POINT."
+  (let ((node (treesit-node-at point 'javascript)))
+    (if (and (treesit-ready-p 'jsdoc)
+             (equal (treesit-node-type node) "comment")
+             (string-match-p
+              js--treesit-jsdoc-beginning-regexp
+              (treesit-node-text node)))
+        'jsdoc
+      'javascript)))
 
 ;;;###autoload
 (define-derived-mode js-json-mode prog-mode "JSON"

@@ -84,7 +84,7 @@ considered \"isolated\" by `dired--star-or-qmark-p'."
         (isolated-char-positions nil)
         (confirm-positions nil)
         (regexp (regexp-quote string)))
-    ;; Collect all ? and * surrounded by spaces and `?`.
+    ;; Collect all ? and * surrounded by spaces and ? .
     (while (dired--star-or-qmark-p command string nil start)
       (push (cons (match-beginning 2) (match-end 2))
             isolated-char-positions)
@@ -658,10 +658,13 @@ values, passed as the seventh arg to `completing-read'.
 
 Optional arg COLLECTION is a collection of possible completions,
 passed as the second arg to `completing-read'."
-  (dired-mark-pop-up nil op-symbol files
-		     'completing-read
-		     (format prompt (dired-mark-prompt arg files))
-		     collection nil nil initial nil default-value nil))
+  (apply #'dired-mark-pop-up
+         nil op-symbol files
+         (if (eq op-symbol 'touch) 'read-from-minibuffer 'completing-read)
+         (format prompt (dired-mark-prompt arg files))
+         (if (eq op-symbol 'touch)
+             `(,initial nil nil nil ,default-value)
+           `(,collection nil nil ,initial nil ,default-value nil))))
 
 
 ;;; Cleaning a directory: flagging some backups for deletion
@@ -779,9 +782,10 @@ of shell command."
 
 ;;;###autoload
 (defcustom dired-confirm-shell-command t
-  "Whether to prompt for confirmation for `dired-do-shell-command'.
-If non-nil, prompt for confirmation if the command contains potentially
-dangerous characters.  If nil, never prompt for confirmation."
+  "Whether `dired-do-shell-command' should prompt for confirmation.
+If non-nil, prompt for confirmation if the shell command contains
+potentially unsafe wildcard characters.  If nil, never prompt for
+confirmation."
   :type 'boolean
   :group 'dired
   :version "29.1")
@@ -865,8 +869,8 @@ In a noninteractive call (from Lisp code), you must specify
 the list of file names explicitly with the FILE-LIST argument, which
 can be produced by `dired-get-marked-files', for example.
 
-`dired-guess-shell-alist-default' and
-`dired-guess-shell-alist-user' are consulted when the user is
+`dired-guess-shell-alist-default', `dired-guess-shell-alist-optional'
+and `dired-guess-shell-alist-user' are consulted when the user is
 prompted for the shell command to use interactively.
 
 Also see the `dired-confirm-shell-command' variable."
@@ -1065,8 +1069,8 @@ Return the result of `process-file' - zero for success."
 ;; * `dired-guess-shell-command' calls `dired-guess-default' with list of
 ;;    marked files.
 ;;
-;; * Parse `dired-guess-shell-alist-user' and
-;;   `dired-guess-shell-alist-default' (in that order) for the first REGEXP
+;; * Parse `dired-guess-shell-alist-user', `dired-guess-shell-alist-default',
+;;   `dired-guess-shell-alist-optional' (in that order) for the first REGEXP
 ;;   that matches the first file in the file list.
 ;;
 ;; * If the REGEXP matches all the entries of the file list then evaluate
@@ -1216,28 +1220,10 @@ Return the result of `process-file' - zero for success."
                   " " dired-guess-shell-znew-switches))
    '("\\.pod\\'" "perldoc" "pod2man * | nroff -man")
 
-   '("\\.dvi\\'" "xdvi" "dvips")	; preview and printing
-   '("\\.au\\'" "play")			; play Sun audiofiles
-   '("\\.mpe?g\\'\\|\\.avi\\'" "xine -p")
-   '("\\.ogg\\'" "ogg123")
-   '("\\.mp3\\'" "mpg123")
-   '("\\.wav\\'" "play")
    '("\\.uu\\'" "uudecode")		; for uudecoded files
-   '("\\.hqx\\'" "mcvert")
    '("\\.sh\\'" "sh")			; execute shell scripts
-   '("\\.xbm\\'" "bitmap")		; view X11 bitmaps
-   '("\\.gp\\'" "gnuplot")
-   '("\\.p[bgpn]m\\'" "xloadimage")
-   '("\\.gif\\'" "xloadimage")		; view gif pictures
-   '("\\.tif\\'" "xloadimage")
-   '("\\.png\\'" "display")		; xloadimage 4.1 doesn't grok PNG
-   '("\\.jpe?g\\'" "xloadimage")
-   '("\\.fig\\'" "xfig")		; edit fig pictures
-   '("\\.out\\'" "xgraph")		; for plotting purposes.
    '("\\.tex\\'" "latex" "tex")
    '("\\.texi\\(nfo\\)?\\'" "makeinfo" "texi2dvi")
-   '("\\.pdf\\'" "xpdf")
-   '("\\.doc\\'" "antiword" "strings")
    '("\\.rpm\\'" "rpm -qilp" "rpm -ivh")
    '("\\.dia\\'" "dia")
    '("\\.mgp\\'" "mgp")
@@ -1266,7 +1252,37 @@ Return the result of `process-file' - zero for success."
 
    '("\\.sign?\\'" "gpg --verify"))
   "Default alist used for shell command guessing.
-See `dired-guess-shell-alist-user'.")
+See also `dired-guess-shell-alist-optional' and
+`dired-guess-shell-alist-user'.")
+
+(defvar dired-guess-shell-alist-optional
+  (list
+   '("\\.dvi\\'" "xdvi" "dvips")	; preview and printing
+   '("\\.au\\'" "play")			; play Sun audiofiles
+   '("\\.mpe?g\\'\\|\\.avi\\'" "xine -p")
+   '("\\.ogg\\'" "ogg123")
+   '("\\.mp3\\'" "mpg123")
+   '("\\.wav\\'" "play")
+   '("\\.hqx\\'" "mcvert")
+   '("\\.xbm\\'" "bitmap")		; view X11 bitmaps
+   '("\\.gp\\'" "gnuplot")
+   '("\\.p[bgpn]m\\'" "xloadimage")
+   '("\\.gif\\'" "xloadimage")		; view gif pictures
+   '("\\.tif\\'" "xloadimage")
+   '("\\.png\\'" "display")		; xloadimage 4.1 doesn't grok PNG
+   '("\\.jpe?g\\'" "xloadimage")
+   '("\\.fig\\'" "xfig")		; edit fig pictures
+   '("\\.out\\'" "xgraph")		; for plotting purposes.
+   '("\\.pdf\\'" "xpdf")
+   '("\\.doc\\'" "antiword" "strings"))
+  "Optional alist used for shell command guessing.
+Unlike `dired-guess-shell-alist-default' that contains mostly the
+standard commands that handle the files with corresponding extensions
+such as the `tar' command handling the files with the `.tar' extension,
+this list contains the commands such as media players and viewers
+that don't exist on many systems where other alternatives are available.
+
+See also `dired-guess-shell-alist-user'.")
 
 (defun dired-guess-default (files)
   "Return a shell command, or a list of commands, appropriate for FILES.
@@ -1286,7 +1302,8 @@ See `dired-guess-shell-alist-user'."
                                       (string-match-p (car elem) file))
                                     files))
                                  (append dired-guess-shell-alist-user
-                                         dired-guess-shell-alist-default)))
+                                         dired-guess-shell-alist-default
+                                         dired-guess-shell-alist-optional)))
              nil)))))
     (if (length= programs 1)
         (car programs)
@@ -1320,13 +1337,21 @@ See `dired-guess-shell-alist-user'."
       (if (equal val "") default val))))
 
 (defcustom shell-command-guess-functions
-  '(shell-command-guess-dired)
+  '(shell-command-guess-dired-optional
+    shell-command-guess-mailcap
+    shell-command-guess-xdg
+    shell-command-guess-dired-default
+    shell-command-guess-dired-user)
   "List of functions that guess shell commands for files.
 Each function receives a list of commands and a list of file names
 and should return the same list of commands with changes
-such as added new commands."
+such as new commands added to the beginning of the list.
+In this case the commands from the last entry
+will be at the top of the resulted list."
   :type '(repeat
-          (choice (function-item shell-command-guess-dired)
+          (choice (function-item shell-command-guess-dired-user)
+                  (function-item shell-command-guess-dired-default)
+                  (function-item shell-command-guess-dired-optional)
                   (function-item shell-command-guess-mailcap)
                   (function-item shell-command-guess-xdg)
                   (function-item shell-command-guess-open)
@@ -1347,9 +1372,29 @@ after adding own commands to the composite list."
                         nil))
     commands))
 
-(defun shell-command-guess-dired (commands files)
-  "Populate COMMANDS using `dired-guess-default'."
-  (append (ensure-list (dired-guess-default files)) commands))
+(defun shell-command-guess-dired-user (commands files)
+  "Populate COMMANDS using `dired-guess-shell-alist-user'.
+This excludes `dired-guess-shell-alist-default' and
+`dired-guess-shell-alist-optional'."
+  (let ((dired-guess-shell-alist-default nil)
+        (dired-guess-shell-alist-optional nil))
+    (append (ensure-list (dired-guess-default files)) commands)))
+
+(defun shell-command-guess-dired-default (commands files)
+  "Populate COMMANDS using `dired-guess-shell-alist-default'.
+This excludes `dired-guess-shell-alist-user' and
+`dired-guess-shell-alist-optional'."
+  (let ((dired-guess-shell-alist-user nil)
+        (dired-guess-shell-alist-optional nil))
+    (append (ensure-list (dired-guess-default files)) commands)))
+
+(defun shell-command-guess-dired-optional (commands files)
+  "Populate COMMANDS using `dired-guess-shell-alist-optional'.
+This excludes `dired-guess-shell-alist-user' and
+`dired-guess-shell-alist-default'."
+  (let ((dired-guess-shell-alist-user nil)
+        (dired-guess-shell-alist-default nil))
+    (append (ensure-list (dired-guess-default files)) commands)))
 
 (declare-function mailcap-file-default-commands "mailcap" (files))
 
@@ -1369,7 +1414,8 @@ after adding own commands to the composite list."
                       (shell-command-to-string
                        (concat "xdg-mime query filetype "
                                (shell-quote-argument (car files)))))))
-         (xdg-mime-apps (unless (string-empty-p xdg-mime)
+         (xdg-mime-apps (unless (or (null xdg-mime)
+                                    (string-empty-p xdg-mime))
                           (xdg-mime-apps xdg-mime)))
          (xdg-commands
           (mapcar (lambda (desktop)
@@ -1404,6 +1450,7 @@ after adding own commands to the composite list."
 
 (declare-function w32-shell-execute "w32fns.c")
 
+;;;###autoload
 (defun dired-do-open (&optional arg)
   "Open all marked (or next ARG) files using an external program.
 This \"opens\" the file(s) using the external command that is most
@@ -1519,14 +1566,23 @@ A FMT of \"\" will suppress the messaging."
 	  ;; Remove any preexisting entry for the name NEW-FILE.
 	  (ignore-errors (dired-remove-entry new-file))
 	  (goto-char start)
-	  ;; Now replace the current line with an entry for NEW-FILE.
-	  ;; But don't remove the current line if either FROM-FILE or
-	  ;; NEW-FILE is a directory, because compressing/uncompressing
-          ;; directories doesn't remove the original.
-          (if (or (file-directory-p from-file)
-                  (file-directory-p new-file))
-              (dired-add-entry new-file nil t)
-            (dired-update-file-line new-file))
+	  ;; Now replace the current line with an entry for NEW-FILE,
+	  ;; if it exists.  But don't remove the current line if
+	  ;; either FROM-FILE or NEW-FILE is a directory, because
+	  ;; compressing/uncompressing directories doesn't remove the
+	  ;; original.  If NEW-FILE doesn't exist, assume that we are
+	  ;; out of sync with the current directory, and revert it.
+	  ;; This can happen, for example, when unpacking a .tar.gz
+	  ;; archive which adds files to the current directory (as
+	  ;; opposed to adding them to a directory whose name is
+	  ;; NEW-FILE).
+          (if (file-exists-p new-file)
+              (if (or (file-directory-p from-file)
+                      (file-directory-p new-file))
+                  (dired-add-entry new-file nil t)
+                (dired-update-file-line new-file))
+            (dired-fun-in-all-buffers (dired-current-directory)
+                                      nil #'revert-buffer))
           nil)
       (dired-log (concat "Failed to (un)compress " from-file))
       from-file)))
@@ -2151,11 +2207,14 @@ See `dired-delete-file' in case you wish that."
 ;;; Copy, move/rename, making hard and symbolic links
 
 (defcustom dired-backup-overwrite nil
-  "Non-nil if Dired should ask about making backups before overwriting files.
-Special value `always' suppresses confirmation."
-  :type '(choice (const :tag "off" nil)
-		 (const :tag "suppress" always)
-		 (other :tag "ask" t))
+  "If non-nil, Dired makes backups of files before overwriting them.
+By default, Dired asks whether to make a backup file for a file that
+is about to be overwritten, but if this variable's value is `always',
+that suppresses the confirmation, and backup files are always created."
+  :type '(choice (const :tag "Do not backup files to be overwritten" nil)
+		 (const :tag "Always backup files to be overwritten" always)
+		 (other :tag
+                        "Ask whether to backup files to be overwritten" t))
   :group 'dired)
 
 ;; This is a fluid var used in dired-handle-overwrite.  It should be
@@ -2188,45 +2247,37 @@ Special value `always' suppresses confirmation."
 
 (defcustom dired-create-destination-dirs nil
   "Whether Dired should create destination dirs when copying/removing files.
-If nil, don't create them.
+If nil, don't create non-existent destination directories.
+If `ask', ask the user whether to create them.
 If `always', create them without asking.
-If `ask', ask for user confirmation.
 
 Also see `dired-create-destination-dirs-on-trailing-dirsep'."
   :type '(choice (const :tag "Never create non-existent dirs" nil)
 		 (const :tag "Always create non-existent dirs" always)
-		 (const :tag "Ask for user confirmation" ask))
+		 (const :tag "Ask whether to create non-existent dirs" ask))
   :group 'dired
   :version "27.1")
 
 (defcustom dired-create-destination-dirs-on-trailing-dirsep nil
-  "If non-nil, treat a trailing slash at queried destination dir specially.
+  "If non-nil, consider a file name ending in a slash as a directory to create.
 
-If this variable is non-nil and a single destination filename is
-queried which ends in a directory separator (/), it will be
-treated as a non-existent directory and acted on according to
-`dired-create-destination-dirs'.
-
-This option is only relevant if `dired-create-destination-dirs'
-is non-nil, too.
+If this variable is non-nil and a single destination file name of
+a Dired command ends in a directory separator (/), that file name
+will be treated as a non-existent directory, and that directory
+will be created if the variable `dired-create-destination-dirs'
+says so.
 
 For example, if both `dired-create-destination-dirs' and this
 option are non-nil, renaming a directory named `old_name' to
-`new_name/' (note the trailing directory separator) where
-`new_name' does not exists already, it will be created and
-`old_name' be moved into it.  If only `new_name' (without the
-trailing /) is given or this option or
+`new_name/' (note the trailing directory separator) will
+create `new_name' if it does not already exist, and will
+move `old_name' into it.  By contrast, if only `new_name'
+(without the trailing /) is given, or this option or
 `dired-create-destination-dirs' is nil, `old_name' will be
 renamed to `new_name'."
   :type '(choice
-          (const :tag
-                 (concat "Do not treat destination dirs with a "
-                         "trailing directory separator specially")
-                 nil)
-          (const :tag
-                 (concat "Treat destination dirs with trailing "
-                         "directory separator specially")
-                 t))
+          (const :tag "Create directories when destination ends in a slash" t)
+          (const :tag "Do not create destination directories" nil))
   :group 'dired
   :version "29.1")
 
@@ -2263,12 +2314,12 @@ renamed to `new_name'."
 	 (dired-log "Can't set date on %s:\n%s\n" from err))))))
 
 (defcustom dired-vc-rename-file nil
-  "Whether Dired should register file renaming in underlying vc system.
-If nil, use default `rename-file'.
-If non-nil and the renamed files are under version control,
-rename them using `vc-rename-file'."
-  :type '(choice (const :tag "Use rename-file" nil)
-                 (const :tag "Use vc-rename-file" t))
+  "Whether Dired should register file renaming in underlying VC system.
+If nil, Dired renames files using `rename-file'.
+If non-nil, and the renamed files are under version control,
+Dired renames them using `vc-rename-file'."
+  :type '(choice (const :tag "Rename all files directly" nil)
+                 (const :tag "Rename versioned files via version control" t))
   :group 'dired
   :version "27.1")
 
@@ -2530,11 +2581,12 @@ If the value is a function, it is called with the destination directory name
 as a single argument, and the buffer is reverted after Dired operations
 if the function returns non-nil."
   :type '(choice
-          (const :tag "Don't revert" nil)
-          (const :tag "Always revert destination directory" t)
-          (const :tag "Revert only local Dired buffers"
+          (const :tag "Don't revert Dired buffers of destination directories"
+                 nil)
+          (const :tag "Always revert buffers of destination directories" t)
+          (const :tag "Revert only Dired buffers showing local directories"
                  (lambda (dir) (not (file-remote-p dir))))
-          (function :tag "Predicate function"))
+          (function :tag "Predicate function to determine whether to revert"))
   :group 'dired
   :version "28.1")
 
@@ -3628,13 +3680,16 @@ Use \\[dired-hide-subdir] to (un)hide a particular subdirectory."
 ;;; Search only in file names in the Dired buffer
 
 (defcustom dired-isearch-filenames nil
-  "Non-nil to Isearch in file names only.
+  "If non-nil, Isearch in Dired buffers matches only file names.
 If t, Isearch in Dired always matches only file names.
 If `dwim', Isearch matches file names when initial point position is on
-a file name.  Otherwise, it searches the whole buffer without restrictions."
-  :type '(choice (const :tag "No restrictions" nil)
-		 (const :tag "When point is on a file name initially, search file names" dwim)
-		 (const :tag "Always search in file names" t))
+a file name.  Otherwise, Isearch searches the whole buffer without
+restrictions."
+  :type '(choice (const :tag "Search entire Dired buffer" nil)
+		 (const :tag "Search only file names in Dired buffers" t)
+		 (const :tag
+                        "Search only file names if point starts on a file name"
+                        dwim))
   :group 'dired
   :version "23.1")
 
@@ -3797,13 +3852,13 @@ REGEXP should use constructs supported by your local `grep' command."
   (interactive "sSearch marked files (regexp): " dired-mode)
   (require 'grep)
   (require 'xref)
-  (defvar grep-find-ignored-files)
   (declare-function rgrep-find-ignored-directories "grep" (dir))
+  (declare-function grep-find-ignored-files "grep" (dir))
   (let* ((marks (dired-get-marked-files nil nil nil nil t))
          (ignores (nconc (mapcar
                           #'file-name-as-directory
                           (rgrep-find-ignored-directories default-directory))
-                         grep-find-ignored-files))
+                         (grep-find-ignored-files default-directory)))
          (fetcher
           (lambda ()
             (let (files xrefs)

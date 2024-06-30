@@ -137,7 +137,7 @@ public final class EmacsWindowManager
 	    /* Don't attach this window to CONSUMER if incompatible.  */
 	    && isWindowEligible (consumer, window))
 	  {
-	    /* Permantly bind this window to the consumer.  */
+	    /* Permanently bind this window to the consumer.  */
 	    window.attachmentToken = consumer.getAttachmentToken ();
 	    window.previouslyAttached = true;
 	    consumer.attachWindow (window);
@@ -145,7 +145,7 @@ public final class EmacsWindowManager
 	  }
       }
 
-    EmacsNative.sendWindowAction ((short) 0, 0);
+    EmacsNative.sendWindowAction (0, 0);
   }
 
   public synchronized void
@@ -166,12 +166,33 @@ public final class EmacsWindowManager
 	if (consumer.getAttachedWindow () == null
 	    && isWindowEligible (consumer, window))
 	  {
-	    /* Permantly bind this window to the consumer.  */
+	    /* Permanently bind this window to the consumer.  */
 	    window.attachmentToken = consumer.getAttachmentToken ();
 	    window.previouslyAttached = true;
 	    consumer.attachWindow (window);
 	    return;
 	  }
+      }
+
+    /* Do not create a multitasking activity for the initial frame,
+       but arrange to start EmacsActivity.  */
+    if (window.attachmentToken == -1)
+      {
+	intent = new Intent (EmacsService.SERVICE,
+			     EmacsActivity.class);
+	intent.addFlags (Intent.FLAG_ACTIVITY_NEW_TASK);
+
+	try
+	  {
+	    EmacsService.SERVICE.startActivity (intent);
+	  }
+	catch (Exception e)
+	  {
+	    Log.w (TAG, "an activity could not be started on behalf"
+		   + " of the mapped default window " + window.handle);
+	  }
+
+	return;
       }
 
     intent = new Intent (EmacsService.SERVICE,
@@ -186,7 +207,7 @@ public final class EmacsWindowManager
     intent.addFlags (Intent.FLAG_ACTIVITY_NEW_TASK);
 
     /* Intent.FLAG_ACTIVITY_NEW_DOCUMENT is lamentably unavailable on
-       older systems than Lolipop.  */
+       older systems than Lollipop.  */
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
       {
 	intent.addFlags (Intent.FLAG_ACTIVITY_NEW_DOCUMENT
@@ -205,14 +226,22 @@ public final class EmacsWindowManager
     window.attachmentToken = token;
     intent.putExtra (ACTIVITY_TOKEN, token);
 
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
-      EmacsService.SERVICE.startActivity (intent);
-    else
+    try
       {
-	/* Specify the desired window size.  */
-	options = ActivityOptions.makeBasic ();
-	options.setLaunchBounds (window.getGeometry ());
-	EmacsService.SERVICE.startActivity (intent, options.toBundle ());
+	if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+	  EmacsService.SERVICE.startActivity (intent);
+	else
+	  {
+	    /* Specify the desired window size.  */
+	    options = ActivityOptions.makeBasic ();
+	    options.setLaunchBounds (window.getGeometry ());
+	    EmacsService.SERVICE.startActivity (intent, options.toBundle ());
+	  }
+      }
+    catch (Exception e)
+      {
+	Log.w (TAG, "an activity could not be started on behalf"
+	       + " of a mapped window, " + window.handle);
       }
 
     pruneWindows ();

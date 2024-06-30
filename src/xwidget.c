@@ -489,10 +489,7 @@ On X11, modifier keys will not be processed if FRAME is nil and the
 selected frame is not an X-Windows frame.  */)
   (Lisp_Object xwidget, Lisp_Object event, Lisp_Object frame)
 {
-  struct xwidget *xw;
   struct frame *f = NULL;
-  int character = -1, keycode = -1;
-  int modifiers = 0;
 
 #ifdef USE_GTK
   GdkEvent *xg_event;
@@ -506,7 +503,6 @@ selected frame is not an X-Windows frame.  */)
 #endif
 
   CHECK_LIVE_XWIDGET (xwidget);
-  xw = XXWIDGET (xwidget);
 
   if (!NILP (frame))
     f = decode_window_system_frame (frame);
@@ -514,6 +510,10 @@ selected frame is not an X-Windows frame.  */)
     f = SELECTED_FRAME ();
 
 #ifdef USE_GTK
+  int character = -1, keycode = -1;
+  int modifiers = 0;
+  struct xwidget *xw = XXWIDGET (xwidget);
+
 #ifdef HAVE_XINPUT2
   /* XI2 GDK devices crash if we try this without an embedder set.  */
   if (!f)
@@ -2286,7 +2286,7 @@ store_xwidget_download_callback_event (struct xwidget *xw,
   EVENT_INIT (event);
   event.kind = XWIDGET_EVENT;
   event.frame_or_window = Qnil;
-  event.arg = list5 (intern ("download-callback"),
+  event.arg = list5 (Qdownload_callback,
                      xwl,
                      build_string (url),
                      build_string (mimetype),
@@ -2305,7 +2305,7 @@ store_xwidget_js_callback_event (struct xwidget *xw,
   EVENT_INIT (event);
   event.kind = XWIDGET_EVENT;
   event.frame_or_window = Qnil;
-  event.arg = list4 (intern ("javascript-callback"), xwl, proc, argument);
+  event.arg = list4 (Qjavascript_callback, xwl, proc, argument);
   kbd_buffer_store_event (&event);
 }
 
@@ -4001,6 +4001,8 @@ to take effect.  */);
   staticpro (&dummy_tooltip_string);
 #endif
 #endif
+  DEFSYM (Qdownload_callback, "download-callback");
+  DEFSYM (Qjavascript_callback, "javascript-callback");
 }
 
 

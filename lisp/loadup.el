@@ -191,6 +191,23 @@
   (setq definition-prefixes new))
 
 (load "button")                  ;After loaddefs, because of define-minor-mode!
+
+(when (interpreted-function-p (symbol-function 'add-hook))
+  ;; `subr.el' is needed early and hence can't use macros like `setf'
+  ;; liberally.  Yet, it does use such macros in code that it knows will not
+  ;; be executed too early, such as `add-hook'.  Usually, by the time we
+  ;; run that code, either `subr.el' was already compiled to start with
+  ;; or on the contrary many files aren't compiled yet and have thus caused
+  ;; macro packages like `gv' to be loaded.  But not always.
+  ;; The specific error we're trying to work around, here, occurs when
+  ;; `cl-preloaded's `provide' ends up (because of an `eval-after-load')
+  ;; calling `add-hook' which burps with a "void-function setf" on
+  ;; (setf (get hook 'hook--depth-alist) depth-sym)'.
+  ;; FIXME: We should probably split `subr.el' into one that's loaded early
+  ;; where we refrain from using macros like `setf', and another loaded later
+  ;; where we can blissfully `require' packages like `gv'.
+  (require 'gv))
+
 (load "emacs-lisp/cl-preloaded")
 (load "emacs-lisp/oclosure")          ;Used by cl-generic
 (load "obarray")        ;abbrev.el is implemented in terms of obarrays.
@@ -327,7 +344,8 @@
       (when (eq system-type 'windows-nt)
         (load "w32-fns")
         (load "ls-lisp")
-        (load "dos-w32"))))
+        (load "dos-w32"))
+      (load "touch-screen")))
 (if (eq system-type 'ms-dos)
     (progn
       (load "dos-w32")
@@ -352,6 +370,7 @@
 (if (featurep 'pgtk)
     (progn
       (load "pgtk-dnd")
+      (load "touch-screen")
       (load "term/common-win")
       (load "term/pgtk-win")))
 

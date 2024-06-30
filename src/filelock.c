@@ -47,6 +47,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef WINDOWSNT
 #include <share.h>
 #include <sys/socket.h>	/* for fcntl */
+#include "w32common.h"
 #endif
 
 #ifndef MSDOS
@@ -274,7 +275,7 @@ lock_file_1 (Lisp_Object lfname, bool force)
   /* Protect against the extremely unlikely case of the host name
      containing an @ character.  */
   if (!NILP (lhost_name) && strchr (SSDATA (lhost_name), '@'))
-    lhost_name = CALLN (Ffuncall, intern ("string-replace"),
+    lhost_name = CALLN (Ffuncall, Qstring_replace,
 			build_string ("@"), build_string ("-"),
 			lhost_name);
 
@@ -342,6 +343,22 @@ read_lock_data (char *lfname, char lfinfo[MAX_LFINFO + 1])
   return nbytes;
 }
 
+/* Whether the string S starts with a decimal integer, optionally
+   negative.  */
+static bool
+integer_prefixed (char const *s)
+{
+  /* Doing it this way avoids a conditional branch on most platforms.  */
+  return c_isdigit (s[s[0] == '-']);
+}
+
+/* Whether the integer P could identify an individual process.  On most
+   platforms this simply checks for positive pid_t, but on some
+   MS-Windows ports our headers #define it to to some other test.  */
+#ifndef VALID_PROCESS_ID
+# define VALID_PROCESS_ID(p) (0 < (p) && (p) <= TYPE_MAXIMUM (pid_t))
+#endif
+
 /* True if errno values are negative.  Although the C standard
    requires them to be positive, they are negative in Haiku.  */
 enum { NEGATIVE_ERRNO = EDOM < 0 };
@@ -393,7 +410,7 @@ current_lock_owner (lock_info_type *owner, Lisp_Object lfname)
     return EINVAL;
 
   /* The PID is everything from the last '.' to the ':' or equivalent.  */
-  if (! c_isdigit (dot[1]))
+  if (! integer_prefixed (dot + 1))
     return EINVAL;
   errno = 0;
   pid = strtoimax (dot + 1, &owner->colon, 10);
@@ -419,7 +436,7 @@ current_lock_owner (lock_info_type *owner, Lisp_Object lfname)
       boot += 2;
       FALLTHROUGH;
     case ':':
-      if (! c_isdigit (boot[0]))
+      if (! integer_prefixed (boot))
 	return EINVAL;
       boot_time = strtoimax (boot, &lfinfo_end, 10);
       break;
@@ -449,7 +466,7 @@ current_lock_owner (lock_info_type *owner, Lisp_Object lfname)
     {
       if (pid == getpid ())
         return I_OWN_IT;
-      else if (0 < pid && pid <= TYPE_MAXIMUM (pid_t)
+      else if (VALID_PROCESS_ID (pid)
                && (kill (pid, 0) >= 0 || errno == EPERM)
 	       && (boot_time == 0
 		   || (boot_time <= TYPE_MAXIMUM (time_t)
@@ -789,6 +806,7 @@ Info node `(emacs)Interlocking'.  */);
   DEFSYM (Qunlock_file, "unlock-file");
   DEFSYM (Qfile_locked_p, "file-locked-p");
   DEFSYM (Qmake_lock_file_name, "make-lock-file-name");
+  DEFSYM (Qstring_replace, "string-replace");
 
   defsubr (&Slock_file);
   defsubr (&Sunlock_file);
