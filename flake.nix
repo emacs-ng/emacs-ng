@@ -153,7 +153,7 @@
             src = ./.;
 
             # FIXME (@declantsien) Read it directly from configure.ac AC_INIT
-            emacsVersion = "30.0.50";
+            emacsVersion = "31.0.50";
             version = emacsVersion;
 
             # Cargo build requires this, see:
