@@ -898,7 +898,7 @@
 <p>Once you call run_module, you will begin to execute JavaScript. Doing so may enqueue async events, like setTimeout, fetch, etc. These are all things that Deno calls <code>async_ops</code> or <code>sync_ops</code>. Deno provides a system to manage ops. We have a policy that emacs-ng will not add ops, or deal with the ops API. If you want to add native functionality to emacs-ng, you should directly bind the function, like with <code>lisp_callback</code> and friends.</p>
 <p>As these async events execute in the background, we will poll for their completion. In order to integrate with Emacs program loop, we set a timer, calling a function named <code>js-tick-event-loop</code>. This function is really just a wrapper around Deno's <code>poll_event_loop</code>. For performance reasons, <code>js-tick-event-loop</code> can call <code>poll_event_loop</code> multiple times. The user does have control of this behavior via <code>js_set_tick_rate</code>. In general, we want to give the user full control of emacs-ng, including how the JavaScript environment is configured.</p>
 <h3 id="proxies-and-garbage-collector-gc-interoperability">Proxies and Garbage Collector (GC) Interoperability<a class="headerlink" href="#proxies-and-garbage-collector-gc-interoperability" title="Permanent link">#</a></h3>
-<p>JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS &lt;--&gt; elisp marshaling. We refer to that as 'proxying' within internal documentation. </p>
+<p>JavaScript has a concept of a 'Proxy' object, which we use in emacs-ng, however this section is about our JS &lt;--&gt; elisp marshaling. We refer to that as 'proxying' within internal documentation.</p>
 <p>For example, we will discuss how this code actually works:</p>
 <div class="highlight"><pre><span></span><code><span class="kd">const</span> <span class="nx">buffer</span> <span class="o">=</span> <span class="nx">lisp</span><span class="p">.</span><span class="nx">get_buffer_create</span><span class="p">(</span><span class="s1">&#39;*foo*&#39;</span><span class="p">);</span>
 <span class="nx">lisp</span><span class="p">.</span><span class="nx">set_current_buffer</span><span class="p">(</span><span class="nx">buffer</span><span class="p">);</span>
@@ -933,7 +933,7 @@
 <div class="md-source-date">
   <small>
     
-      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 2, 2024</span>
+      Last update: <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">June 30, 2024</span>
     
   </small>
 </div>
