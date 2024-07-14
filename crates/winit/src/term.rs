@@ -389,6 +389,11 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
         Some(())
     });
 
+    let new_events = winit_pump_events(Some(Duration::ZERO));
+    for e in &new_events {
+        handle_event(e);
+    }
+
     count
 }
 
@@ -774,7 +779,6 @@ fn winit_pump_events(timeout: Option<Duration>) -> Vec<Event<i32>> {
                             .winit_data()
                             .map(|d| d.window.as_ref().map(|w| w.request_redraw()));
                     });
-                    spin_sleep::sleep(Duration::from_millis(8));
                 }
                 Event::WindowEvent {
                     event, window_id, ..
@@ -857,14 +861,18 @@ pub extern "C" fn winit_select(
 pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
     log::info!("Winit term init");
 
+    use emacs_sys::bindings::Fset_input_interrupt_mode;
+
     let dpyinfo = Box::new(DisplayInfo::default());
     let mut dpyinfo_ref = DisplayInfoRef::new(Box::into_raw(dpyinfo));
     let mut terminal = winit_create_terminal(dpyinfo_ref);
 
     // baud_rate is the value computed from fileno (tty->input)
     // Hardcode the value for now
-    unsafe { emacs_sys::bindings::init_baud_rate(38400) };
-    // Fset_input_interrupt_mode (Qnil);
+    unsafe {
+        emacs_sys::bindings::init_baud_rate(38400);
+        Fset_input_interrupt_mode(Qnil);
+    }
 
     let fd = emacs_sys::display_descriptor(terminal.raw_display_handle().unwrap());
 
