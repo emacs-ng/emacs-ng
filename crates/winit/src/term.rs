@@ -381,13 +381,26 @@ extern "C" fn winit_read_input_event(terminal: *mut terminal, hold_quit: *mut in
         }
     };
 
+    let mut is_empty = false;
     let _ = current_winit_data().and_then(|mut d| {
+        is_empty = d.pending_events.len() == 0;
         for e in &d.pending_events {
             handle_event(e);
         }
         d.pending_events.clear();
         Some(())
     });
+
+    if is_empty {
+        let pending_events = winit_pump_events(Some(Duration::ZERO));
+        log::debug!(
+            "Probably entring read_socket_hook without wait_reading_process_output {:?}",
+            pending_events
+        );
+        for e in pending_events {
+            handle_event(&e);
+        }
+    }
 
     count
 }
@@ -863,8 +876,10 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
 
     // baud_rate is the value computed from fileno (tty->input)
     // Hardcode the value for now
-    unsafe { emacs_sys::bindings::init_baud_rate(38400) };
-    // Fset_input_interrupt_mode (Qnil);
+    unsafe {
+        emacs_sys::bindings::init_baud_rate(38400);
+        emacs_sys::bindings::Fset_input_interrupt_mode(Qnil);
+    }
 
     let fd = emacs_sys::display_descriptor(terminal.raw_display_handle().unwrap());
 
