@@ -39,13 +39,13 @@ impl GLContextTrait for ContextImpl {
     fn build(frame: &FrameRef) -> Self {
         log::trace!("Initialize OpenGL context using Surfman");
 
-        let display_handle = frame.raw_display_handle().unwrap();
-        let window_handle = frame.raw_window_handle().unwrap();
+        let display_handle = frame.display_handle().unwrap();
+        let window_handle = frame.window_handle().unwrap();
         let size = frame.physical_size();
         let width = size.to_untyped().width;
         let height = size.to_untyped().height;
 
-        let connection = match Connection::from_raw_display_handle(display_handle) {
+        let connection = match Connection::from_display_handle(display_handle) {
             Ok(connection) => connection,
             Err(error) => panic!("Device not open {:?}", error),
         };
@@ -55,7 +55,7 @@ impl GLContextTrait for ContextImpl {
             .expect("Failed to create adapter");
 
         let native_widget = connection
-            .create_native_widget_from_raw_window_handle(window_handle, Size2D::new(width, height))
+            .create_native_widget_from_window_handle(window_handle, Size2D::new(width, height))
             .expect("Failed to create native widget");
 
         let surface_type = SurfaceType::Widget { native_widget };

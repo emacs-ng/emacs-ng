@@ -746,13 +746,13 @@ pub fn winit_monitor_to_emacs_monitor(m: MonitorHandle) -> (MonitorInfo, Option<
 /// Internal use only, use `display-monitor-attributes-list' instead.
 #[lisp_fn(min = "0")]
 pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject {
-    let terminal: TerminalRef = terminal.into();
+    let frame = window_frame_live_or_selected(terminal);
 
-    let monitors: Vec<_> = terminal
+    let monitors: Vec<_> = frame
         .available_monitors()
         .and_then(|ms| Some(ms.collect()))
         .unwrap_or(Vec::new());
-    let primary_monitor = terminal.primary_monitor();
+    let primary_monitor = frame.primary_monitor();
 
     let primary_monitor_index = monitors
         .iter()
@@ -807,11 +807,10 @@ pub fn winit_display_monitor_attributes_list(terminal: LispObject) -> LispObject
 }
 
 fn winit_screen_size(terminal: LispObject) -> LogicalSize<i32> {
-    let dpyinfo = check_x_display_info(terminal);
-    let terminal = dpyinfo.terminal();
-    terminal
+    let frame = window_frame_live_or_selected(terminal);
+    frame
         .primary_monitor()
-        .or_else(|| terminal.available_monitors()?.next())
+        .or_else(|| frame.available_monitors()?.next())
         .and_then(|m| Some(m.size().to_logical::<i32>(m.scale_factor())))
         .unwrap_or(LogicalSize::new(0, 0))
 }

@@ -85,7 +85,7 @@ raw-window-handle = "0.6"
 image = "0.24"
 cfg_aliases = "0.2"
 gleam = "0.15"
-winit = { version = "0.29", default-features = false, features = ["rwh_06"]}
+winit = { version = "0.30.8", default-features = false, features = ["rwh_06"]}
 arboard = "3.3"
 euclid = "0.22"
 tokio = "1"
@@ -118,13 +118,3 @@ lto = true
 opt-level = 'z' # Optimize for size
 
 ### Patches
-
-# surfman raw-window-handle 0.6
-[patch.crates-io.surfman]
-git = "https://github.com/declantsien/surfman.git"
-rev = "51ac8db9f4584bcad9d8223103386bd05c5f2048"
-
-# glutin raw-window-handle 0.6
-[patch.crates-io.glutin]
-git = "https://github.com/declantsien/glutin.git"
-rev = "92a5ab0cc907ab3e1095ec6a09356aff8d93ade8"

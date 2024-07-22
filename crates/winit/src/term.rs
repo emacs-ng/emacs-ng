@@ -768,6 +768,7 @@ extern "C" fn winit_delete_terminal(terminal: *mut terminal) {
     terminal.free_winit_data();
 }
 
+#[allow(deprecated)]
 fn winit_pump_events(timeout: Option<Duration>) -> Vec<Event<i32>> {
     current_winit_data().map_or(Vec::new(), |mut d| {
         let mut pending_events: Vec<Event<i32>> = Vec::new();

@@ -18,6 +18,8 @@ use glutin::prelude::GlSurface;
 use glutin::surface::Surface;
 use glutin::surface::SurfaceAttributesBuilder;
 use glutin::surface::WindowSurface;
+use raw_window_handle::HasDisplayHandle;
+use raw_window_handle::HasWindowHandle;
 
 use webrender_api::units::DeviceIntSize;
 
@@ -40,8 +42,14 @@ impl GLContextTrait for ContextImpl {
     fn build(frame: &FrameRef) -> Self {
         log::trace!("Initialize OpenGL context using Glutin");
 
-        let display_handle = frame.raw_display_handle().expect("None raw display handle");
-        let window_handle = frame.raw_window_handle().expect("None raw window handle");
+        let display_handle = frame
+            .display_handle()
+            .expect("None raw display handle")
+            .as_raw();
+        let window_handle = frame
+            .window_handle()
+            .expect("None raw window handle")
+            .as_raw();
         let size = frame.physical_size();
 
         let width = NonZeroU32::new(size.width as u32).unwrap();

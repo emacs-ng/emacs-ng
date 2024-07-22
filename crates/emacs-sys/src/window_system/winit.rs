@@ -15,10 +15,10 @@ use winit::dpi::Position;
 use winit::event::Event;
 use winit::event_loop::DeviceEvents;
 use winit::event_loop::EventLoop;
-use winit::event_loop::EventLoopBuilder;
 use winit::monitor::MonitorHandle;
 use winit::window::Fullscreen;
-use winit::window::WindowBuilder;
+use winit::window::Window;
+use winit::window::WindowAttributes;
 use winit::window::WindowButtons;
 use winit::window::WindowLevel;
 
@@ -62,10 +62,7 @@ pub fn current_winit_data() -> Option<WinitTermDataRef> {
 
 impl Default for WinitTermData {
     fn default() -> Self {
-        let event_loop = EventLoopBuilder::<i32>::with_user_event()
-            .build()
-            .ok()
-            .unwrap();
+        let event_loop = EventLoop::<i32>::with_user_event().build().ok().unwrap();
         event_loop.listen_device_events(DeviceEvents::Never);
         let clipboard = Clipboard::new().unwrap();
         WinitTermData {
@@ -102,14 +99,6 @@ impl TerminalRef {
                 let _ = Box::from_raw(self.winit as *mut WinitTermData);
             }
         }
-    }
-
-    pub fn available_monitors(&self) -> Option<impl Iterator<Item = MonitorHandle>> {
-        Some(self.winit_data()?.event_loop.available_monitors())
-    }
-
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.winit_data()?.event_loop.primary_monitor()
     }
 
     pub fn get_color_bits(&self) -> u8 {
@@ -242,11 +231,24 @@ impl FrameRef {
         let parent_frame = FrameRef::from(self.parent_frame);
         parent_frame.raw_window_handle()
     }
+
+    pub fn available_monitors(&self) -> Option<impl Iterator<Item = MonitorHandle>> {
+        self.winit_data().and_then(|data| {
+            data.window
+                .as_ref()
+                .and_then(|w| Some(w.available_monitors()))
+        })
+    }
+
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.winit_data()
+            .and_then(|data| data.window.as_ref().and_then(|w| w.primary_monitor()))
+    }
 }
 
-impl From<FrameRef> for WindowBuilder {
-    fn from(f: FrameRef) -> WindowBuilder {
-        let mut builder = WindowBuilder::new()
+impl From<FrameRef> for WindowAttributes {
+    fn from(f: FrameRef) -> WindowAttributes {
+        let mut builder = Window::default_attributes()
             .with_inner_size(PhysicalSize::new(f.pixel_width, f.pixel_height))
             .with_min_inner_size(PhysicalSize::<u32>::new(
                 f.param(FrameParam::MinWidth).into(),

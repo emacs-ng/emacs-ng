@@ -19,9 +19,9 @@ use winit::dpi::LogicalPosition;
 use winit::dpi::PhysicalSize;
 use winit::window::Fullscreen;
 use winit::window::Window;
+use winit::window::WindowAttributes;
 
 use winit::dpi::PhysicalPosition;
-use winit::window::WindowBuilder;
 
 pub trait FrameExtWinit {
     fn setup_winit(&mut self);
@@ -42,10 +42,11 @@ pub trait FrameExtWinit {
 }
 
 impl FrameExtWinit for FrameRef {
+    #[allow(deprecated)]
     fn setup_winit(&mut self) {
         let terminal = self.terminal();
 
-        let window_builder = WindowBuilder::from(self.clone());
+        let window_builder = WindowAttributes::from(self.clone());
 
         let scale_factor = self.scale_factor();
 
@@ -54,13 +55,13 @@ impl FrameExtWinit for FrameRef {
 
         #[cfg(free_unix)]
         let window_builder = {
-            use winit::platform::wayland::WindowBuilderExtWayland;
+            use winit::platform::wayland::WindowAttributesExtWayland;
             window_builder.with_name(&invocation_name, "")
         };
 
         let window = terminal
             .winit_data()
-            .and_then(|d| window_builder.build(&d.event_loop).ok())
+            .and_then(|d| d.event_loop.create_window(window_builder).ok())
             .unwrap();
         window.set_theme(None);
         window.set_title(&invocation_name);
@@ -102,7 +103,7 @@ impl FrameExtWinit for FrameRef {
         self.winit_data().map(|d| {
             d.window.as_ref().map(|w| {
                 let cursor = emacs_to_winit_cursor(cursor);
-                w.set_cursor_icon(cursor)
+                w.set_cursor(cursor)
             })
         });
     }
