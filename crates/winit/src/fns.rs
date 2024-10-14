@@ -1043,7 +1043,7 @@ pub extern "C" fn syms_of_winit_term() {
     // `underline-minimum-offset' to override the font's UNDERLINE_POSITION for
     // small font display sizes.
     #[rustfmt::skip]
-    defvar_bool!(Vx_use_underline_position_properties, "x-use-underline-position-properties", true);
+    defvar_bool!(x_use_underline_position_properties, "x-use-underline-position-properties", true);
 
     // Non-nil means to draw the underline at the same place as the descent line.
     // (If `line-spacing' is in effect, that moves the underline lower by
@@ -1052,7 +1052,7 @@ pub extern "C" fn syms_of_winit_term() {
     // variable `x-use-underline-position-properties', which is usually at the
     // baseline level.  The default value is nil.
     #[rustfmt::skip]
-    defvar_bool!(Vx_underline_at_descent_line, "x-underline-at-descent-line", false);
+    defvar_bool!(x_underline_at_descent_line, "x-underline-at-descent-line", false);
 
     // Whether to enable X clipboard manager support.
     // If non-nil, then whenever Emacs is killed or an Emacs frame is deleted

@@ -90,7 +90,7 @@ impl WrGlyph for GlyphStringRef {
                     .filter(|font| font.underline_thickness > 0)
                     .map(|font| font.underline_thickness)
                     .unwrap_or(1);
-                if unsafe { globals.Vx_underline_at_descent_line }
+                if unsafe { globals.x_underline_at_descent_line }
                     || self.face().underline_at_descent_line_p()
                 {
                     let position = (self.height - thickness)
@@ -107,7 +107,7 @@ impl WrGlyph for GlyphStringRef {
                     // ROUND(x) = floor (x + 0.5)
                     let position = match font {
                         Some(font)
-                            if unsafe { globals.Vx_use_underline_position_properties }
+                            if unsafe { globals.x_use_underline_position_properties }
                                 && font.underline_position >= 0 =>
                         {
                             font.underline_position
