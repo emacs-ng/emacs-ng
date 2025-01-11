@@ -1,6 +1,6 @@
 ;;; gnus-search.el --- Search facilities for Gnus    -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric Abrahamsen <eric@ericabrahamsen.net>
 
@@ -135,8 +135,7 @@ transformed."
   'gnus-search-ignored-newsgroups "28.1")
 
 (defcustom gnus-search-ignored-newsgroups ""
-  "A regexp to match newsgroups in the active file that should
-be skipped when searching."
+  "Regexp matching newsgroups in the active file to skip when searching."
   :version "24.1"
   :type 'regexp)
 
@@ -357,7 +356,7 @@ This can also be set per-server."
 
 (defcustom gnus-search-mu-switches nil
   "A list of strings, to be given as additional arguments to mu.
-Note that this should be a list. I.e., do NOT use the following:
+Note that this should be a list.  I.e., do NOT use the following:
     (setq gnus-search-mu-switches \"-u -r\")
 Instead, use this:
     (setq gnus-search-mu-switches \\='(\"-u\" \"-r\"))
@@ -367,7 +366,7 @@ This can also be set per-server."
 
 (defcustom gnus-search-mu-remove-prefix (expand-file-name "~/Mail/")
   "A prefix to remove from the mu results to get a group name.
-Usually this will be set to the path to your mail directory. This
+Usually this will be set to the path to your mail directory.  This
 can also be set per-server."
   :version "29.1"
   :type 'directory)
@@ -1013,7 +1012,7 @@ Responsible for handling and, or, and parenthetical expressions.")
   (let (clauses)
     (mapc
      (lambda (item)
-       (when-let ((expr (gnus-search-transform-expression engine item)))
+       (when-let* ((expr (gnus-search-transform-expression engine item)))
 	 (push expr clauses)))
      query)
     (mapconcat #'identity (reverse clauses) " ")))
@@ -1487,7 +1486,7 @@ Returns a list of [group article score] vectors."
 	    (push (list f-name article group score)
                   artlist)))))
     ;; Are we running an additional grep query?
-    (when-let ((grep-reg (alist-get 'grep query)))
+    (when-let* ((grep-reg (alist-get 'grep query)))
       (setq artlist (gnus-search-grep-search engine artlist grep-reg)))
 
     (when (>= gnus-verbose 7)
@@ -1592,8 +1591,7 @@ fudges a relevancy score of 100."
 ;; I can't tell if this is actually necessary.
 (cl-defmethod gnus-search-run-search :around ((_e gnus-search-namazu)
 					      _server _query _groups)
-  (let ((process-environment (copy-sequence process-environment)))
-    (setenv "LC_MESSAGES" "C")
+  (with-environment-variables (("LC_MESSAGES" "C"))
     (cl-call-next-method)))
 
 (cl-defmethod gnus-search-indexed-search-command ((engine gnus-search-namazu)
@@ -1718,9 +1716,9 @@ cross our fingers for the rest of it."
   (let (clauses)
     (mapc
      (lambda (item)
-       (when-let ((expr (if (consp (car-safe item))
-			    (gnus-search-transform engine item)
-			  (gnus-search-transform-expression engine item))))
+       (when-let* ((expr (if (consp (car-safe item))
+			     (gnus-search-transform engine item)
+			   (gnus-search-transform-expression engine item))))
 	 (push expr clauses)))
      query)
     (mapconcat #'identity (reverse clauses) " ")))
@@ -2142,8 +2140,8 @@ remaining string, then adds all that to the top-level spec."
 		      (assoc-string srv gnus-search-engine-instance-alist t))
 		     (nth 1 engine-config)
 		     (cdr-safe (assoc (car method) gnus-search-default-engines))
-		     (when-let ((old (assoc 'nnir-search-engine
-					    (cddr method))))
+		     (when-let* ((old (assoc 'nnir-search-engine
+					     (cddr method))))
 		       (nnheader-message
 			8 "\"nnir-search-engine\" is no longer a valid parameter")
 		       (nth 1 old))))
@@ -2186,7 +2184,7 @@ remaining string, then adds all that to the top-level spec."
 
 (defun gnus-search-thread (header &optional group server)
   "Find articles in the thread containing HEADER from GROUP on SERVER.
-If gnus-refer-thread-use-search is nil only the current group is
+If `gnus-refer-thread-use-search' is nil only the current group is
 checked for articles; if t all groups on the server containing
 the article's group will be searched; if a list then all servers
 in this list will be searched.  If possible the newly found

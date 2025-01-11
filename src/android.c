@@ -1,6 +1,6 @@
 /* Android initialization for GNU Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1491,15 +1491,6 @@ NATIVE_NAME (setEmacsParams) (JNIEnv *env, jobject object,
        EmacsNoninteractive can be found.  */
     setenv ("EMACS_CLASS_PATH", android_class_path, 1);
 
-  /* Set LD_LIBRARY_PATH to an appropriate value.  */
-  setenv ("LD_LIBRARY_PATH", android_lib_dir, 1);
-
-  /* EMACS_LD_LIBRARY_PATH records the location of the app library
-     directory.  android-emacs refers to this, since users have valid
-     reasons for changing LD_LIBRARY_PATH to a value that precludes
-     the possibility of Java locating libemacs later.  */
-  setenv ("EMACS_LD_LIBRARY_PATH", android_lib_dir, 1);
-
   /* If the system is Android 5.0 or later, set LANG to en_US.utf8,
      which is understood by the C library.  In other instances set it
      to C, a meaningless value, for good measure.  */
@@ -2019,6 +2010,8 @@ NATIVE_NAME (initEmacs) (JNIEnv *env, jobject object, jarray argv,
       c_argument
 	= (*env)->GetStringUTFChars (env, (jstring) dump_file_object,
 				     NULL);
+      if (!c_argument)
+	emacs_abort ();
 
       /* Copy the Java string data once.  */
       dump_file = strdup (c_argument);
@@ -2976,7 +2969,7 @@ android_globalize_reference (jobject handle)
   (*android_java_env)->SetLongField (android_java_env, global,
 				     handle_class.handle,
 				     (jlong) global);
-  verify (sizeof (jlong) >= sizeof (intptr_t));
+  static_assert (sizeof (jlong) >= sizeof (intptr_t));
   return (intptr_t) global;
 }
 
@@ -3528,7 +3521,7 @@ android_set_dashes (struct android_gc *gc, int dash_offset,
       /* Copy the list of segments into both arrays.  */
       for (i = 0; i < n; ++i)
 	gc->dashes[i] = dash_list[i];
-      verify (sizeof (int) == sizeof (jint));
+      static_assert (sizeof (int) == sizeof (jint));
       (*android_java_env)->SetIntArrayRegion (android_java_env,
 					      array, 0, n,
 					      (jint *) dash_list);
@@ -5348,7 +5341,7 @@ android_wc_lookup_string (android_key_pressed_event *event,
       characters = (*env)->GetStringChars (env, string, NULL);
       android_exception_check_nonnull ((void *) characters, string);
 
-      /* Establish the size of the the string.  */
+      /* Establish the size of the string.  */
       size = (*env)->GetStringLength (env, string);
 
       /* Copy over the string data.  */
@@ -6497,18 +6490,18 @@ android_browse_url (Lisp_Object url, Lisp_Object send)
   buffer = (*android_java_env)->GetStringUTFChars (android_java_env,
 						   (jstring) value,
 						   NULL);
-  android_exception_check_1 (value);
+  android_exception_check_nonnull ((void *) buffer, value);
 
   /* Otherwise, build the string describing the error.  */
-  tem = build_string_from_utf8 (buffer);
+  tem = build_unibyte_string (buffer);
 
   (*android_java_env)->ReleaseStringUTFChars (android_java_env,
 					      (jstring) value,
 					      buffer);
 
-  /* And return it.  */
+  /* And decode and return the same.  */
   ANDROID_DELETE_LOCAL_REF (value);
-  return tem;
+  return code_convert_string_norecord (tem, Qandroid_jni, false);
 }
 
 /* Tell the system to restart Emacs in a short amount of time, and

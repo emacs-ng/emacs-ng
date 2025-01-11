@@ -1,6 +1,6 @@
 ;;; modus-vivendi-deuteranopia-theme.el --- Deuteranopia-optimized theme with a black background -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2024  Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
 ;; Maintainer: Protesilaos Stavrou <info@protesilaos.com>
@@ -72,7 +72,7 @@ standard)."
 
       (red             "#ff5f59")
       (red-warmer      "#ff6b55")
-      (red-cooler      "#ff7f9f")
+      (red-cooler      "#ff7f86")
       (red-faint       "#ff9580")
       (red-intense     "#ff5f5f")
       (green           "#44bc44")
@@ -134,11 +134,19 @@ standard)."
       (bg-magenta-nuanced "#2f0c3f")
       (bg-cyan-nuanced    "#042837")
 
-;;; Uncommon accent backgrounds
+;;; Uncommon accent background and foreground pairs
 
-      (bg-ochre    "#442c2f")
+      (bg-clay     "#49191a")
+      (fg-clay     "#f1b090")
+
+      (bg-ochre    "#462f20")
+      (fg-ochre    "#e0d09c")
+
       (bg-lavender "#38325c")
-      (bg-sage     "#0f3d30")
+      (fg-lavender "#dfc0f0")
+
+      (bg-sage     "#143e32")
+      (fg-sage     "#c3e7d4")
 
 ;;; Graphs
 
@@ -248,19 +256,24 @@ standard)."
 
 ;;;; Code mappings
 
+      (bracket fg-main)
       (builtin magenta-warmer)
       (comment yellow-cooler)
       (constant blue-cooler)
-      (docstring cyan-faint)
+      (delimiter fg-main)
       (docmarkup magenta-faint)
+      (docstring cyan-faint)
       (fnname magenta)
       (keyword magenta-cooler)
+      (number fg-main)
+      (operator fg-main)
       (preprocessor red-cooler)
+      (punctuation fg-main)
+      (rx-backslash blue-cooler)
+      (rx-construct yellow-cooler)
       (string blue-warmer)
       (type cyan-cooler)
       (variable cyan)
-      (rx-construct yellow-cooler)
-      (rx-backslash blue-cooler)
 
 ;;;; Accent mappings
 
@@ -291,14 +304,16 @@ standard)."
 
       (date-common cyan)
       (date-deadline yellow-warmer)
+      (date-deadline-subtle red-faint)
       (date-event fg-alt)
       (date-holiday yellow-warmer)
       (date-holiday-other blue)
       (date-now fg-main)
       (date-range fg-alt)
       (date-scheduled yellow-cooler)
+      (date-scheduled-subtle yellow-faint)
       (date-weekday cyan)
-      (date-weekend yellow-faint)
+      (date-weekend magenta)
 
 ;;;; Line number mappings
 
@@ -482,6 +497,19 @@ as a symbol and the latter as a string.
 Semantic color mappings have the form (MAPPING-NAME COLOR-NAME)
 with both as symbols.  The latter is a named color that already
 exists in the palette and is associated with a HEX-VALUE.")
+
+  (defcustom modus-vivendi-deuteranopia-palette-user nil
+    "Like the `modus-vivendi-deuteranopia-palette' for user-defined entries.
+This is meant to extend the palette with custom named colors and/or
+semantic palette mappings.  Those may then be used in combination with
+palette overrides (also see `modus-themes-common-palette-overrides' and
+`modus-vivendi-deuteranopia-palette-overrides')."
+    :group 'modus-themes
+    :package-version '(modus-themes . "4.5.0")
+    :type '(repeat (list symbol (choice symbol string)))
+    :set #'modus-themes--set-option
+    :initialize #'custom-initialize-default
+    :link '(info-link "(modus-themes) Option to extend the palette for use with overrides"))
 
   (defcustom modus-vivendi-deuteranopia-palette-overrides nil
     "Overrides for `modus-vivendi-deuteranopia-palette'.

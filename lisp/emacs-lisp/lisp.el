@@ -1,6 +1,6 @@
 ;;; lisp.el --- Lisp editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2000-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -36,8 +36,8 @@ This is only necessary if the opening paren or brace is not in column 0.
 See function `beginning-of-defun'."
   :type '(choice (const nil)
 		 regexp)
+  :local t
   :group 'lisp)
-(make-variable-buffer-local 'defun-prompt-regexp)
 
 (defcustom parens-require-spaces t
   "If non-nil, add whitespace as needed when inserting parentheses.
@@ -143,6 +143,14 @@ This command assumes point is not in a string or comment."
 	    (point))
 	  nil t))))
 
+(defun forward-list-default-function (&optional arg)
+  "Default function for `forward-list-function'."
+  (goto-char (or (scan-lists (point) arg 0) (buffer-end arg))))
+
+(defvar forward-list-function nil
+  "If non-nil, `forward-list' delegates to this function.
+Should take the same arguments and behave similarly to `forward-list'.")
+
 (defun forward-list (&optional arg interactive)
   "Move forward across one balanced group of parentheses.
 This command will also work on other parentheses-like expressions
@@ -150,6 +158,7 @@ defined by the current language mode.
 With ARG, do it that many times.
 Negative arg -N means move backward across N groups of parentheses.
 This command assumes point is not in a string or comment.
+Calls `forward-list-function' to do the work, if that is non-nil.
 If INTERACTIVE is non-nil, as it is interactively,
 report errors as appropriate for this kind of usage."
   (interactive "^p\nd")
@@ -160,7 +169,9 @@ report errors as appropriate for this kind of usage."
                                     "No next group"
                                   "No previous group"))))
     (or arg (setq arg 1))
-    (goto-char (or (scan-lists (point) arg 0) (buffer-end arg)))))
+    (if forward-list-function
+        (funcall forward-list-function arg)
+      (forward-list-default-function arg))))
 
 (defun backward-list (&optional arg interactive)
   "Move backward across one balanced group of parentheses.
@@ -169,11 +180,23 @@ defined by the current language mode.
 With ARG, do it that many times.
 Negative arg -N means move forward across N groups of parentheses.
 This command assumes point is not in a string or comment.
+Uses `forward-list' to do the work.
 If INTERACTIVE is non-nil, as it is interactively,
 report errors as appropriate for this kind of usage."
   (interactive "^p\nd")
   (or arg (setq arg 1))
   (forward-list (- arg) interactive))
+
+(defun down-list-default-function (&optional arg)
+  "Default function for `down-list-function'."
+  (let ((inc (if (> arg 0) 1 -1)))
+    (while (/= arg 0)
+      (goto-char (or (scan-lists (point) inc -1) (buffer-end arg)))
+      (setq arg (- arg inc)))))
+
+(defvar down-list-function nil
+  "If non-nil, `down-list' delegates to this function.
+Should take the same arguments and behave similarly to `down-list'.")
 
 (defun down-list (&optional arg interactive)
   "Move forward down one level of parentheses.
@@ -182,20 +205,21 @@ defined by the current language mode.
 With ARG, do this that many times.
 A negative argument means move backward but still go down a level.
 This command assumes point is not in a string or comment.
+Calls `down-list-function' to do the work, if that is non-nil.
 If INTERACTIVE is non-nil, as it is interactively,
 report errors as appropriate for this kind of usage."
   (interactive "^p\nd")
-  (when (ppss-comment-or-string-start (syntax-ppss))
+  (when (and (null down-list-function)
+             (ppss-comment-or-string-start (syntax-ppss)))
     (user-error "This command doesn't work in strings or comments"))
   (if interactive
       (condition-case _
           (down-list arg nil)
         (scan-error (user-error "At bottom level")))
     (or arg (setq arg 1))
-    (let ((inc (if (> arg 0) 1 -1)))
-      (while (/= arg 0)
-        (goto-char (or (scan-lists (point) inc -1) (buffer-end arg)))
-        (setq arg (- arg inc))))))
+    (if down-list-function
+        (funcall down-list-function arg)
+      (down-list-default-function arg))))
 
 (defun backward-up-list (&optional arg escape-strings no-syntax-crossing)
   "Move backward out of one level of parentheses.
@@ -215,6 +239,10 @@ On error, location of point is unspecified."
   (interactive "^p\nd\nd")
   (up-list (- (or arg 1)) escape-strings no-syntax-crossing))
 
+(defvar up-list-function nil
+  "If non-nil, `up-list' delegates to this function.
+Should take the same arguments and behave similarly to `up-list'.")
+
 (defun up-list (&optional arg escape-strings no-syntax-crossing)
   "Move forward out of one level of parentheses.
 This command will also work on other parentheses-like expressions
@@ -231,6 +259,12 @@ end of a list broken across multiple strings.
 
 On error, location of point is unspecified."
   (interactive "^p\nd\nd")
+  (if up-list-function
+      (funcall up-list-function arg escape-strings no-syntax-crossing)
+    (up-list-default-function arg escape-strings no-syntax-crossing)))
+
+(defun up-list-default-function (&optional arg escape-strings no-syntax-crossing)
+  "Default function for `up-list-function'."
   (or arg (setq arg 1))
   (let ((inc (if (> arg 0) 1 -1))
         (pos nil))
@@ -850,10 +884,18 @@ It's used by the command `delete-pair'.  The value 0 disables blinking."
   :group 'lisp
   :version "28.1")
 
+(defcustom delete-pair-push-mark nil
+  "Non-nil means `delete-pair' pushes mark at end of delimited region."
+  :type 'boolean
+  :group 'lisp
+  :version "31.1")
+
 (defun delete-pair (&optional arg)
   "Delete a pair of characters enclosing ARG sexps that follow point.
 A negative ARG deletes a pair around the preceding ARG sexps instead.
-The option `delete-pair-blink-delay' can disable blinking."
+The option `delete-pair-blink-delay' can disable blinking.  With
+`delete-pair-push-mark' enabled, pushes a mark at the end of the
+enclosed region."
   (interactive "P")
   (if arg
       (setq arg (prefix-numeric-value arg))
@@ -887,7 +929,9 @@ The option `delete-pair-blink-delay' can disable blinking."
 	  (when (and (numberp delete-pair-blink-delay)
 		     (> delete-pair-blink-delay 0))
 	    (sit-for delete-pair-blink-delay))
-	  (delete-char -1)))
+	  (delete-char -1)
+	  (when delete-pair-push-mark
+	    (push-mark))))
       (delete-char 1))))
 
 (defun raise-sexp (&optional n)

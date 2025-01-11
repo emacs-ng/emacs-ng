@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on the Microsoft Windows API.
 
-Copyright (C) 1989, 1993-2024 Free Software Foundation, Inc.
+Copyright (C) 1989, 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -24,6 +24,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "w32term.h"
 #include "w32common.h"	/* for OS version info */
+#include <wtypes.h>
+#include <gdiplus.h>
+#include "w32gdiplus.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -2106,16 +2109,53 @@ w32_draw_image_foreground (struct glyph_string *s)
 		    compat_hdc, s->slice.x, s->slice.y, SRCCOPY);
 	  else
 	    {
-	      int pmode = 0;
-	      /* Windows 9X doesn't support HALFTONE.  */
-	      if (os_subtype == OS_SUBTYPE_NT
-		  && (pmode = SetStretchBltMode (s->hdc, HALFTONE)) != 0)
-		SetBrushOrgEx (s->hdc, 0, 0, NULL);
-	      StretchBlt (s->hdc, x, y, s->slice.width, s->slice.height,
-			  compat_hdc, orig_slice_x, orig_slice_y,
-			  orig_slice_width, orig_slice_height, SRCCOPY);
-	      if (pmode)
-		SetStretchBltMode (s->hdc, pmode);
+#ifdef HAVE_NATIVE_IMAGE_API
+	      if (s->img->smoothing && w32_gdiplus_startup ())
+		{
+		  GpGraphics *graphics;
+		  if (GdipCreateFromHDC (s->hdc, &graphics) == Ok)
+		    {
+		      GpBitmap *gp_bitmap;
+		      /* Can't create a GpBitmap from a HBITMAP that was
+			 ever selected into a DC, so we need to copy.  */
+		      HBITMAP copy
+			= CopyImage (GetCurrentObject (compat_hdc, OBJ_BITMAP),
+				     IMAGE_BITMAP, 0, 0, 0);
+		      if (GdipCreateBitmapFromHBITMAP (copy, NULL,
+						       &gp_bitmap) == Ok)
+			{
+			  GdipSetInterpolationMode (graphics,
+						    InterpolationModeHighQualityBilinear);
+			  GdipDrawImageRectRectI (graphics,
+						  gp_bitmap, x, y,
+						  s->slice.width,
+						  s->slice.height,
+						  orig_slice_x,
+						  orig_slice_y,
+						  orig_slice_width,
+						  orig_slice_height,
+						  UnitPixel,
+						  NULL, NULL, NULL);
+			  GdipDisposeImage (gp_bitmap);
+			}
+		      DeleteObject (copy);
+		      GdipDeleteGraphics (graphics);
+		    }
+		}
+	      else
+#endif
+		{
+		  int pmode = 0;
+		  /* Windows 9X doesn't support HALFTONE.  */
+		  if (os_subtype == OS_SUBTYPE_NT
+		      && (pmode = SetStretchBltMode (s->hdc, HALFTONE)) != 0)
+		    SetBrushOrgEx (s->hdc, 0, 0, NULL);
+		  StretchBlt (s->hdc, x, y, s->slice.width, s->slice.height,
+			      compat_hdc, orig_slice_x, orig_slice_y,
+			      orig_slice_width, orig_slice_height, SRCCOPY);
+		  if (pmode)
+		    SetStretchBltMode (s->hdc, pmode);
+		}
 	    }
 
 	  /* When the image has a mask, we can expect that at
@@ -3573,81 +3613,6 @@ w32_construct_mouse_wheel (struct input_event *result, W32Msg *msg,
   XSETINT (result->x, p.x);
   XSETINT (result->y, p.y);
   XSETFRAME (result->frame_or_window, f);
-  return Qnil;
-}
-
-static Lisp_Object
-w32_construct_drag_n_drop (struct input_event *result, W32Msg *msg,
-                           struct frame *f)
-{
-  Lisp_Object files;
-  Lisp_Object frame;
-  HDROP hdrop;
-  POINT p;
-  WORD num_files;
-  wchar_t name_w[MAX_PATH];
-#ifdef NTGUI_UNICODE
-  const int use_unicode = 1;
-#else
-  int use_unicode = w32_unicode_filenames;
-  char name_a[MAX_PATH];
-  char file[MAX_UTF8_PATH];
-#endif
-  int i;
-
-  result->kind = DRAG_N_DROP_EVENT;
-  result->code = 0;
-  result->timestamp = msg->msg.time;
-  result->modifiers = msg->dwModifiers;
-
-  hdrop = (HDROP) msg->msg.wParam;
-  DragQueryPoint (hdrop, &p);
-
-#if 0
-  p.x = LOWORD (msg->msg.lParam);
-  p.y = HIWORD (msg->msg.lParam);
-  ScreenToClient (msg->msg.hwnd, &p);
-#endif
-
-  XSETINT (result->x, p.x);
-  XSETINT (result->y, p.y);
-
-  num_files = DragQueryFile (hdrop, 0xFFFFFFFF, NULL, 0);
-  files = Qnil;
-
-  for (i = 0; i < num_files; i++)
-    {
-      if (use_unicode)
-	{
-	  eassert (DragQueryFileW (hdrop, i, NULL, 0) < MAX_PATH);
-	  /* If DragQueryFile returns zero, it failed to fetch a file
-	     name.  */
-	  if (DragQueryFileW (hdrop, i, name_w, MAX_PATH) == 0)
-	    continue;
-#ifdef NTGUI_UNICODE
-	  files = Fcons (from_unicode_buffer (name_w), files);
-#else
-	  filename_from_utf16 (name_w, file);
-	  files = Fcons (DECODE_FILE (build_unibyte_string (file)), files);
-#endif /* NTGUI_UNICODE */
-	}
-#ifndef NTGUI_UNICODE
-      else
-	{
-	  eassert (DragQueryFileA (hdrop, i, NULL, 0) < MAX_PATH);
-	  if (DragQueryFileA (hdrop, i, name_a, MAX_PATH) == 0)
-	    continue;
-	  filename_from_ansi (name_a, file);
-	  files = Fcons (DECODE_FILE (build_unibyte_string (file)), files);
-	}
-#endif
-    }
-
-  DragFinish (hdrop);
-
-  XSETFRAME (frame, f);
-  result->frame_or_window = frame;
-  result->arg = files;
   return Qnil;
 }
 
@@ -5682,12 +5647,45 @@ w32_read_socket (struct terminal *terminal,
 	  }
 	  break;
 
-	case WM_DROPFILES:
-	  f = w32_window_to_frame (dpyinfo, msg.msg.hwnd);
+	case WM_EMACS_DROP:
+	  {
+	    int format = msg.msg.wParam;
+	    Lisp_Object drop_object =
+	      w32_process_dnd_data (format, (void *) msg.msg.lParam);
 
-	  if (f)
-	    w32_construct_drag_n_drop (&inev, &msg, f);
+	    f = w32_window_to_frame (dpyinfo, msg.msg.hwnd);
+	    if (!f || NILP (drop_object))
+	      break;
+
+	    XSETFRAME (inev.frame_or_window, f);
+	    inev.kind = DRAG_N_DROP_EVENT;
+	    inev.code = 0;
+	    inev.timestamp = msg.msg.time;
+	    inev.modifiers = msg.dwModifiers;
+	    ScreenToClient (msg.msg.hwnd, &msg.msg.pt);
+	    XSETINT (inev.x, msg.msg.pt.x);
+	    XSETINT (inev.y, msg.msg.pt.y);
+	    inev.arg = drop_object;
+	  }
 	  break;
+
+	case WM_EMACS_DRAGOVER:
+	  {
+	    f = w32_window_to_frame (dpyinfo, msg.msg.hwnd);
+	    if (!f)
+	      break;
+	    XSETFRAME (inev.frame_or_window, f);
+	    inev.kind = DRAG_N_DROP_EVENT;
+	    inev.code = 0;
+	    inev.timestamp = msg.msg.time;
+	    inev.modifiers = msg.dwModifiers;
+	    ScreenToClient (msg.msg.hwnd, &msg.msg.pt);
+	    XSETINT (inev.x, msg.msg.pt.x);
+	    XSETINT (inev.y, msg.msg.pt.y);
+	    /* This is a drag movement.  */
+	    inev.arg = Qnil;
+	    break;
+	  }
 
 	case WM_HSCROLL:
 	  {
@@ -6407,14 +6405,13 @@ w32_read_socket (struct terminal *terminal,
 	if (FRAME_TOOLTIP_P (f))
 	  continue;
 
-	/* Check "visible" frames and mark each as obscured or not.
+	/* Check "visible" frames and mark each as visible or not.
 	   Note that visible is nonzero for unobscured and obscured
 	   frames, but zero for hidden and iconified frames.  */
 	if (FRAME_W32_P (f) && FRAME_VISIBLE_P (f))
 	  {
 	    RECT clipbox;
 	    HDC  hdc;
-	    bool obscured;
 
 	    enter_crit ();
 	    /* Query clipping rectangle for the entire window area
@@ -6428,29 +6425,11 @@ w32_read_socket (struct terminal *terminal,
 	    ReleaseDC (FRAME_W32_WINDOW (f), hdc);
 	    leave_crit ();
 
-	    obscured = FRAME_OBSCURED_P (f);
-
-	    if (clipbox.right == clipbox.left || clipbox.bottom == clipbox.top)
-	      {
-		/* Frame has become completely obscured so mark as such (we
-		   do this by setting visible to 2 so that FRAME_VISIBLE_P
-		   is still true, but redisplay will skip it).  */
-		SET_FRAME_VISIBLE (f, 2);
-
-		if (!obscured)
-		  DebPrint (("frame %p (%s) obscured\n", f, SDATA (f->name)));
-	      }
-	    else
+	    if (!(clipbox.right == clipbox.left
+		  || clipbox.bottom == clipbox.top))
 	      {
 		/* Frame is not obscured, so mark it as such.  */
 		SET_FRAME_VISIBLE (f, 1);
-
-		if (obscured)
-		  {
-		    SET_FRAME_GARBAGED (f);
-		    DebPrint (("obscured frame %p (%s) found to be visible\n",
-			       f, SDATA (f->name)));
-		  }
 	      }
 	  }
       }

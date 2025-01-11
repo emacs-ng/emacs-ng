@@ -1,6 +1,6 @@
 ;;; ox.el --- Export Framework for Org Mode          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 ;; Maintainer: Ihor Radchenko <yantar92 at posteo dot net>
@@ -81,6 +81,7 @@
 (require 'ol)
 (require 'org-element)
 (require 'org-macro)
+(require 'org-attach) ; org-attach adds staff to `org-export-before-parsing-functions'
 (require 'tabulated-list)
 
 (declare-function org-src-coderef-format "org-src" (&optional element))
@@ -155,8 +156,11 @@
     (:cite-export "CITE_EXPORT" nil org-cite-export-processors))
   "Alist between export properties and ways to set them.
 
-The key of the alist is the property name, and the value is a list
-like (KEYWORD OPTION DEFAULT BEHAVIOR) where:
+Each element of the alist is a list like
+(ALIST-KEY KEYWORD OPTION DEFAULT BEHAVIOR)
+
+ALIST-KEY is the key of the alist - a symbol like `:option', and the
+value is (KEYWORD OPTION ...).
 
 KEYWORD is a string representing a buffer keyword, or nil.  Each
   property defined this way can also be set, during subtree
@@ -1931,7 +1935,7 @@ Return a string."
 		 (progn ,@body)
 	       (org-link-broken
 		(pcase (plist-get info :with-broken-links)
-		  (`nil (user-error "Org export aborted. Unable to resolve link: %S\nSee `org-export-with-broken-links'." (nth 1 err)))
+		  (`nil (user-error "Org export aborted.  Unable to resolve link: %S\nSee `org-export-with-broken-links'" (nth 1 err)))
 		  (`mark (org-export-data
 			  (format "[BROKEN LINK: %s]" (nth 1 err)) info))
 		  (_ nil))))))
@@ -2668,7 +2672,7 @@ from tree."
 		(let ((type (org-element-type data)))
 		  (if (org-export--skip-p data info selected excluded)
 		      (if (memq type '(table-cell table-row)) (push data ignore)
-                        (if-let ((keep-spaces (org-export--keep-spaces data info)))
+                        (if-let* ((keep-spaces (org-export--keep-spaces data info)))
 			    ;; Keep spaces in place of removed
 			    ;; element, if necessary.
 			    ;; Example: "Foo.[10%] Bar" would become
@@ -3452,7 +3456,7 @@ file."
        (with-temp-buffer
          (let ((org-inhibit-startup t)
                (lines
-                (if-let ((location (plist-get parameters :location)))
+                (if-let* ((location (plist-get parameters :location)))
                     (org-export--inclusion-absolute-lines
                      file location
                      (plist-get parameters :only-contents)

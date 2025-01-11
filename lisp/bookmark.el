@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1997, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Created: July, 1993
@@ -587,11 +587,8 @@ If DEFAULT is nil then return empty string for empty input."
     (let* ((completion-ignore-case bookmark-completion-ignore-case)
            (default (unless (equal "" default) default)))
       (completing-read (format-prompt prompt default)
-                       (lambda (string pred action)
-                         (if (eq action 'metadata)
-                             '(metadata (category . bookmark))
-                             (complete-with-action
-                              action bookmark-alist string pred)))
+                       (completion-table-with-metadata
+                        bookmark-alist '((category . bookmark)))
                        nil 0 nil 'bookmark-history default))))
 
 
@@ -1857,6 +1854,7 @@ unique numeric suffixes \"<2>\", \"<3>\", etc."
   "a" #'bookmark-bmenu-show-annotation
   "A" #'bookmark-bmenu-show-all-annotations
   "e" #'bookmark-bmenu-edit-annotation
+  "J" #'bookmark-jump
   "/" #'bookmark-bmenu-search
   "<mouse-2>" #'bookmark-bmenu-other-window-with-mouse)
 

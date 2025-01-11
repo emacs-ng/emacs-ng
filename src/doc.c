@@ -1,6 +1,6 @@
 /* Record indices of function doc strings stored in a file. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1986, 1993-1995, 1997-2024 Free Software Foundation,
+Copyright (C) 1985-1986, 1993-1995, 1997-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -479,7 +479,10 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
     fun = XCDR (fun);
   /* Lisp_Subrs have a slot for it.  */
   if (SUBRP (fun))
-    XSUBR (fun)->doc = offset;
+    {
+      XSUBR (fun)->doc = offset;
+      eassert (XSUBR (fun)->doc >= 0);
+    }
   else if (CLOSUREP (fun))
     {
       /* This bytecode object must have a slot for the docstring, since
@@ -497,7 +500,7 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
     }
   else
     {
-      AUTO_STRING (format, "Ignoring DOC string on non-compiled"
+      AUTO_STRING (format, "Ignoring DOC string on non-compiled "
 		   "non-subr: %S");
       CALLN (Fmessage, format, obj);
     }
@@ -669,7 +672,7 @@ If the variable `text-quoting-style' is `grave', `straight' or
 `curve', just return that value.  If it is nil (the default), return
 `grave' if curved quotes cannot be displayed (for instance, on a
 terminal with no support for these characters), otherwise return
-`quote'.  Any other value is treated as `grave'.
+`curve'.  Any other value is treated as `curve'.
 
 Note that in contrast to the variable `text-quoting-style', this
 function will never return nil.  */)

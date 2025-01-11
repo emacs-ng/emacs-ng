@@ -1,6 +1,6 @@
 ;;; filelock-tests.el --- test file locking -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -68,7 +68,7 @@ unavailable to Lisp."
   "Spoil the lock file for FILE-NAME.
 Cause Emacs to report errors for various file locking operations
 on FILE-NAME going forward.  Create a file that is incompatible
-with Emacs' file locking protocol, but uses the same name as
+with Emacs's file locking protocol, but uses the same name as
 FILE-NAME's lock file.  A directory file is used, which is
 portable in practice."
   (make-directory (filelock-tests--make-lock-name file-name)))

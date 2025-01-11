@@ -1,6 +1,6 @@
 ;;; filesets.el --- handle group of files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Thomas Link <sanobast-emacs@yahoo.de>
 ;; Maintainer: emacs-devel@gnu.org
@@ -25,7 +25,7 @@
 
 (defvar filesets-version "1.8.4")
 (defvar filesets-homepage
-  "http://members.a1.net/t.link/CompEmacsFilesets.html")
+  "https://web.archive.org/web/20210225032922/https://members.a1.net/t.link/CompEmacsFilesets.html")
 
 ;;; Commentary:
 

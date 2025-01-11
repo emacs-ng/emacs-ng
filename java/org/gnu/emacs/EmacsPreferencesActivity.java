@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -27,6 +27,8 @@ import android.content.Intent;
 
 import android.os.Bundle;
 import android.os.Build;
+
+import android.view.View;
 
 import android.widget.Toast;
 
@@ -115,6 +117,7 @@ public class EmacsPreferencesActivity extends PreferenceActivity
   {
     Preference tem;
     Preference.OnPreferenceClickListener listener;
+    View view;
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
       setTheme (android.R.style.Theme_DeviceDefault_Settings);
@@ -167,5 +170,13 @@ public class EmacsPreferencesActivity extends PreferenceActivity
       };
 
     tem.setOnPreferenceClickListener (listener);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
+      {
+	/* Align the list view to system windows, or they will be
+	   obstructed by the title bar.  */
+	view = this.getListView ();
+	view.setFitsSystemWindows (true);
+      }
   }
 };

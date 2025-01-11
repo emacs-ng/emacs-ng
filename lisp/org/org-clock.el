@@ -1,6 +1,6 @@
 ;;; org-clock.el --- The time clocking code for Org mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -698,7 +698,7 @@ there is no recent clock to choose from."
 	(fit-window-to-buffer nil nil (if (< chl 10) chl (+ 5 chl)))
 	(message (or prompt "Select task for clocking:"))
 	(unwind-protect (setq cursor-type nil rpl (read-char-exclusive))
-          (when-let ((window (get-buffer-window "*Clock Task Select*" t)))
+          (when-let* ((window (get-buffer-window "*Clock Task Select*" t)))
             (quit-window 'kill window))
 	  (when (get-buffer "*Clock Task Select*")
             (kill-buffer "*Clock Task Select*")))
@@ -3261,7 +3261,7 @@ The details of what will be saved are regulated by the variable
 		   (and (buffer-live-p b)
 			(buffer-file-name b)
 			(or (not org-clock-persist-query-save)
-			    (y-or-n-p (format "Save current clock (%s) "
+                            (y-or-n-p (format "Save current clock (%s)?"
 					      org-clock-heading))))))
 	(insert
 	 (format "(setq org-clock-stored-resume-clock '(%S . %d))\n"
@@ -3301,7 +3301,7 @@ The details of what will be saved are regulated by the variable
 	(`(,(and file (pred file-exists-p)) . ,position)
 	 (with-current-buffer (find-file-noselect file)
 	   (when (or (not org-clock-persist-query-resume)
-		     (y-or-n-p (format "Resume clock (%s) "
+                     (y-or-n-p (format "Resume clock (%s)?"
 				       (save-excursion
 					 (goto-char position)
 					 (org-get-heading t t)))))

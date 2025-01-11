@@ -1,6 +1,6 @@
 /* Synchronous subprocess invocation for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1995, 1999-2024 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1999-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1721,7 +1721,7 @@ getenv_internal (const char *var, ptrdiff_t varlen, char **value,
 			 Vprocess_environment))
     return *value ? 1 : 0;
 
-  /* On Windows we make some modifications to Emacs' environment
+  /* On Windows we make some modifications to Emacs's environment
      without recording them in Vprocess_environment.  */
 #ifdef WINDOWSNT
   {

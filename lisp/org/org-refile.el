@@ -1,6 +1,6 @@
 ;;; org-refile.el --- Refile Org Subtrees             -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -470,8 +470,8 @@ See also `org-refile-use-outline-path'.
 
 If you are using target caching (see `org-refile-use-cache'), you
 have to clear the target cache in order to find new targets.
-This can be done with a `0' prefix (`C-0 C-c C-w') or a triple
-prefix argument (`C-u C-u C-u C-c C-w')."
+This can be done with a `0' prefix (\\`C-0 C-c C-w') or a triple
+prefix argument (\\`C-u C-u C-u C-c C-w')."
   (interactive "P")
   (if (member arg '(0 (64)))
       (org-refile-cache-clear)
@@ -557,7 +557,7 @@ prefix argument (`C-u C-u C-u C-c C-w')."
             (let ((origin (point-marker)))
               ;; Handle special case when we refile to exactly same
               ;; location with tree promotion/demotion.  Point marker
-              ;; saved by `org-width-wide-buffer' (`save-excursion')
+              ;; saved by `org-with-wide-buffer' (`save-excursion')
               ;; will then remain before the inserted subtree in
               ;; unexpected location.
               (set-marker-insertion-type origin t)

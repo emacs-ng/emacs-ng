@@ -1,5 +1,5 @@
 /* Compile Emacs Lisp into native code.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -956,7 +956,7 @@ obj_to_reloc (Lisp_Object obj)
 
   xsignal1 (Qnative_ice,
 	    build_string ("can't find data in relocation containers"));
-  assume (false);
+  eassume (false);
 
  found:
   eassert (XFIXNUM (idx) < reloc.array.len);
@@ -1009,7 +1009,7 @@ declare_imported_func (Lisp_Object subr_sym, gcc_jit_type *ret_type,
     }
   else if (!types)
     {
-      types = SAFE_ALLOCA (nargs * sizeof (* types));
+      SAFE_NALLOCA (types, 1, nargs);
       for (ptrdiff_t i = 0; i < nargs; i++)
 	types[i] = comp.lisp_obj_type;
     }
@@ -2096,16 +2096,17 @@ static gcc_jit_rvalue *
 emit_simple_limple_call (Lisp_Object args, gcc_jit_type *ret_type, bool direct)
 {
   USE_SAFE_ALLOCA;
-  int i = 0;
   Lisp_Object callee = FIRST (args);
   args = XCDR (args);
-  ptrdiff_t nargs = list_length (args);
-  gcc_jit_rvalue **gcc_args = SAFE_ALLOCA (nargs * sizeof (*gcc_args));
+  ptrdiff_t i = 0, nargs = list_length (args);
+  gcc_jit_rvalue **gcc_args;
+  SAFE_NALLOCA (gcc_args, 1, nargs);
   FOR_EACH_TAIL (args)
     gcc_args[i++] = emit_mvar_rval (XCAR (args));
 
+  gcc_jit_rvalue *res = emit_call (callee, ret_type, nargs, gcc_args, direct);
   SAFE_FREE ();
-  return emit_call (callee, ret_type, nargs, gcc_args, direct);
+  return res;
 }
 
 static gcc_jit_rvalue *
@@ -2821,12 +2822,12 @@ emit_static_object (const char *name, Lisp_Object obj)
      <https://gcc.gnu.org/ml/jit/2019-q3/msg00013.html>.
 
      Adjust if possible to reduce the number of function calls.  */
-  size_t chunck_size = NILP (Fcomp_libgccjit_version ()) ? 200 : 1024;
-  char *buff = xmalloc (chunck_size);
+  size_t chunk_size = NILP (Fcomp_libgccjit_version ()) ? 200 : 1024;
+  char *buff = xmalloc (chunk_size);
   for (ptrdiff_t i = 0; i < len;)
     {
-      strncpy (buff, p, chunck_size);
-      buff[chunck_size - 1] = 0;
+      strncpy (buff, p, chunk_size);
+      buff[chunk_size - 1] = 0;
       uintptr_t l = strlen (buff);
 
       if (l != 0)
@@ -4213,11 +4214,13 @@ declare_lex_function (Lisp_Object func)
     {
       EMACS_INT max_args = XFIXNUM (CALL1I (comp-args-max, args));
       eassert (max_args < INT_MAX);
-      gcc_jit_type **type = SAFE_ALLOCA (max_args * sizeof (*type));
+      gcc_jit_type **type;
+      SAFE_NALLOCA (type, 1, max_args);
       for (ptrdiff_t i = 0; i < max_args; i++)
 	type[i] = comp.lisp_obj_type;
 
-      gcc_jit_param **params = SAFE_ALLOCA (max_args * sizeof (*params));
+      gcc_jit_param **params;
+      SAFE_NALLOCA (params, 1, max_args);
       for (int i = 0; i < max_args; ++i)
 	params[i] = gcc_jit_context_new_param (comp.ctxt,
 					      NULL,
@@ -4293,7 +4296,7 @@ compile_function (Lisp_Object func)
 				comp.func_relocs_ptr_type,
 				"freloc");
 
-  comp.frame = SAFE_ALLOCA (comp.frame_size * sizeof (*comp.frame));
+  SAFE_NALLOCA (comp.frame, 1, comp.frame_size);
   if (comp.func_has_non_local || !comp.func_speed)
     {
       /* FIXME: See bug#42360.  */
@@ -4337,11 +4340,9 @@ compile_function (Lisp_Object func)
   /* Pre-declare all basic blocks to gcc.
      The "entry" block must be declared as first.  */
   declare_block (Qentry);
-  Lisp_Object blocks = CALL1I (comp-func-blocks, func);
-  struct Lisp_Hash_Table *ht = XHASH_TABLE (blocks);
-  DOHASH_SAFE (ht, i)
+  struct Lisp_Hash_Table *ht = XHASH_TABLE (CALL1I (comp-func-blocks, func));
+  DOHASH (ht, block_name, block)
     {
-      Lisp_Object block_name = HASH_KEY (ht, i);
       if (!EQ (block_name, Qentry))
 	declare_block (block_name);
     }
@@ -4352,10 +4353,8 @@ compile_function (Lisp_Object func)
 				gcc_jit_lvalue_as_rvalue (comp.func_relocs));
 
 
-  DOHASH_SAFE (ht, i)
+  DOHASH (ht, block_name, block)
     {
-      Lisp_Object block_name = HASH_KEY (ht, i);
-      Lisp_Object block = HASH_VALUE (ht, i);
       Lisp_Object insns = CALL1I (comp-block-insns, block);
       if (NILP (block) || NILP (insns))
 	xsignal1 (Qnative_ice,
@@ -4972,12 +4971,12 @@ DEFUN ("comp--compile-ctxt-to-file0", Fcomp__compile_ctxt_to_file0,
 
   struct Lisp_Hash_Table *func_h =
     XHASH_TABLE (CALL1I (comp-ctxt-funcs-h, Vcomp_ctxt));
-  DOHASH_SAFE (func_h, i)
-    declare_function (HASH_VALUE (func_h, i));
+  DOHASH (func_h, k, function)
+    declare_function (function);
   /* Compile all functions. Can't be done before because the
      relocation structs has to be already defined.  */
-  DOHASH_SAFE (func_h, i)
-    compile_function (HASH_VALUE (func_h, i));
+  DOHASH (func_h, k, function)
+    compile_function (function);
 
   /* Work around bug#46495 (GCC PR99126). */
 #if defined (WIDE_EMACS_INT)						\
@@ -5489,7 +5488,10 @@ native_function_doc (Lisp_Object function)
   if (!VECTORP (cu->data_fdoc_v))
     xsignal2 (Qnative_lisp_file_inconsistent, cu->file,
 	      build_string ("missing documentation vector"));
-  return AREF (cu->data_fdoc_v, XSUBR (function)->doc);
+  EMACS_INT doc = XSUBR (function)->doc;
+  if (doc < 0)
+    return AREF (cu->data_fdoc_v, -doc - 1);
+  return make_fixnum (doc);
 }
 
 static Lisp_Object
@@ -5530,7 +5532,8 @@ make_subr (Lisp_Object symbol_name, Lisp_Object minarg, Lisp_Object maxarg,
   x->s.symbol_name = xstrdup (SSDATA (symbol_name));
   x->s.intspec.native = intspec;
   x->s.command_modes = command_modes;
-  x->s.doc = XFIXNUM (doc_idx);
+  x->s.doc = -XFIXNUM (doc_idx) - 1;
+  eassert (x->s.doc < 0);
 #ifdef HAVE_NATIVE_COMP
   x->s.native_comp_u = comp_u;
   x->s.native_c_name = xstrdup (SSDATA (c_name));
@@ -5756,7 +5759,7 @@ natively-compiled one.  */);
   DEFSYM (Qd_ephemeral, "d-ephemeral");
 
   /* Others.  */
-  DEFSYM (Qcomp, "comp");
+  DEFSYM (Qnative_compiler, "native-compiler");
   DEFSYM (Qfixnum, "fixnum");
   DEFSYM (Qscratch, "scratch");
   DEFSYM (Qlate, "late");

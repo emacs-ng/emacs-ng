@@ -1,6 +1,6 @@
 ;;; make-mode.el --- makefile editing commands for Emacs -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Author: Thomas Neumann <tom@smart.bo.open.de>
 ;;	Eric S. Raymond <esr@thyrsus.com>
@@ -83,7 +83,7 @@
 
 (defface makefile-space
   '((((class color)) (:background  "hotpink"))
-    (t (:reverse-video t)))
+    (t (:inverse-video t)))
   "Face to use for highlighting leading spaces in Font-Lock mode.")
 
 (defface makefile-targets
@@ -102,7 +102,7 @@
 (defface makefile-makepp-perl
   '((((class color) (background light)) (:background  "LightBlue1")) ; Camel Book
     (((class color) (background dark)) (:background  "DarkBlue"))
-    (t (:reverse-video t)))
+    (t (:inverse-video t)))
   "Face to use for additionally highlighting Perl code in Font-Lock mode."
   :version "22.1")
 
@@ -504,7 +504,7 @@ not be enclosed in { } or ( )."
 
 ;; ------------------------------------------------------------
 ;; The following configurable variables are used in the
-;; up-to-date overview .
+;; up-to-date overview.
 ;; The standard configuration assumes that your `make' program
 ;; can be run in question/query mode using the `-q' option, this
 ;; means that the command
@@ -514,12 +514,12 @@ not be enclosed in { } or ( )."
 ;; should return an exit status of zero if the target `foo' is
 ;; up to date and a nonzero exit status otherwise.
 ;; Many makes can do this although the docs/manpages do not mention
-;; it. Try it with your favorite one.  GNU make, System V make, and
+;; it.  Try it with your favorite one.  GNU make, System V make, and
 ;; Dennis Vadura's DMake have no problems.
 ;; Set the variable `makefile-brave-make' to the name of the
 ;; make utility that does this on your system.
 ;; To understand what this is all about see the function definition
-;; of `makefile-query-by-make-minus-q' .
+;; of `makefile-query-by-make-minus-q'.
 ;; ------------------------------------------------------------
 
 (defcustom makefile-brave-make "make"
@@ -704,7 +704,7 @@ The function must satisfy this calling convention:
 ;; Each "ARG" is used as a prompt for a required argument.
 (defconst makefile-gnumake-functions-alist
   '(
-    ;; Text functions
+    ;; Functions for String Substitution and Analysis
     ("subst" "From" "To" "In")
     ("patsubst" "Pattern" "Replacement" "In")
     ("strip" "Text")
@@ -712,22 +712,42 @@ The function must satisfy this calling convention:
     ("filter" "Pattern" "Text")
     ("filter-out" "Pattern" "Text")
     ("sort" "List")
-    ;; Filename functions
+    ("word" "Index" "Text")
+    ("wordlist" "S" "E" "Text")
+    ("words" "Text")
+    ("firstword" "Text")
+    ("lastword" "Names")
+    ;; Functions for File Names
     ("dir" "Names")
     ("notdir" "Names")
     ("suffix" "Names")
     ("basename" "Names")
-    ("addprefix" "Prefix" "Names")
     ("addsuffix" "Suffix" "Names")
+    ("addprefix" "Prefix" "Names")
     ("join" "List 1" "List 2")
-    ("word" "Index" "Text")
-    ("words" "Text")
-    ("firstword" "Text")
     ("wildcard" "Pattern")
+    ("realpath" "Names")
+    ("abspath" "Names")
+    ;; Functions for Conditionals
+    ("if" "Condition" "Then-part" "Else-part")
+    ("or"  "Condition 1" "Condition 2" "Condition 3" "Condition 4")
+    ("and" "Condition 1" "Condition 2" "Condition 3" "Condition 4")
     ;; Misc functions
     ("foreach" "Variable" "List" "Text")
+    ("file" "Op" "Filename" "Text")
+    ("call" "Variable" "Param 1" "Param 2" "Param 3" "Param 4" "Param 5")
+    ("value" "Variable")
+    ("eval" "statement")
     ("origin" "Variable")
-    ("shell" "Command")))
+    ("flavor" "Variable")
+    ("shell" "Command")
+    ("guile" "Program")
+    ;; Functions that control make
+    ("error" "Text")
+    ("warning" "Text")
+    ("info" "Text")
+    )
+  "Alist of GNU Make functions and their arguments.")
 
 
 ;;; ------------------------------------------------------------
@@ -787,7 +807,7 @@ Makefile mode can be configured by modifying the following variables:
    to MODIFY A FILE WITHOUT YOUR CONFIRMATION when \"it seems necessary\".
 
 `makefile-special-targets-list':
-   List of special targets. You will be offered to complete
+   List of special targets.  You will be offered to complete
    on one of those in the minibuffer whenever you enter a `.'.
    at the beginning of a line in Makefile mode."
   (add-hook 'completion-at-point-functions
@@ -1583,7 +1603,7 @@ and generates the overview, one line per target name."
 	(goto-char (point-min))
 	(if (re-search-forward "^\\(\t+$\\| +\t\\)" nil t)
 	    (not (y-or-n-p
-		  (format "Suspicious line %d. Save anyway? "
+                  (format "Suspicious line %d.  Save anyway?"
 			  (count-lines (point-min) (point)))))))))
 
 (defun makefile-warn-continuations ()
@@ -1592,7 +1612,7 @@ and generates the overview, one line per target name."
 	(goto-char (point-min))
 	(if (re-search-forward "\\\\[ \t]+$" nil t)
 	    (not (y-or-n-p
-		  (format "Suspicious continuation in line %d. Save anyway? "
+                  (format "Suspicious continuation in line %d.  Save anyway?"
 			  (count-lines (point-min) (point)))))))))
 
 

@@ -1,6 +1,6 @@
 ;;; svg.el --- SVG image creation functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;         Felix E. Klee <felix.klee@inka.de>
@@ -331,7 +331,6 @@ If the SVG is later changed, the image will also be updated."
         (insert (format " %s=\"%s\"" (car attr) (cdr attr)))))
     (insert ">")
     (dolist (elem (nthcdr 2 dom))
-      (insert " ")
       (svg-print elem))
     (insert (format "</%s>" (car dom)))))
 

@@ -1,6 +1,6 @@
 /* Android virtual file-system support for GNU Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -259,7 +259,7 @@ struct android_special_vnode
   Lisp_Object special_coding_system;
 };
 
-verify (NIL_IS_ZERO); /* special_coding_system above.  */
+static_assert (NIL_IS_ZERO); /* special_coding_system above.  */
 
 enum android_vnode_type
   {
@@ -1323,7 +1323,7 @@ android_hack_asset_fd_fallback (AAsset *asset)
   if (fd < 0)
     return -1;
 
-  if (unlink (filename))
+  if (unlink (filename) && errno != ENOENT)
     goto fail;
 
   if (ftruncate (fd, size))
@@ -2599,9 +2599,10 @@ android_content_name (struct android_vnode *vnode, char *name,
     component_end++;
 
   /* Now, find out if the first component is a special vnode; if so,
-     call its root lookup function with the rest of NAME there.  */
+     call its root lookup function with the rest of NAME there.  What is
+     more, content files are inaccessible in the absence of a GUI.  */
 
-  if (api < 19)
+  if (api < 19 || !android_init_gui)
     i = 3;
   else if (api < 21)
     i = 1;
@@ -3158,6 +3159,37 @@ android_saf_exception_check (int n, ...)
   /* expression is still a local reference! */
   ANDROID_DELETE_LOCAL_REF ((jobject) exception);
   errno = new_errno;
+  va_end (ap);
+  return 1;
+}
+
+/* Verify that OBJECT is non-NULL.  If NULL, free each of the N local
+   references given as arguments, and clear exceptions.
+
+   Value is 1 if it be NULL, 0 otherwise.  */
+
+static int
+android_saf_check_nonnull (const void *object, int n, ...)
+{
+  va_list ap;
+
+  if (object)
+    return 0;
+
+  va_start (ap, n);
+
+  /* Clear the active exception, making it safe to subsequently call
+     other JNI functions.  */
+  (*android_java_env)->ExceptionClear (android_java_env);
+
+  /* Delete each of the N arguments.  */
+
+  while (n > 0)
+    {
+      ANDROID_DELETE_LOCAL_REF (va_arg (ap, jobject));
+      n--;
+    }
+
   va_end (ap);
   return 1;
 }
@@ -4325,7 +4357,7 @@ android_saf_stat (const char *uri_name, const char *id_name,
   return 0;
 }
 
-/* Detect if Emacs has access to the document designated by the the
+/* Detect if Emacs has access to the document designated by the
    document ID ID_NAME within the tree URI_NAME.  If ID_NAME is NULL,
    use the document ID in URI_NAME itself.
 
@@ -6428,7 +6460,7 @@ android_saf_new_mkdir (struct android_vnode *vnode, mode_t mode)
   new_doc_id = (*android_java_env)->GetStringUTFChars (android_java_env,
 						       new_id, NULL);
 
-  if (android_saf_exception_check (3, name, id, uri))
+  if (android_saf_check_nonnull (new_doc_id, 3, name, id, uri))
     return -1;
 
   xfree (vp->document_id);

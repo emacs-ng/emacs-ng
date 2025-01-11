@@ -1,6 +1,6 @@
 ;;; semantic/db-find.el --- Searching through semantic databases.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
@@ -166,9 +166,8 @@ the following keys:
                  in `semanticdb-project-system-databases'.
                  The Emacs Lisp system DB is an omniscience database."
   :group 'semanticdb
-  :type semanticdb-find-throttle-custom-list)
-
-(make-variable-buffer-local 'semanticdb-find-default-throttle)
+  :type semanticdb-find-throttle-custom-list
+  :local t)
 
 (defun semanticdb-find-throttle-active-p (access-type)
   "Non-nil if ACCESS-TYPE is an active throttle type."

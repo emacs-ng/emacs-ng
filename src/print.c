@@ -1,6 +1,6 @@
 /* Lisp object printing and output streams.
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1617,7 +1617,7 @@ print_bool_vector (Lisp_Object obj, Lisp_Object printcharfun)
   ptrdiff_t real_size_in_bytes = size_in_bytes;
   unsigned char *data = bool_vector_uchar_data (obj);
 
-  char buf[sizeof "#&\"" + INT_STRLEN_BOUND (ptrdiff_t)];
+  char buf[sizeof "#&\"" + INT_STRLEN_BOUND (EMACS_INT)];
   int len = sprintf (buf, "#&%"pI"d\"", size);
   strout (buf, len, len, printcharfun);
 

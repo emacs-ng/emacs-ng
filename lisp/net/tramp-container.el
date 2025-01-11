@@ -1,6 +1,6 @@
 ;;; tramp-container.el --- Tramp integration for Docker-like containers  -*- lexical-binding: t; -*-
 
-;; Copyright © 2022-2024 Free Software Foundation, Inc.
+;; Copyright © 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Brian Cully <bjc@kublai.com>
 ;; Maintainer: Michael Albinus <michael.albinus@gmx.de>
@@ -50,18 +50,14 @@
 ;;
 ;; Open file in a Kubernetes container:
 ;;
-;;     C-x C-f /kubernetes:[CONTAINER.]POD:/path/to/file
+;;     C-x C-f /kubernetes:[CONTAINER.]POD[%NAMESPACE]:/path/to/file
 ;;
 ;; Where:
 ;;     POD           is the pod to connect to.
 ;;     CONTAINER     is the container to connect to (optional).
 ;;		     By default, the first container in that pod will
 ;;		     be used.
-;;
-;; Completion for POD and accessing it operate in the current
-;; namespace, use this command to change it:
-;;
-;; "kubectl config set-context --current --namespace=<name>"
+;;     NAMESPACE     is the namespace to be used (optional).
 ;;
 ;;
 ;;
@@ -125,7 +121,8 @@
   :group 'tramp
   :version "29.1"
   :type '(choice (const "docker")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-docker-program))
 
 ;;;###tramp-autoload
 (defcustom tramp-podman-program "podman"
@@ -133,7 +130,8 @@
   :group 'tramp
   :version "29.1"
   :type '(choice (const "podman")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-podman-program))
 
 ;;;###tramp-autoload
 (defcustom tramp-kubernetes-program "kubectl"
@@ -141,7 +139,8 @@
   :group 'tramp
   :version "29.1"
   :type '(choice (const "kubectl")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-kubernetes-program))
 
 (defcustom tramp-kubernetes-context nil
   "Context of Kubernetes.
@@ -149,13 +148,18 @@ If it is nil, the default context will be used."
   :group 'tramp
   :version "30.1"
   :type '(choice (const :tag "Use default" nil)
-                 (string)))
+                 (string))
+  :link '(info-link :tag "Tramp manual" "(tramp) Kubernetes setup"))
 
-(defcustom tramp-kubernetes-namespace "default"
-  "Namespace of Kubernetes."
+(defcustom tramp-kubernetes-namespace nil
+  "Namespace of Kubernetes.
+If it is nil, the current namespace will be used.  An explicit NAMESPACE
+in the remote file name host part will override it."
   :group 'tramp
-  :version "30.1"
-  :type 'string)
+  :version "31.1"
+  :type '(choice (const :tag "Use default" nil)
+                 (string))
+  :link '(info-link :tag "Tramp manual" "(tramp) Kubernetes setup"))
 
 ;;;###tramp-autoload
 (defcustom tramp-toolbox-program "toolbox"
@@ -163,7 +167,8 @@ If it is nil, the default context will be used."
   :group 'tramp
   :version "30.1"
   :type '(choice (const "toolbox")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-toolbox-program))
 
 ;;;###tramp-autoload
 (defcustom tramp-distrobox-program "distrobox"
@@ -171,7 +176,8 @@ If it is nil, the default context will be used."
   :group 'tramp
   :version "30.1"
   :type '(choice (const "distrobox")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-distrobox-program))
 
 ;;;###tramp-autoload
 (defcustom tramp-flatpak-program "flatpak"
@@ -179,7 +185,8 @@ If it is nil, the default context will be used."
   :group 'tramp
   :version "30.1"
   :type '(choice (const "flatpak")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-flatpak-program))
 
 ;;;###tramp-autoload
 (defcustom tramp-apptainer-program "apptainer"
@@ -187,14 +194,16 @@ If it is nil, the default context will be used."
   :group 'tramp
   :version "30.1"
   :type '(choice (const "apptainer")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-apptainer-program))
 
 (defcustom tramp-nspawn-program "machinectl"
   "Name of the machinectl program."
   :group 'tramp
   :version "30.1"
   :type '(choice (const "machinectl")
-                 (string)))
+                 (string))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-nspawn-program))
 
 ;;;###tramp-autoload
 (defconst tramp-docker-method "docker"
@@ -279,19 +288,19 @@ or `tramp-podmancp-method'.
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list
-		(shell-command-to-string
-		 (concat program " ps --format '{{.ID}}\t{{.Names}}'")))
-	       (lines (split-string raw-list "\n" 'omit))
-	       (names
-		(tramp-compat-seq-keep
-		 (lambda (line)
-		   (when (string-match
-			  (rx bol (group (1+ nonl))
-			      "\t" (? (group (1+ nonl))) eol)
-			  line)
-		     (or (match-string 2 line) (match-string 1 line))))
-		 lines)))
+    (when-let* ((raw-list
+		 (shell-command-to-string
+		  (concat program " ps --format '{{.ID}}\t{{.Names}}'")))
+		(lines (split-string raw-list "\n" 'omit))
+		(names
+		 (tramp-compat-seq-keep
+		  (lambda (line)
+		    (when (string-match
+			   (rx bol (group (1+ nonl))
+			       "\t" (? (group (1+ nonl))) eol)
+			   line)
+		      (or (match-string 2 line) (match-string 1 line))))
+		  lines)))
       (mapcar (lambda (name) (list nil name)) names))))
 
 ;;;###tramp-autoload
@@ -301,19 +310,19 @@ see its function help for a description of the format."
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list
-		(shell-command-to-string
-		 (concat
-		  program " "
-		  (tramp-kubernetes--context-namespace vec)
-                  " get pods --no-headers"
-		  ;; We separate pods by "|".  Inside a pod, its name
-		  ;; is separated from the containers by ":".
-		  ;; Containers are separated by ",".
-		  " -o jsonpath='{range .items[*]}{\"|\"}{.metadata.name}"
-		  "{\":\"}{range .spec.containers[*]}{.name}{\",\"}"
-		  "{end}{end}'")))
-               (lines (split-string raw-list "|" 'omit)))
+    (when-let* ((raw-list
+		 (shell-command-to-string
+		  (concat
+		   program " "
+		   (tramp-kubernetes--context-namespace vec)
+                   " get pods --no-headers"
+		   ;; We separate pods by "|".  Inside a pod, its name
+		   ;; is separated from the containers by ":".
+		   ;; Containers are separated by ",".
+		   " -o jsonpath='{range .items[*]}{\"|\"}{.metadata.name}"
+		   "{\":\"}{range .spec.containers[*]}{.name}{\",\"}"
+		   "{end}{end}'")))
+		(lines (split-string raw-list "|" 'omit)))
       (let (names)
 	(dolist (line lines)
 	  (setq line (split-string line ":" 'omit))
@@ -324,26 +333,43 @@ see its function help for a description of the format."
 	    (push (concat elt "." (car line)) names)))
 	(mapcar (lambda (name) (list nil name)) (delq nil names))))))
 
+;; <https://kubernetes.io/docs/concepts/overview/working-with-objects/names/>
+;; `lower' could also match non-ascii letters.  But since this regexp
+;; is only used for strings matching `tramp-host-regexp', this doesn't
+;; hurt.
+(defconst tramp-kubernetes--name-regexp (rx (** 1 63 (any lower digit "-")))
+  "Regexp matching kubernetes names.")
+
 (defconst tramp-kubernetes--host-name-regexp
-  (rx (? (group (regexp tramp-host-regexp)) ".")
-      (group (regexp tramp-host-regexp)))
-  "The CONTAINER.POD syntax of kubernetes host names in Tramp.")
+  (rx bos (? (group (regexp tramp-kubernetes--name-regexp)) ".")
+      (group (regexp tramp-kubernetes--name-regexp))
+      (? "%" (group (regexp tramp-kubernetes--name-regexp))) eos)
+  "The CONTAINER.POD%NAMESPACE syntax of kubernetes host names in Tramp.")
 
 ;;;###tramp-autoload
 (defun tramp-kubernetes--container (vec)
   "Extract the container name from a kubernetes host name in VEC."
-  (or (let ((host (tramp-file-name-host vec)))
-	(and (string-match tramp-kubernetes--host-name-regexp host)
-	     (match-string 1 host)))
+  (or (when-let* ((host (and vec (tramp-file-name-host vec)))
+		  ((string-match tramp-kubernetes--host-name-regexp host)))
+	(match-string 1 host))
       ""))
 
 ;;;###tramp-autoload
 (defun tramp-kubernetes--pod (vec)
   "Extract the pod name from a kubernetes host name in VEC."
-  (or (let ((host (tramp-file-name-host vec)))
-	(and (string-match tramp-kubernetes--host-name-regexp host)
-	     (match-string 2 host)))
+  (or (when-let* ((host (and vec (tramp-file-name-host vec)))
+		  ((string-match tramp-kubernetes--host-name-regexp host)))
+	(match-string 2 host))
       ""))
+
+;;;###tramp-autoload
+(defun tramp-kubernetes--namespace (vec)
+  "Extract the namespace from a kubernetes host name in VEC.
+Use `tramp-kubernetes-namespace' otherwise."
+  (or (when-let* ((host (and vec (tramp-file-name-host vec)))
+		  ((string-match tramp-kubernetes--host-name-regexp host)))
+	(match-string 3 host))
+      tramp-kubernetes-namespace))
 
 ;; We must change `vec' and `default-directory' to the previous hop,
 ;; in order to run `process-file' in a proper environment.
@@ -355,6 +381,11 @@ BODY is the backend specific code."
 	   (cond
 	    ((null ,vec) tramp-null-hop)
 	    ((equal (tramp-file-name-method ,vec) tramp-kubernetes-method)
+	     ;; Sanity check.  We don't support `user' or `port' in
+	     ;; Kubernetes file names.
+	     (when (or (tramp-file-name-user-domain ,vec)
+		       (tramp-file-name-port ,vec))
+	       (tramp-user-error ,vec "Wrong kubernetes file name syntax"))
 	     (if (tramp-file-name-hop ,vec)
 		 (tramp-dissect-hop-name (tramp-file-name-hop ,vec))
 	       tramp-null-hop))
@@ -382,7 +413,7 @@ Obey `tramp-kubernetes-context'"
 
 (defun tramp-kubernetes--current-context-data (vec)
   "Return Kubernetes current context data as JSON string."
-  (when-let ((current-context (tramp-kubernetes--current-context vec)))
+  (when-let* ((current-context (tramp-kubernetes--current-context vec)))
     (tramp-skeleton-kubernetes-vector vec
       (with-temp-buffer
 	(when (zerop
@@ -398,10 +429,11 @@ Obey `tramp-kubernetes-context'"
   "The kubectl options for context and namespace as string."
   (mapconcat
    #'identity
-   `(,(when-let ((context (tramp-kubernetes--current-context vec)))
-	(format "--context=%s" context))
-     ,(when tramp-kubernetes-namespace
-	(format "--namespace=%s" tramp-kubernetes-namespace)))
+   (delq nil
+	 `(,(when-let* ((context (tramp-kubernetes--current-context vec)))
+	      (format "--context=%s" context))
+	   ,(when-let* ((namespace (tramp-kubernetes--namespace vec)))
+	      (format "--namespace=%s" namespace))))
    " "))
 
 ;;;###tramp-autoload
@@ -411,18 +443,18 @@ Obey `tramp-kubernetes-context'"
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list (shell-command-to-string (concat program " list -c")))
-	       ;; Ignore header line.
-               (lines (cdr (split-string raw-list "\n" 'omit)))
-	       ;; We do not show container IDs.
-               (names (tramp-compat-seq-keep
-		       (lambda (line)
-			 (when (string-match
-				(rx bol (1+ (not space))
-				    (1+ space) (group (1+ (not space))) space)
-				line)
-			   (match-string 1 line)))
-                       lines)))
+    (when-let* ((raw-list (shell-command-to-string (concat program " list -c")))
+		;; Ignore header line.
+		(lines (cdr (split-string raw-list "\n" 'omit)))
+		;; We do not show container IDs.
+		(names (tramp-compat-seq-keep
+			(lambda (line)
+			  (when (string-match
+				 (rx bol (1+ (not space))
+				     (1+ space) (group (1+ (not space))) space)
+				 line)
+			    (match-string 1 line)))
+			lines)))
       (mapcar (lambda (name) (list nil name)) names))))
 
 ;;;###tramp-autoload
@@ -432,19 +464,19 @@ see its function help for a description of the format."
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list (shell-command-to-string (concat program " list")))
-	       ;; Ignore header line.
-               (lines (cdr (split-string raw-list "\n" 'omit)))
-	       ;; We do not show container IDs.
-               (names (tramp-compat-seq-keep
-		       (lambda (line)
-			 (when (string-match
-				(rx bol (1+ (not space))
-				    (1+ space) "|" (1+ space)
-				    (group (1+ (not space))) space)
-				line)
-			   (match-string 1 line)))
-                       lines)))
+    (when-let* ((raw-list (shell-command-to-string (concat program " list")))
+		;; Ignore header line.
+		(lines (cdr (split-string raw-list "\n" 'omit)))
+		;; We do not show container IDs.
+		(names (tramp-compat-seq-keep
+			(lambda (line)
+			  (when (string-match
+				 (rx bol (1+ (not space))
+				     (1+ space) "|" (1+ space)
+				     (group (1+ (not space))) space)
+				 line)
+			    (match-string 1 line)))
+			lines)))
       (mapcar (lambda (name) (list nil name)) names))))
 
 ;;;###tramp-autoload
@@ -456,19 +488,19 @@ ID, instance IDs.
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list
-		(shell-command-to-string
-		 ;; Ignore header line.
-		 (concat program " ps --columns=instance,application | cat -")))
-               (lines (split-string raw-list "\n" 'omit))
-               (names (tramp-compat-seq-keep
-		       (lambda (line)
-			 (when (string-match
-				(rx bol (* space) (group (+ (not space)))
-				    (? (+ space) (group (+ (not space)))) eol)
-				line)
-			   (or (match-string 2 line) (match-string 1 line))))
-                       lines)))
+    (when-let* ((raw-list
+		 (shell-command-to-string
+		  ;; Ignore header line.
+		  (concat program " ps --columns=instance,application | cat -")))
+		(lines (split-string raw-list "\n" 'omit))
+		(names (tramp-compat-seq-keep
+			(lambda (line)
+			  (when (string-match
+				 (rx bol (* space) (group (+ (not space)))
+				     (? (+ space) (group (+ (not space)))) eol)
+				 line)
+			    (or (match-string 2 line) (match-string 1 line))))
+			lines)))
       (mapcar (lambda (name) (list nil name)) names))))
 
 ;;;###tramp-autoload
@@ -478,19 +510,19 @@ see its function help for a description of the format."
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list
-		(shell-command-to-string (concat program " instance list")))
-	       ;; Ignore header line.
-               (lines (cdr (split-string raw-list "\n" 'omit)))
-               (names (tramp-compat-seq-keep
-		       (lambda (line)
-			 (when (string-match
-				(rx bol (group (1+ (not space)))
-				    (1+ space) (1+ (not space))
-				    (1+ space) (1+ (not space)))
-				line)
-			   (match-string 1 line)))
-                       lines)))
+    (when-let* ((raw-list
+		 (shell-command-to-string (concat program " instance list")))
+		;; Ignore header line.
+		(lines (cdr (split-string raw-list "\n" 'omit)))
+		(names (tramp-compat-seq-keep
+			(lambda (line)
+			  (when (string-match
+				 (rx bol (group (1+ (not space)))
+				     (1+ space) (1+ (not space))
+				     (1+ space) (1+ (not space)))
+				 line)
+			    (match-string 1 line)))
+			lines)))
       (mapcar (lambda (name) (list nil name)) names))))
 
 (defun tramp-nspawn--completion-function (method)
@@ -499,13 +531,13 @@ see its function help for a description of the format."
 This function is used by `tramp-set-completion-function', please
 see its function help for a description of the format."
   (tramp-skeleton-completion-function method
-    (when-let ((raw-list
-		(shell-command-to-string (concat program " list --all -q")))
-	       ;; Ignore header line.
-               (lines (cdr (split-string raw-list "\n")))
-               (first-words (mapcar (lambda (line) (car (split-string line)))
-				    lines))
-               (machines (seq-take-while (lambda (name) name) first-words)))
+    (when-let* ((raw-list
+		 (shell-command-to-string (concat program " list --all -q")))
+		;; Ignore header line.
+		(lines (cdr (split-string raw-list "\n")))
+		(first-words
+		 (mapcar (lambda (line) (car (split-string line))) lines))
+		(machines (seq-take-while (lambda (name) name) first-words)))
       (mapcar (lambda (m) (list nil m)) machines))))
 
 ;;;###tramp-autoload
@@ -617,9 +649,9 @@ see its function help for a description of the format."
      ;; This variable will be eval'ed in `tramp-expand-args'.
      (tramp-extra-expand-args
       . (?a (tramp-kubernetes--container (car tramp-current-connection))
-	    ?h (tramp-kubernetes--pod (car tramp-current-connection))
-	    ?x (tramp-kubernetes--context-namespace
-		(car tramp-current-connection)))))
+	 ?h (tramp-kubernetes--pod (car tramp-current-connection))
+	 ?x (tramp-kubernetes--context-namespace
+	     (car tramp-current-connection)))))
    "Default connection-local variables for remote kubernetes connections.")
 
  (connection-local-set-profile-variables

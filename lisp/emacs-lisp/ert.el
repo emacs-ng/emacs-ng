@@ -1,6 +1,6 @@
 ;;; ert.el --- Emacs Lisp Regression Testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Christian Ohler <ohler@gnu.org>
 ;; Keywords: lisp, tools
@@ -328,8 +328,8 @@ DATA is displayed to the user and should state the reason for skipping."
                                  (unless (eql ,value ',default-value)
                                    (list :value ,value))
                                  (unless (eql ,value ',default-value)
-                                   (when-let ((-explainer-
-                                               (ert--get-explainer ',fn-name)))
+                                   (when-let* ((-explainer-
+                                                (ert--get-explainer ',fn-name)))
                                      (list :explanation
                                            (apply -explainer- ,args)))))
                          value)
@@ -932,14 +932,14 @@ of tests, or t, which refers to all tests named by symbols in `obarray'.
 Valid SELECTORs:
 
 nil  -- Selects the empty set.
-t    -- Selects UNIVERSE.
+t    -- Selects all of UNIVERSE.  If UNIVERSE is t, selects all tests.
 :new -- Selects all tests that have not been run yet.
 :failed, :passed       -- Select tests according to their most recent result.
 :expected, :unexpected -- Select tests according to their most recent result.
 a string -- A regular expression selecting all tests with matching names.
-a test   -- (i.e., an object of the ert-test data-type) Selects that test.
-a symbol -- Selects the test that the symbol names, signals an
-    `ert-test-unbound' error if none.
+a test   -- (i.e., an object of the `ert-test' data-type) Selects that test.
+a symbol -- Selects the test named by the symbol, signals an
+    `ert-test-unbound' error if no such test.
 \(member TESTS...) -- Selects the elements of TESTS, a list of tests
     or symbols naming tests.
 \(eql TEST) -- Selects TEST, a test or a symbol naming a test.
@@ -1316,14 +1316,9 @@ empty string."
 (defun ert--pp-with-indentation-and-newline (object)
   "Pretty-print OBJECT, indenting it to the current column of point.
 Ensures a final newline is inserted."
-  (let ((begin (point))
-        (pp-escape-newlines t)
+  (let ((pp-escape-newlines t)
         (print-escape-control-characters t))
-    (pp object (current-buffer))
-    (unless (bolp) (insert "\n"))
-    (save-excursion
-      (goto-char begin)
-      (indent-sexp))))
+    (pp object (current-buffer))))
 
 (defun ert--insert-infos (result)
   "Insert `ert-info' infos from RESULT into current buffer.
@@ -1357,10 +1352,10 @@ RESULT must be an `ert-test-result-with-condition'."
 
 (defun ert-test-location (test)
   "Return a string description the source location of TEST."
-  (when-let ((loc
-              (ignore-errors
-                (find-function-search-for-symbol
-                 (ert-test-name test) 'ert-deftest (ert-test-file-name test)))))
+  (when-let* ((loc
+               (ignore-errors
+                 (find-function-search-for-symbol
+                  (ert-test-name test) 'ert-deftest (ert-test-file-name test)))))
     (let* ((buffer (car loc))
            (point (cdr loc))
            (file (file-relative-name (buffer-file-name buffer)))
@@ -1375,10 +1370,10 @@ RESULT must be an `ert-test-result-with-condition'."
 (defun ert-run-tests-batch (&optional selector)
   "Run the tests specified by SELECTOR, printing results to the terminal.
 
-SELECTOR works as described in `ert-select-tests', except if
-SELECTOR is nil, in which case all tests rather than none will be
-run; this makes the command line \"emacs -batch -l my-tests.el -f
-ert-run-tests-batch-and-exit\" useful.
+SELECTOR selects which tests to run as described in `ert-select-tests' when
+called with its second argument t, except if SELECTOR is nil, in which case
+all tests rather than none will be run; this makes the command line
+ \"emacs -batch -l my-tests.el -f ert-run-tests-batch-and-exit\" useful.
 
 Returns the stats object."
   (unless selector (setq selector 't))
@@ -1553,11 +1548,11 @@ test packages depend on each other, it might be helpful.")
   "Write a JUnit test report, generated from STATS."
   ;; https://www.ibm.com/docs/en/developer-for-zos/14.1.0?topic=formats-junit-xml-format
   ;; https://llg.cubic.org/docs/junit/
-  (when-let ((symbol (car (apropos-internal "" #'ert-test-boundp)))
-             (test-file (symbol-file symbol 'ert--test))
-             (test-report
-              (file-name-with-extension
-               (or ert-load-file-name test-file) "xml")))
+  (when-let* ((symbol (car (apropos-internal "" #'ert-test-boundp)))
+              (test-file (symbol-file symbol 'ert--test))
+              (test-report
+               (file-name-with-extension
+                (or ert-load-file-name test-file) "xml")))
     (with-temp-file test-report
       (insert "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
       (insert (format "<testsuites name=\"%s\" tests=\"%s\" errors=\"%s\" failures=\"%s\" skipped=\"%s\" time=\"%s\">\n"
@@ -2240,7 +2235,9 @@ STATS is the stats object; LISTENER is the results listener."
 (defun ert-run-tests-interactively (selector)
   "Run the tests specified by SELECTOR and display the results in a buffer.
 
-SELECTOR works as described in `ert-select-tests'."
+SELECTOR selects which tests to run as described in `ert-select-tests'
+when called with its second argument t.  Interactively, prompt for
+SELECTOR; the default t means run all the defined tests."
   (interactive
    (list (let ((default (if ert--selector-history
                             ;; Can't use `first' here as this form is
@@ -2909,10 +2906,10 @@ write erts files."
         (setq end-before end-after
               start-after start-before))
       ;; Update persistent specs.
-      (when-let ((point-char (assq 'point-char specs)))
+      (when-let* ((point-char (assq 'point-char specs)))
         (setq gen-specs
               (map-insert gen-specs 'point-char (cdr point-char))))
-      (when-let ((code (cdr (assq 'code specs))))
+      (when-let* ((code (cdr (assq 'code specs))))
         (setq gen-specs
               (map-insert gen-specs 'code (car (read-from-string code)))))
       ;; Get the "after" strings.
@@ -2920,12 +2917,12 @@ write erts files."
         (insert-buffer-substring file-buffer start-after end-after)
         (ert--erts-unquote)
         ;; Remove the newline at the end of the buffer.
-        (when-let ((no-newline (cdr (assq 'no-after-newline specs))))
+        (when-let* ((no-newline (cdr (assq 'no-after-newline specs))))
           (goto-char (point-min))
           (when (re-search-forward "\n\\'" nil t)
             (delete-region (match-beginning 0) (match-end 0))))
         ;; Get the expected "after" point.
-        (when-let ((point-char (cdr (assq 'point-char gen-specs))))
+        (when-let* ((point-char (cdr (assq 'point-char gen-specs))))
           (goto-char (point-min))
           (when (search-forward point-char nil t)
             (delete-region (match-beginning 0) (match-end 0))
@@ -2936,13 +2933,13 @@ write erts files."
         (insert-buffer-substring file-buffer start-before end-before)
         (ert--erts-unquote)
         ;; Remove the newline at the end of the buffer.
-        (when-let ((no-newline (cdr (assq 'no-before-newline specs))))
+        (when-let* ((no-newline (cdr (assq 'no-before-newline specs))))
           (goto-char (point-min))
           (when (re-search-forward "\n\\'" nil t)
             (delete-region (match-beginning 0) (match-end 0))))
         (goto-char (point-min))
         ;; Place point in the specified place.
-        (when-let ((point-char (cdr (assq 'point-char gen-specs))))
+        (when-let* ((point-char (cdr (assq 'point-char gen-specs))))
           (when (search-forward point-char nil t)
             (delete-region (match-beginning 0) (match-end 0))))
         (let ((code (cdr (assq 'code gen-specs))))

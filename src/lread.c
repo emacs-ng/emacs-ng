@@ -1,6 +1,6 @@
 /* Lisp parsing and input streams.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2024 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <errno.h>
+#include <locale.h>
 #include <math.h>
 #include <stat-time.h>
 #include "lisp.h"
@@ -55,11 +56,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #include <unistd.h>
-
-#ifdef HAVE_SETLOCALE
-#include <locale.h>
-#endif /* HAVE_SETLOCALE */
-
 #include <fcntl.h>
 
 #if !defined HAVE_ANDROID || defined ANDROID_STUBIFY	\
@@ -966,7 +962,7 @@ floating-point value.
 
 If `inhibit-interaction' is non-nil, this function will signal an
 `inhibited-interaction' error.  */)
-(Lisp_Object prompt, Lisp_Object inherit_input_method, Lisp_Object seconds)
+  (Lisp_Object prompt, Lisp_Object inherit_input_method, Lisp_Object seconds)
 {
   Lisp_Object val;
 
@@ -1752,6 +1748,9 @@ Return t if the file exists and loads successfully.  */)
       saved_strings[i].size = 0;
     }
 
+  /* The "...done" messages are shown only in interactive mode, because
+     the echo-area can display only the last message, and we want to
+     avoid the impression that the load is still in progress.  */
   if (!noninteractive && (NILP (nomessage) || force_load_messages))
     {
       if (is_module)
@@ -1887,7 +1886,7 @@ maybe_swap_for_eln (bool no_native, Lisp_Object *filename, int *fd,
 		return;
 	      Vdelayed_warnings_list
 		= Fcons (list2
-			 (Qcomp,
+			 (Qnative_compiler,
 			  CALLN (Fformat,
 				 build_string ("Cannot look up .eln file "
 					       "for %s because no source "
@@ -2310,7 +2309,7 @@ build_load_history (Lisp_Object filename, bool entire)
   if (entire || !foundit)
     {
       Lisp_Object tem = Fnreverse (Vcurrent_load_list);
-      eassert (EQ (filename, Fcar (tem)));
+      eassert (!NILP (Fequal (filename, Fcar (tem))));
       Vload_history = Fcons (tem, Vload_history);
       /* FIXME: There should be an unbind_to right after calling us which
          should re-establish the previous value of Vcurrent_load_list.  */
@@ -3572,7 +3571,7 @@ string_props_from_rev_list (Lisp_Object elems, Lisp_Object readcharfun)
 static Lisp_Object
 read_bool_vector (Lisp_Object readcharfun)
 {
-  ptrdiff_t length = 0;
+  EMACS_INT length = 0;
   for (;;)
     {
       int c = READCHAR;
@@ -3586,6 +3585,8 @@ read_bool_vector (Lisp_Object readcharfun)
 	  || ckd_add (&length, length, c - '0'))
 	invalid_syntax ("#&", readcharfun);
     }
+  if (BOOL_VECTOR_LENGTH_MAX < length)
+    invalid_syntax ("#&", readcharfun);
 
   ptrdiff_t size_in_chars = bool_vector_bytes (length);
   Lisp_Object str = read_string_literal (readcharfun);
@@ -3648,7 +3649,7 @@ skip_lazy_string (Lisp_Object readcharfun)
 	 and record where in the file it comes from.  */
 
       /* First exchange the two saved_strings.  */
-      verify (ARRAYELTS (saved_strings) == 2);
+      static_assert (ARRAYELTS (saved_strings) == 2);
       struct saved_string t = saved_strings[0];
       saved_strings[0] = saved_strings[1];
       saved_strings[1] = t;
@@ -3910,6 +3911,8 @@ read_stack_reset (intmax_t sp)
 
 #define READ_AND_BUFFER(c)			\
   c = READCHAR;					\
+  if (c < 0)					\
+    INVALID_SYNTAX_WITH_BUFFER ();		\
   if (multibyte)				\
     p += CHAR_STRING (c, (unsigned char *) p);	\
   else						\
@@ -5029,8 +5032,8 @@ it defaults to the value of `obarray'.  */)
     {
       if (longhand)
 	{
-	  tem = intern_driver (make_specified_string (longhand, longhand_chars,
-						      longhand_bytes, true),
+	  tem = intern_driver (make_multibyte_string (longhand, longhand_chars,
+						      longhand_bytes),
 			       obarray, tem);
 	  xfree (longhand);
 	}
@@ -5082,13 +5085,12 @@ it defaults to the value of `obarray'.  */)
     }
 }
 
-DEFUN ("unintern", Funintern, Sunintern, 1, 2, 0,
+DEFUN ("unintern", Funintern, Sunintern, 2, 2, 0,
        doc: /* Delete the symbol named NAME, if any, from OBARRAY.
 The value is t if a symbol was found and deleted, nil otherwise.
 NAME may be a string or a symbol.  If it is a symbol, that symbol
 is deleted, if it belongs to OBARRAY--no other symbol is deleted.
-OBARRAY, if nil, defaults to the value of the variable `obarray'.
-usage: (unintern NAME OBARRAY)  */)
+OBARRAY, if nil, defaults to the value of the variable `obarray'.  */)
   (Lisp_Object name, Lisp_Object obarray)
 {
   register Lisp_Object tem;

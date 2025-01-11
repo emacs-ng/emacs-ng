@@ -1,6 +1,6 @@
 ;;; epg.el --- the EasyPG Library -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2000, 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -670,16 +670,20 @@ callback data (if any)."
 			     :noquery t))
     (setf (epg-context-error-buffer context) (process-buffer error-process))
     (with-existing-directory
-      (with-file-modes 448
+      (with-file-modes #o700
         (setq process (make-process :name "epg"
 				    :buffer buffer
 				    :command (cons (epg-context-program context)
 						   args)
 				    :connection-type 'pipe
-				    :coding 'raw-text
+				    :coding '(raw-text . nil)
 				    :filter #'epg--process-filter
 				    :stderr error-process
 				    :noquery t))))
+    ;; We encode and decode ourselves the text sent/received from gpg,
+    ;; so the below disables automatic encoding and decoding by
+    ;; subprocess communications routines.
+    (set-process-coding-system process 'raw-text 'raw-text-unix)
     (setf (epg-context-process context) process)))
 
 (defun epg--process-filter (process input)

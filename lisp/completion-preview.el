@@ -1,6 +1,6 @@
 ;;; completion-preview.el --- Preview completion with inline overlay  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 ;; Author: Eshel Yaron <me@eshelyaron.com>
 ;; Maintainer: Eshel Yaron <me@eshelyaron.com>
@@ -88,6 +88,32 @@
 ;; `completion-preview-idle-delay' to have the preview appear only
 ;; when you pause typing for a short duration rather than after every
 ;; key.  Try setting it to 0.2 seconds and see how that works for you.
+;;
+;; By default, Completion Preview mode automatically adapts the
+;; background color of the preview overlay to match the background color
+;; of the buffer text it's completing.  If you prefer a distinct
+;; background color for the preview, disable this feature by customizing
+;; `completion-preview-adapt-background-color' to nil.
+;;
+;; Sometimes you may want to use Completion Preview mode alongside other
+;; Emacs features that place an overlay after point, in a way that could
+;; "compete" with the preview overlay.  In such cases, you should give
+;; the completion preview overlay a higher priority, so it properly
+;; appears immediately after point, before other overlays.  To do that,
+;; set the variable `completion-preview-overlay-priority'.  You can set
+;; it buffer-locally if you only use competing overlays in some buffers.
+;; In particular, an important use case for this variable is enabling
+;; Completion Preview mode for `M-:' and other minibuffers that support
+;; `completion-at-point'.  In the minibuffer, some message are displayed
+;; using an overlay that may, by default, conflict with the completion
+;; preview overlay.  Use `completion-preview-overlay-priority' to
+;; resolve this conflict by giving the completion preview overlay a
+;; higher priority:
+;;
+;;   (add-hook 'eval-expression-minibuffer-setup-hook
+;;             (lambda ()
+;;               (setq-local completion-preview-overlay-priority 1200)
+;;               (completion-preview-mode)))
 
 ;;; Code:
 
@@ -152,6 +178,44 @@ If this is nil, display the completion preview without delay."
   :type '(choice (number :tag "Delay duration in seconds")
                  (const :tag "No delay" nil))
   :version "30.1")
+
+(defcustom completion-preview-ignore-case nil
+  "Whether Completion Preview mode ignores case differences.
+
+By default this option is nil, which says that case is significant, so a
+completion candidate \"FooBar\" matches prefix \"Foo\", but not \"foo\".
+If you set it to non-nil, then Completion Preview mode also suggests
+completions that differ in case from the prefix that you type; for
+example, it may suggest completing \"foo\" with the suffix \"Bar\" when
+there's an available completion candidate \"FooBar\".  Note that in this
+case, when you insert the completion (with `completion-preview-insert'),
+Completion Preview mode does not update the completed prefix according
+to the capitalization of the completion candidate, instead it simply
+ignores such case differences, so the resulting string is \"fooBar\".
+
+See also `completion-ignore-case'."
+  :type 'boolean
+  :version "31.1")
+
+(defcustom completion-preview-adapt-background-color 'completion-preview
+  "Control automatic adaptation of completion preview background color.
+
+This is either a face name or a (possibly empty) list of face names,
+which Completion Preview mode automatically remaps when showing the
+preview, such that the background color of the face(s) matches the
+background color at point.
+
+By default, this option specifies the `completion-preview' face (which
+also affects its descendent faces `completion-preview-common' and
+`completion-preview-exact') so the completion preview uses the
+background color at point.
+
+This is especially useful when there are other overlays at point that
+affect the background color, for example with `hl-line-mode'."
+  :type '(choice face
+                 (repeat :tag "List of faces" face)
+                 (const :tag "Disable" nil))
+  :version "31.1")
 
 (defvar completion-preview-sort-function #'minibuffer--sort-by-length-alpha
   "Sort function to use for choosing a completion candidate to preview.")
@@ -252,14 +316,61 @@ Completion Preview mode avoids updating the preview after these commands.")
     (setq completion-preview--overlay nil
           completion-preview--inhibit-update-p nil)))
 
+(defvar completion-preview-overlay-priority nil
+  "Value of the `priority' property for the completion preview overlay.")
+
+(defun completion-preview--bg-color (pos)
+  "Return background color at POS."
+  ;; This takes into account face remappings and multiple overlays that
+  ;; specify the `face' property, unlike `background-color-at-point'.
+  (catch 'found
+    (named-let rec ((spec (seq-keep (lambda (ov) (overlay-get ov 'face))
+                                    (overlays-at pos t)))
+                    (trace nil))
+      (dolist (face (if (face-list-p spec) spec (list spec)))
+        (let (cur)
+          (if (and (setq cur (alist-get face face-remapping-alist))
+                   (not (memq cur trace)))
+              (rec cur (cons face trace))
+            (cond ((and face (symbolp face))
+                   (let ((value (face-attribute face :background nil t)))
+                     (unless (member value '(nil "unspecified-bg" unspecified))
+                       (throw 'found value))))
+                  ((consp face)
+                   (when-let* ((value (or (cdr (memq 'background-color face))
+                                          (cadr (memq :background face)))))
+                     (throw 'found value)))))))
+      (unless trace
+        (save-excursion
+          (goto-char pos)
+          (font-lock-ensure (pos-bol) (pos-eol)))
+        (rec (or (and font-lock-mode
+                      (get-text-property pos 'font-lock-face))
+                 (get-text-property pos 'face))
+             '(nil))
+        (rec 'default '(nil))))))
+
+(defvar completion-preview--face-remap-cookie-jar nil)
+
+(declare-function face-remap-remove-relative "face-remap" (cookie))
+
 (defun completion-preview--make-overlay (pos string)
   "Make preview overlay showing STRING at POS, or move existing preview there."
   (if completion-preview--overlay
       (move-overlay completion-preview--overlay pos pos)
     (setq completion-preview--overlay (make-overlay pos pos))
+    (overlay-put completion-preview--overlay 'priority
+                 completion-preview-overlay-priority)
     (overlay-put completion-preview--overlay 'window (selected-window)))
   (add-text-properties 0 1 '(cursor 1) string)
   (overlay-put completion-preview--overlay 'after-string string)
+  (mapc #'face-remap-remove-relative completion-preview--face-remap-cookie-jar)
+  (setq completion-preview--face-remap-cookie-jar
+        (when (and completion-preview-adapt-background-color (< (point-min) pos))
+          (mapcar (lambda (face)
+                    (face-remap-add-relative
+                     face `(:background ,(completion-preview--bg-color (1- pos)))))
+                  (ensure-list completion-preview-adapt-background-color))))
   completion-preview--overlay)
 
 (defsubst completion-preview--get (prop)
@@ -279,8 +390,15 @@ Completion Preview mode adds this function to
   "Mode for when the completion preview is shown."
   :interactive nil
   (if completion-preview-active-mode
-      (add-hook 'window-selection-change-functions
-                #'completion-preview--window-selection-change nil t)
+      (progn
+        (add-hook 'window-selection-change-functions
+                  #'completion-preview--window-selection-change nil t)
+        ;; Give keymap precedence over other minor mode maps.
+        ;; TODO: Use explicit minor mode precedence instead when
+        ;; implemented (bug#74492).
+        (setf (alist-get 'completion-preview-active-mode
+                         minor-mode-overriding-map-alist)
+              completion-preview-active-mode-map))
     (remove-hook 'window-selection-change-functions
                  #'completion-preview--window-selection-change t)
     (completion-preview-hide)))
@@ -320,6 +438,7 @@ candidates or if there are multiple matching completions and
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (let* ((pred (plist-get props :predicate))
          (string (buffer-substring beg end))
+         (completion-ignore-case completion-preview-ignore-case)
          (md (completion-metadata string table pred))
          (sort-fn (or (completion-metadata-get md 'cycle-sort-function)
                       (completion-metadata-get md 'display-sort-function)
@@ -336,11 +455,11 @@ candidates or if there are multiple matching completions and
          (prefix (substring string base)))
     (when last
       (setcdr last nil)
-      (when-let ((sorted (funcall sort-fn
-                                  (delete prefix (all-completions prefix all))))
-                 (common (try-completion prefix sorted))
-                 (lencom (length common))
-                 (suffixes sorted))
+      (when-let* ((sorted (funcall sort-fn
+                                   (delete prefix (all-completions prefix all))))
+                  (common (try-completion prefix sorted))
+                  (lencom (length common))
+                  (suffixes sorted))
         (unless (and (cdr suffixes) completion-preview-exact-match-only)
           ;; Remove the common prefix from each candidate.
           (while sorted
@@ -354,8 +473,8 @@ candidates or if there are multiple matching completions and
     (and (consp res)
          (not (functionp res))
          (seq-let (beg end table &rest plist) res
-           (or (when-let ((data (completion-preview--try-table
-                                 table beg end plist)))
+           (or (when-let* ((data (completion-preview--try-table
+                                  table beg end plist)))
                  `(,(+ beg (length (car data))) ,end ,plist ,@data))
                (unless (eq 'no (plist-get plist :exclusive))
                  ;; Return non-nil to exclude other capfs.
@@ -367,7 +486,7 @@ candidates or if there are multiple matching completions and
       (run-hook-wrapped
        'completion-at-point-functions
        #'completion-preview--capf-wrapper)
-    (when-let ((suffix (car suffixes)))
+    (when-let* ((suffix (car suffixes)))
       (set-text-properties 0 (length suffix)
                            (list 'face (if (cdr suffixes)
                                            'completion-preview
@@ -467,7 +586,8 @@ point, otherwise hide it."
     ;; preview, don't do anything.
     (unless internal-p
       (if (and (completion-preview-require-certain-commands)
-               (completion-preview-require-minimum-symbol-length))
+               (completion-preview-require-minimum-symbol-length)
+               (not buffer-read-only))
           (completion-preview--show)
         (completion-preview-active-mode -1)))))
 

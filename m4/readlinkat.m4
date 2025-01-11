@@ -1,9 +1,10 @@
 # readlinkat.m4
-# serial 9
-dnl Copyright (C) 2009-2024 Free Software Foundation, Inc.
+# serial 10
+dnl Copyright (C) 2009-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
+dnl This file is offered as-is, without any warranty.
 
 # See if we need to provide readlinkat replacement.
 
@@ -34,7 +35,7 @@ AC_DEFUN([gl_FUNC_READLINKAT],
          [gl_cv_decl_readlinkat_works=no])
       ])
     # Assume readlinkat has the same bugs as readlink,
-    # as is the case on OS X 10.10 with trailing slashes.
+    # as is the case on macOS 14 with trailing slashes.
     case $gl_cv_decl_readlinkat_works,$gl_cv_func_readlink_trailing_slash,$gl_cv_func_readlink_truncate in
       *yes,*yes,*yes)
         ;;

@@ -1,5 +1,5 @@
 /* Threading code.
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -43,7 +43,7 @@ union aligned_thread_state
   struct thread_state s;
   GCALIGNED_UNION_MEMBER
 };
-verify (GCALIGNED (union aligned_thread_state));
+static_assert (GCALIGNED (union aligned_thread_state));
 
 static union aligned_thread_state main_thread
   = {{

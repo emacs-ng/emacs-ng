@@ -1,5 +1,5 @@
 /* Execution of byte code produced by bytecomp.el.
-   Copyright (C) 1985-1988, 1993, 2000-2024 Free Software Foundation,
+   Copyright (C) 1985-1988, 1993, 2000-2025 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -28,11 +28,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "syntax.h"
 #include "window.h"
 #include "puresize.h"
-
-/* Work around GCC bug 54561.  */
-#if GNUC_PREREQ (4, 3, 0)
-# pragma GCC diagnostic ignored "-Wclobbered"
-#endif
 
 /* Define BYTE_CODE_SAFE true to enable some minor sanity checking,
    useful for debugging the byte compiler.  It defaults to false.  */
@@ -536,6 +531,12 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
     for (ptrdiff_t i = nargs - rest; i < nonrest; i++)
       PUSH (Qnil);
 
+  unsigned char volatile saved_quitcounter;
+#if GCC_LINT && __GNUC__ && !__clang__
+  Lisp_Object *volatile saved_vectorp;
+  unsigned char const *volatile saved_bytestr_data;
+#endif
+
   while (true)
     {
       int op;
@@ -967,15 +968,23 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 
 	    if (sys_setjmp (c->jmp))
 	      {
+		quitcounter = saved_quitcounter;
 		struct handler *c = handlerlist;
 		handlerlist = c->next;
 		top = c->bytecode_top;
 		op = c->bytecode_dest;
+		bc = &current_thread->bc;
 		struct bc_frame *fp = bc->fp;
 
 		Lisp_Object fun = fp->fun;
 		Lisp_Object bytestr = AREF (fun, CLOSURE_CODE);
 		Lisp_Object vector = AREF (fun, CLOSURE_CONSTANTS);
+#if GCC_LINT && __GNUC__ && !__clang__
+		/* These useless assignments pacify GCC 14.2.1 x86-64
+		   <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+		bytestr_data = saved_bytestr_data;
+		vectorp = saved_vectorp;
+#endif
 		bytestr_data = SDATA (bytestr);
 		vectorp = XVECTOR (vector)->contents;
 		if (BYTE_CODE_SAFE)
@@ -989,6 +998,11 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 		goto op_branch;
 	      }
 
+	    saved_quitcounter = quitcounter;
+#if GCC_LINT && __GNUC__ && !__clang__
+	    saved_vectorp = vectorp;
+	    saved_bytestr_data = bytestr_data;
+#endif
 	    NEXT;
 	  }
 
@@ -1242,7 +1256,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (FIXNUMP (v1) && FIXNUMP (v2))
 	      TOP = BASE_EQ (v1, v2) ? Qt : Qnil;
 	    else
-	      TOP = arithcompare (v1, v2, ARITH_EQUAL);
+	      TOP = arithcompare (v1, v2) & Cmp_EQ ? Qt : Qnil;
 	    NEXT;
 	  }
 
@@ -1253,7 +1267,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (FIXNUMP (v1) && FIXNUMP (v2))
 	      TOP = XFIXNUM (v1) > XFIXNUM (v2) ? Qt : Qnil;
 	    else
-	      TOP = arithcompare (v1, v2, ARITH_GRTR);
+	      TOP = arithcompare (v1, v2) & Cmp_GT ? Qt : Qnil;
 	    NEXT;
 	  }
 
@@ -1264,7 +1278,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (FIXNUMP (v1) && FIXNUMP (v2))
 	      TOP = XFIXNUM (v1) < XFIXNUM (v2) ? Qt : Qnil;
 	    else
-	      TOP = arithcompare (v1, v2, ARITH_LESS);
+	      TOP = arithcompare (v1, v2) & Cmp_LT ? Qt : Qnil;
 	    NEXT;
 	  }
 
@@ -1275,7 +1289,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (FIXNUMP (v1) && FIXNUMP (v2))
 	      TOP = XFIXNUM (v1) <= XFIXNUM (v2) ? Qt : Qnil;
 	    else
-	      TOP = arithcompare (v1, v2, ARITH_LESS_OR_EQUAL);
+	      TOP = arithcompare (v1, v2) & (Cmp_LT | Cmp_EQ) ? Qt : Qnil;
 	    NEXT;
 	  }
 
@@ -1286,7 +1300,7 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	    if (FIXNUMP (v1) && FIXNUMP (v2))
 	      TOP = XFIXNUM (v1) >= XFIXNUM (v2) ? Qt : Qnil;
 	    else
-	      TOP = arithcompare (v1, v2, ARITH_GRTR_OR_EQUAL);
+	      TOP = arithcompare (v1, v2) & (Cmp_GT | Cmp_EQ) ? Qt : Qnil;
 	    NEXT;
 	  }
 

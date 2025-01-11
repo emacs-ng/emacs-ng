@@ -1,6 +1,6 @@
 ;;; rmc.el --- read from a multiple choice question -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 
@@ -228,10 +228,9 @@ Usage example:
                 (when (setq command
                             (let ((current-key-remap-sequence
                                    (vector tchar)))
-                              ;; Provide an empty prompt to `t-s-t-t' so
-                              ;; that it may not repeatedly display
-                              ;; and/or disable the on-screen keyboard,
-                              ;; or move point.
+                              ;; Provide an empty prompt so that it may
+                              ;; not repeatedly display and/or disable
+                              ;; the on-screen keyboard, or move point.
                               (touch-screen-translate-touch "")))
                   (setq command (if (> (length command) 0)
                                     (aref command 0)

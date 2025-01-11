@@ -1,7 +1,7 @@
 #!/bin/bash
 ### run-codespell - run codespell on Emacs
 
-## Copyright (C) 2023-2024 Free Software Foundation, Inc.
+## Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 ## Author: Stefan Kangas <stefankangas@gmail.com>
 
@@ -42,6 +42,7 @@ emacs_run_codespell ()
     git ls-files |\
         grep -v -E -e '^(lib|m4)/.*' |\
         grep -v -E -e '^admin/(charsets|codespell|unidata)/.*' |\
+        grep -v -E -e '^doc/lispref/spellfile$' |\
         grep -v -E -e '^doc/misc/texinfo.tex$' |\
         grep -v -E -e '^doc/translations/.*' |\
         grep -v -E -e '^etc/(AUTHORS|HELLO|publicsuffix.txt)$' |\

@@ -1,6 +1,6 @@
 ;;; erc.el --- An Emacs Internet Relay Chat client  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Alexander L. Belikoff <alexander@belikoff.net>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -87,7 +87,8 @@
        ("5.4" . "28.1")
        ("5.4.1" . "29.1")
        ("5.5" . "29.1")
-       ("5.6" . "30.1")))
+       ("5.6" . "30.1")
+       ("5.6.1" . "31.1")))
 
 (defgroup erc nil
   "Emacs Internet Relay Chat client."
@@ -173,7 +174,8 @@ as of ERC 5.6:
     and help text, and on outgoing messages unless echoed back by
     the server (assuming future support)
 
- - `erc--spkr': a string, the nick of the person speaking
+ - `erc--spkr': a string, the non-case-mapped nick of the speaker as
+    stored in the `nickname' slot of its `erc-server-users' item
 
  - `erc--ctcp': a CTCP command, like `ACTION'
 
@@ -565,9 +567,9 @@ restore the described historical behavior.")
 (defun erc--ensure-query-member (nick)
   "Populate membership table in query buffer for online NICK."
   (erc-with-buffer (nick)
-    (when-let (((not erc--decouple-query-and-channel-membership-p))
-               ((zerop (hash-table-count erc-channel-users)))
-               (user (erc-get-server-user nick)))
+    (when-let* (((not erc--decouple-query-and-channel-membership-p))
+                ((zerop (hash-table-count erc-channel-users)))
+                (user (erc-get-server-user nick)))
       (erc-update-current-channel-member nick nil t)
       (erc--unhide-prompt)
       t)))
@@ -577,10 +579,10 @@ restore the described historical behavior.")
 Ensure targets with an entry in `erc-server-users' are present in
 `erc-channel-members'."
   (erc-with-all-buffers-of-server erc-server-process #'erc-query-buffer-p
-    (when-let (((not erc--decouple-query-and-channel-membership-p))
-               ((zerop (hash-table-count erc-channel-users)))
-               (target (erc-target))
-               ((erc-get-server-user target)))
+    (when-let* (((not erc--decouple-query-and-channel-membership-p))
+                ((zerop (hash-table-count erc-channel-users)))
+                (target (erc-target))
+                ((erc-get-server-user target)))
       (erc-update-current-channel-member target nil t)
       (erc--unhide-prompt))
     erc-server-process))
@@ -664,15 +666,15 @@ Also remove members from the server table if this was their only buffer."
 
 (defun erc--remove-channel-users-but (nick)
   "Drain channel users and remove from server, sparing NICK."
-  (when-let ((users (erc-with-server-buffer erc-server-users))
-             (my-user (gethash (erc-downcase nick) users))
-             (original-function erc--forget-server-user-function)
-             (erc--forget-server-user-function
-              (if erc--decouple-query-and-channel-membership-p
-                  erc--forget-server-user-function
-                (lambda (nick user)
-                  (unless (eq user my-user)
-                    (funcall original-function nick user))))))
+  (when-let* ((users (erc-with-server-buffer erc-server-users))
+              (my-user (gethash (erc-downcase nick) users))
+              (original-function erc--forget-server-user-function)
+              (erc--forget-server-user-function
+               (if erc--decouple-query-and-channel-membership-p
+                   erc--forget-server-user-function
+                 (lambda (nick user)
+                   (unless (eq user my-user)
+                     (funcall original-function nick user))))))
     (erc-remove-channel-users)))
 
 (defmacro erc--define-channel-user-status-compat-getter (name c d)
@@ -714,9 +716,9 @@ inlining calls to these adapters."
   "Add or remove membership status associated with LETTER for NICK-OR-CUSR.
 With RESETP, clear the user's status info completely.  If ENABLEP
 is non-nil, add the status value associated with LETTER."
-  (when-let ((cusr (or (and (erc-channel-user-p nick-or-cusr) nick-or-cusr)
-                       (cdr (erc-get-channel-member nick-or-cusr))))
-             (n (erc--get-prefix-flag letter)))
+  (when-let* ((cusr (or (and (erc-channel-user-p nick-or-cusr) nick-or-cusr)
+                        (cdr (erc-get-channel-member nick-or-cusr))))
+              (n (erc--get-prefix-flag letter)))
     (cl-callf (lambda (v)
                 (if resetp
                     (if enablep n 0)
@@ -1104,8 +1106,8 @@ A user identifier has the form \"nick!login@host\".  If an
 identifier matches, the message from the person will not be
 processed."
   :group 'erc-ignore
-  :type '(repeat regexp))
-(make-variable-buffer-local 'erc-ignore-list)
+  :type '(repeat regexp)
+  :local t)
 
 (defcustom erc-ignore-reply-list nil
   "List of regexps matching user identifiers to ignore completely.
@@ -1792,7 +1794,9 @@ Defaults to the server buffer."
   (setq-local completion-ignore-case t)
   (add-hook 'post-command-hook #'erc-check-text-conversion nil t)
   (add-hook 'kill-buffer-hook #'erc-kill-buffer-function nil t)
-  (add-hook 'completion-at-point-functions #'erc-complete-word-at-point nil t))
+  (add-hook 'completion-at-point-functions #'erc-complete-word-at-point nil t)
+  (add-function :before (local 'erc--clear-function)
+                #'erc--skip-past-headroom-on-clear '((depth . 30))))
 
 ;; activation
 
@@ -1868,7 +1872,7 @@ the value of this option is DISPLAY-FUNCTION."
   "How to display buffers as a result of user interaction.
 This affects commands like /QUERY and /JOIN when issued
 interactively at the prompt.  It does not apply when calling a
-handler for such a command, like `erc-cmd-JOIN', from lisp code.
+handler for such a command, like `erc-cmd-JOIN', from Lisp code.
 See `erc-buffer-display' for a full description of available
 values.
 
@@ -1983,13 +1987,12 @@ the existing buffers will be reused."
                         "old behavior when t now permanent" "29.1")
 
 (defun erc-normalize-port (port)
-  "Normalize the port specification PORT to integer form.
-PORT may be an integer, a string or a symbol.  If it is a string or a
-symbol, it may have these values:
-* irc         -> 194
-* ircs        -> 994
-* ircd        -> 6667
-* ircd-dalnet -> 7000"
+  "Normalize known PORT specifications to an integer.
+Expect PORT to be an integer, a string, or a symbol to coerce into a
+standardized form for the express purpose of equality comparisons.  If
+PORT is an IANA recognized service, return its numeric mapping.  Do the
+same for a few traditional but nonstandard names.  Return nil in
+pathological cases."
   ;; These were updated somewhat in 2022 to reflect modern standards
   ;; and practices.  See also:
   ;;
@@ -1997,7 +2000,7 @@ symbol, it may have these values:
   ;; https://www.iana.org/assignments/service-names-port-numbers
   (cond
    ((symbolp port)
-    (erc-normalize-port (symbol-name port)))
+    (and port (erc-normalize-port (symbol-name port))))
    ((stringp port)
     (let ((port-nr (string-to-number port)))
       (cond
@@ -2007,14 +2010,19 @@ symbol, it may have these values:
         194)
        ((string-equal port "ircs")
         994)
-       ((string-equal port "ircu") 6667) ; 6665-6669
+       ((string-equal port "ircu") 6665)
+       ((string-equal port "ircu-2") 6666)
+       ((string-equal port "ircu-3") 6667)
+       ((string-equal port "ircu-4") 6668)
+       ((string-equal port "ircu-5") 6669)
        ((string-equal port "ircd") ; nonstandard (irc-serv is 529)
         6667)
        ((string-equal port "ircs-u") 6697)
        ((string-equal port "ircd-dalnet")
         7000)
+       ((string-empty-p port) nil)
        (t
-        nil))))
+        0))))
    ((numberp port)
     port)
    (t
@@ -2056,8 +2064,7 @@ same manner."
     (if (and (with-suppressed-warnings ((obsolete erc-reuse-buffers))
                erc-reuse-buffers)
              id)
-        (let ((string (symbol-name (erc-networks--id-symbol
-                                    (erc-networks--id-create id)))))
+        (let ((string (erc-networks--id-string (erc-networks--id-create id))))
           (when-let* ((buf (get-buffer string))
                       ((erc-server-process-alive buf)))
             (user-error  "Session with ID %S already exists" string))
@@ -2263,13 +2270,11 @@ buffer rather than a server buffer.")
       (cl-pushnew mod (if (get mod 'erc--module) built-in third-party)))
     `(,@(sort built-in #'string-lessp) ,@(nreverse third-party))))
 
-;;;###autoload(custom-autoload 'erc-modules "erc")
-
 (defcustom erc-modules '( autojoin button completion fill imenu irccontrols
                           list match menu move-to-prompt netsplit
                           networks readonly ring stamp track)
   "Modules to enable while connecting.
-When modifying this option in lisp code, use a Custom-friendly
+When modifying this option in Lisp code, use a Custom-friendly
 facilitator, like `setopt', or call `erc-update-modules'
 afterward.  This ensures a consistent ordering and disables
 removed modules.  It also gives packages access to the hook
@@ -2393,12 +2398,12 @@ invocations by third-party packages.")
 
 (defun erc--find-mode (sym)
   (setq sym (erc--normalize-module-symbol sym))
-  (if-let ((mode (intern-soft (concat "erc-" (symbol-name sym) "-mode")))
-           ((and (fboundp mode)
-                 (autoload-do-load (symbol-function mode) mode)))
-           ((or (get sym 'erc--module)
-                (symbol-file mode)
-                (ignore (cl-pushnew sym erc--aberrant-modules)))))
+  (if-let* ((mode (intern-soft (concat "erc-" (symbol-name sym) "-mode")))
+            ((and (fboundp mode)
+                  (autoload-do-load (symbol-function mode) mode)))
+            ((or (get sym 'erc--module)
+                 (symbol-file mode)
+                 (ignore (cl-pushnew sym erc--aberrant-modules)))))
       mode
     (and (or (and erc--requiring-module-mode-p
                   ;; Also likely non-nil: (eq sym (car features))
@@ -2416,7 +2421,7 @@ invocations by third-party packages.")
 (defun erc--update-modules (modules)
   (let (local-modes)
     (dolist (module modules local-modes)
-      (if-let ((mode (erc--find-mode module)))
+      (if-let* ((mode (erc--find-mode module)))
           (if (custom-variable-p mode)
               (funcall mode 1)
             (push mode local-modes))
@@ -2514,9 +2519,9 @@ nil."
   (if old-vars
       (let ((out (list (reverse new-modes))))
         (pcase-dolist (`(,k . ,v) old-vars)
-          (when (and (string-prefix-p "erc-" (symbol-name k))
-                     (string-suffix-p "-mode" (symbol-name k))
-                     (get k 'erc-module))
+          (when (and (get k 'erc-module)
+                     (string-prefix-p "erc-" (symbol-name k))
+                     (string-suffix-p "-mode" (symbol-name k)))
             (if v
                 (cl-pushnew k (car out))
               (setf (car out) (delq k (car out)))
@@ -2664,7 +2669,7 @@ side effect of setting the current buffer to the one it returns.  Use
 
     (if connect
         (erc-server-connect erc-session-server
-                            erc-session-port
+                            (erc-string-to-port erc-session-port)
                             buffer
                             erc-session-client-certificate)
       (erc-update-mode-line))
@@ -2688,6 +2693,9 @@ side effect of setting the current buffer to the one it returns.  Use
 (defun erc-initialize-log-marker (buffer)
   "Initialize the `erc-last-saved-position' marker to a sensible position.
 BUFFER is the current buffer."
+  ;; Note that in 5.6, `erc-input-marker' itself became a "sensible
+  ;; position" when its insertion type changed to t.  However,
+  ;; decrementing still makes sense for compatibility.
   (with-current-buffer buffer
     (unless (markerp erc-last-saved-position)
       (setq erc-last-saved-position (make-marker))
@@ -2765,8 +2773,8 @@ properties needed by entry-point commands, like `erc-tls'."
          (port (or (url-portspec url)
                    (erc-compute-port
                     (let ((d (erc-compute-port sp))) ; may be a string
-                      (read-string (format-prompt "Port" d)
-                                   nil nil d)))))
+                      (erc-string-to-port
+                       (read-string (format-prompt "Port" d) nil nil d))))))
          ;; Trust the user not to connect twice accidentally.  We
          ;; can't use `erc-already-logged-in' to check for an existing
          ;; connection without modifying it to consider USER and PASS.
@@ -2788,10 +2796,10 @@ properties needed by entry-point commands, like `erc-tls'."
                                (format-prompt "Server password" p)
                              "Server password (optional): ")))
                    (if erc-prompt-for-password (read-passwd m nil p) p)))
-         (opener (and (or sp (eql port erc-default-port-tls)
+         (opener (and (or sp (erc-port-equal port erc-default-port-tls)
                           (and (equal server erc-default-server)
                                (not (string-prefix-p "irc://" input))
-                               (eql port erc-default-port)
+                               (erc-port-equal port erc-default-port)
                                (y-or-n-p "Connect using TLS instead? ")
                                (setq port erc-default-port-tls)))
                       #'erc-open-tls-stream))
@@ -2887,7 +2895,8 @@ and defers to `erc-compute-port', `erc-compute-user', and
 
 ;;;###autoload
 (cl-defun erc-tls (&key (server (erc-compute-server))
-                        (port   (erc-compute-port 'ircs-u))
+                        (port   (let ((erc-default-port erc-default-port-tls))
+                                  (erc-compute-port)))
                         (nick   (erc-compute-nick))
                         (user   (erc-compute-user))
                         password
@@ -3058,9 +3067,8 @@ such inconsistent labeling may pose a problem until the MOTD is
 received.  Setting a fixed `erc-networks--id' can serve as a
 workaround."
   (when erc-debug-irc-protocol
-    (let ((esid (if-let ((erc-networks--id)
-                         (esid (erc-networks--id-symbol erc-networks--id)))
-                    (symbol-name esid)
+    (let ((esid (if erc-networks--id
+                    (erc-networks--id-string erc-networks--id)
                   (or erc-server-announced-name
                       (format "%s:%s" erc-session-server erc-session-port))))
           (ts (when erc-debug-irc-protocol-time-format
@@ -3292,10 +3300,10 @@ a full refresh."
             (insert s)
             (delete-region erc-insert-marker p))))
       (run-hooks 'erc--refresh-prompt-hook)
-      (when-let (((> erc--refresh-prompt-continue-request 0))
-                 (n erc--refresh-prompt-continue-request)
-                 (erc--refresh-prompt-continue-request -1)
-                 (b (current-buffer)))
+      (when-let* (((> erc--refresh-prompt-continue-request 0))
+                  (n erc--refresh-prompt-continue-request)
+                  (erc--refresh-prompt-continue-request -1)
+                  (b (current-buffer)))
         (erc-with-all-buffers-of-server erc-server-process
             (lambda () (not (eq b (current-buffer))))
           (if (= n 1)
@@ -3322,10 +3330,14 @@ value.  Otherwise, return the stored value."
   (macroexp-let2* nil ((point point)
                        (at-start-p at-start-p))
     `(or (and ,at-start-p ,point)
-         (and-let* ((p (previous-single-property-change ,point 'erc--msg)))
-           (if (and (= p (1- ,point)) (get-text-property p 'erc--msg))
-               p
-             (1- p))))))
+         (let ((p (previous-single-property-change ,point 'erc--msg)))
+           (cond
+            ((and p (= p (1- ,point)) (get-text-property p 'erc--msg)) p)
+            (p (1- p))
+            ((and (null p)
+                  (> ,point (point-min))
+                  (get-text-property (1- point) 'erc--msg))
+             (1- point)))))))
 
 (defmacro erc--get-inserted-msg-end-at (point at-start-p)
   (macroexp-let2 nil point point
@@ -3354,9 +3366,9 @@ if not found."
     (and-let* ((b (erc--get-inserted-msg-beg-at point at-start-p)))
       (cons b (erc--get-inserted-msg-end-at point at-start-p)))))
 
-(defun erc--get-inserted-msg-prop (prop)
+(defun erc--get-inserted-msg-prop (prop &optional point)
   "Return the value of text property PROP for some message at point."
-  (and-let* ((stack-pos (erc--get-inserted-msg-beg (point))))
+  (and-let* ((stack-pos (erc--get-inserted-msg-beg (or point (point)))))
     (get-text-property stack-pos prop)))
 
 ;; FIXME improve this nascent "message splicing" facility to include a
@@ -3381,7 +3393,8 @@ a history backlog."
   (declare (indent 1))
   (let ((marker (make-symbol "marker")))
     `(progn
-       (cl-assert (= ?\n (char-before ,marker-or-pos)))
+       (cl-assert (or (= ,marker-or-pos (point-min))
+                      (= ?\n (char-before ,marker-or-pos))))
        (cl-assert (null erc--insert-line-function))
        (let* ((,marker (and (not (markerp ,marker-or-pos))
                             (copy-marker ,marker-or-pos)))
@@ -3507,8 +3520,7 @@ modification hooks)."
                     (add-text-properties (point-min) (1+ (point-min)) props)))
                 (erc--refresh-prompt)))))
         (run-hooks 'erc-insert-done-hook)
-        (erc-update-undo-list (- (or (marker-position (or erc--insert-marker
-                                                          erc-insert-marker))
+        (erc-update-undo-list (- (or erc--insert-marker erc-insert-marker
                                      (point-max))
                                  insert-position))))))
 
@@ -3667,10 +3679,10 @@ Callers should be aware that this function fails if the property
 `erc--important-props' has an empty value almost anywhere along the
 affected region.  Use the function `erc--remove-from-prop-value-list' to
 ensure that props with empty values are excised completely."
-  (when-let ((registered (erc--check-msg-prop 'erc--important-prop-names))
-             (present (seq-intersection props registered))
-             (b (or beg (point-min)))
-             (e (or end (point-max))))
+  (when-let* ((registered (erc--check-msg-prop 'erc--important-prop-names))
+              (present (seq-intersection props registered))
+              (b (or beg (point-min)))
+              (e (or end (point-max))))
     (while-let
         (((setq b (text-property-not-all b e 'erc--important-props nil)))
          (val (get-text-property b 'erc--important-props))
@@ -3697,7 +3709,8 @@ them from the previous newline, and add them to the newline suffixing
 the inserted version of STRING."
   (let* ((after (and (not erc-legacy-invisible-bounds-p)
                      (get-text-property (point) 'erc--hide)))
-         (before (and after (get-text-property (1- (point)) 'invisible)))
+         (before (and after (> (point) (point-min))
+                      (get-text-property (1- (point)) 'invisible)))
          (a (and after (ensure-list after)))
          (b (and before (ensure-list before)))
          (new (and before (erc--solo (cl-intersection b a)))))
@@ -3779,7 +3792,7 @@ reverse order so they end up sorted in buffer interval plists for
 retrieval by `text-properties-at' and friends."
   (let (out)
     (dolist (k erc--ranked-properties)
-      (when-let ((v (gethash k table)))
+      (when-let* ((v (gethash k table)))
         (remhash k table)
         (setq out (nconc (list k v) out))))
     (maphash (lambda (k v) (setq out (nconc (list k v) out))) table)
@@ -4121,8 +4134,8 @@ for other purposes.")
 
 (defun erc-send-input-line (target line &optional force)
   "Send LINE to TARGET."
-  (when-let ((target)
-             (cmem (erc-get-channel-member (erc-current-nick))))
+  (when-let* ((target)
+              (cmem (erc-get-channel-member (erc-current-nick))))
     (setf (erc-channel-user-last-message-time (cdr cmem))
           (erc-compat--current-lisp-time)))
   (when (and (not erc--allow-empty-outgoing-lines-p) (string= line "\n"))
@@ -4419,7 +4432,7 @@ of `erc-ignore-list'."
                     (format "Now ignoring %s" user)))
         (erc-with-server-buffer
           (when timeout
-            (if-let ((existing (erc--find-ignore-timer user (current-buffer))))
+            (if-let* ((existing (erc--find-ignore-timer user (current-buffer))))
                 (timer-set-time existing (timer-relative-time nil timeout))
               (run-at-time timeout nil #'erc--unignore-user user
                            (current-buffer))))
@@ -4431,11 +4444,11 @@ of `erc-ignore-list'."
       (erc-with-server-buffer
         (let ((seen (copy-sequence erc-ignore-list)))
           (dolist (timer timer-list)
-            (when-let ((args (erc--get-ignore-timer-args timer))
-                       ((eq (current-buffer) (nth 1 args)))
-                       (user (car args))
-                       (delta (- (timer-until timer (current-time))))
-                       (duration (erc--format-time-period delta)))
+            (when-let* ((args (erc--get-ignore-timer-args timer))
+                        ((eq (current-buffer) (nth 1 args)))
+                        (user (car args))
+                        (delta (- (timer-until timer (current-time))))
+                        (duration (erc--format-time-period delta)))
               (setq seen (delete user seen))
               (erc-display-message nil 'notice 'active 'ignore-list
                                    ?p user ?s duration)))
@@ -4466,24 +4479,45 @@ of `erc-ignore-list'."
       (erc-display-message nil 'notice 'active
                            (format "No longer ignoring %s" user))
       (setq erc-ignore-list (delete user erc-ignore-list))
-      (when-let ((existing (erc--find-ignore-timer user buffer)))
+      (when-let* ((existing (erc--find-ignore-timer user buffer)))
         (cancel-timer existing)))))
 
-(defvar erc--pre-clear-functions nil
-  "Abnormal hook run when truncating buffers.
-Called with position indicating boundary of interval to be excised.")
+(defvar erc--clear-function #'delete-region
+  "Function to truncate buffer.
+Called with two markers, LOWER and UPPER, indicating the bounds of the
+interval to be excised.  LOWER <= UPPER <= `erc-insert-marker'.")
+
+(defun erc--skip-past-headroom-on-clear (beg end)
+  "Move marker BEG past the two newlines added by `erc--initialize-markers'."
+  (when (and (not (buffer-narrowed-p)) (= beg (point-min)))
+    (save-excursion
+      (goto-char (point-min))
+      (let ((pos (skip-chars-forward "\n" (if erc--called-as-input-p 2 3))))
+        (set-marker beg (min (1+ pos) end erc-input-marker))))))
+
+(defvar erc--inhibit-clear-p nil
+  "When non-nil, ERC inhibits buffer truncation.")
 
 (defun erc-cmd-CLEAR ()
   "Clear messages in current buffer after informing active modules.
 Expect modules to perform housekeeping tasks to withstand the
-disruption.  When called from lisp code, only clear messages up
+disruption.  When called from Lisp code, only clear messages up
 to but not including the one occupying the current line."
+  (when erc--inhibit-clear-p
+    (user-error "Truncation currently inhibited"))
   (with-silent-modifications
-    (let ((max (if (>= (point) erc-insert-marker)
-                   (1- erc-insert-marker)
-                 (or (erc--get-inserted-msg-beg (point)) (pos-bol)))))
-      (run-hook-with-args 'erc--pre-clear-functions max)
-      (delete-region (point-min) max)))
+    (let ((end (copy-marker
+                ;; Leave a final newline for compatibility, even though
+                ;; it complicates `erc--clear-function' handling.
+                (cond ((>= (point) erc-insert-marker)
+                       (max (point-min) (1- erc-insert-marker)))
+                      ((erc--get-inserted-msg-beg (point)))
+                      ((pos-bol)))))
+          (beg (point-min-marker)))
+      (let ((erc--inhibit-clear-p t))
+        (funcall erc--clear-function beg end))
+      (set-marker beg nil)
+      (set-marker end nil)))
   t)
 (put 'erc-cmd-CLEAR 'process-not-needed t)
 
@@ -4637,17 +4671,17 @@ node `(erc) auth-source'."
                  function))
 
 (defun erc--auth-source-determine-params-defaults ()
-  (let* ((net (and-let* ((erc-networks--id)
-                         (esid (erc-networks--id-symbol erc-networks--id))
-                         ((symbol-name esid)))))
+  (let* ((net (and erc-networks--id
+                   (erc-networks--id-string erc-networks--id)))
          (localp (and erc--target (erc--target-channel-local-p erc--target)))
          (hosts (if localp
                     (list erc-server-announced-name erc-session-server net)
                   (list net erc-server-announced-name erc-session-server)))
          (ports (list (cl-typecase erc-session-port
                         (integer (number-to-string erc-session-port))
-                        (string (and (string= erc-session-port "irc")
-                                     erc-session-port)) ; or nil
+                        (string (and (not (member erc-session-port
+                                                  '("" "irc")))
+                                     erc-session-port))
                         (t erc-session-port))
                       "irc")))
     (list (cons :host (delq nil hosts))
@@ -5217,7 +5251,7 @@ Display the query buffer in accordance with `erc-interactive-display'."
         (erc--display-context `((erc-interactive-display . /QUERY)
                                 ,@erc--display-context)))
     (erc-with-server-buffer
-      (if-let ((buffer (erc-get-buffer user erc-server-process)))
+      (if-let* ((buffer (erc-get-buffer user erc-server-process)))
           (prog1 buffer
             (erc-setup-buffer buffer))
         (prog1 (erc--open-target user) ; becomes current buffer
@@ -5554,109 +5588,117 @@ If CHANNEL is not specified, clear the topic for the default channel."
 
 (defvar-local erc-channel-banlist nil
   "A list of bans seen for the current channel.
-
-Each ban is an alist of the form:
-  (WHOSET . MASK)
-
-The property `received-from-server' indicates whether
-or not the ban list has been requested from the server.")
+Entries are cons cells of the form (OP . MASK), where OP is the channel
+operator who issued the ban.  Modules needing such a list should call
+`erc-sync-banlist' once per session in the channel before accessing the
+variable.  Interactive users need only issue a /BANLIST.  Note that
+older versions of ERC relied on a deprecated convention involving a
+property of the symbol `erc-channel-banlist' to indicate whether a ban
+list had been received in full; this was found to be unreliable.")
 (put 'erc-channel-banlist 'received-from-server nil)
 
-(defvar erc-fill-column)
+(defvar-local erc--channel-banlist-synchronized-p nil
+  "Whether the full channel ban list has been fetched since joining.")
 
-(defun erc-cmd-BANLIST ()
-  "Pretty-print the contents of `erc-channel-banlist'.
+(defun erc-sync-banlist (&optional done-fn)
+  "Initialize syncing of current channel's `erc-channel-banlist'.
+Arrange for it to remain synced for the rest of the IRC session.  When
+DONE-FN is non-nil, call it with no args once fully updated. Expect it
+to return non-nil, if necessary, to inhibit further processing."
+  (unless (erc-channel-p (current-buffer))
+    (error "Not a channel buffer"))
+  (let ((channel (erc-target))
+        (buffer (current-buffer))
+        (hook (lambda (&rest r) (apply #'erc-banlist-store r) t)))
+    (setq erc-channel-banlist nil)
+    (erc-with-server-buffer
+      (add-hook 'erc-server-367-functions hook -98 t)
+      (erc-once-with-server-event
+       368 (lambda (&rest _)
+             (remove-hook 'erc-server-367-functions hook t)
+             (with-current-buffer buffer
+               (prog1 (if done-fn (funcall done-fn) t)
+                 (setq erc--channel-banlist-synchronized-p t)))))
+      (erc-server-send (format "MODE %s b" channel)))))
 
-The ban list is fetched from the server if necessary."
-  (let ((chnl (erc-default-target))
-        (chnl-name (buffer-name)))
-
-    (cond
-     ((not (erc-channel-p chnl))
-      (erc-display-message nil 'notice 'active "You're not on a channel\n"))
-
-     ((not (get 'erc-channel-banlist 'received-from-server))
-      (let ((old-367-hook erc-server-367-functions))
-        (setq erc-server-367-functions 'erc-banlist-store
-              erc-channel-banlist nil)
-        ;; fetch the ban list then callback
-        (erc-with-server-buffer
-          (erc-once-with-server-event
-           368
-           (lambda (_proc _parsed)
-             (with-current-buffer chnl-name
-               (put 'erc-channel-banlist 'received-from-server t)
-               (setq erc-server-367-functions old-367-hook)
-               (erc-cmd-BANLIST)
-               t)))
-          (erc-server-send (format "MODE %s b" chnl)))))
-
-     ((null erc-channel-banlist)
-      (erc-display-message nil 'notice 'active
-                           (format "No bans for channel: %s\n" chnl))
+(defun erc--wrap-banlist-cmd (slashcmd)
+  (lambda ()
+    (put 'erc-channel-banlist 'received-from-server t)
+    (unwind-protect (funcall slashcmd)
       (put 'erc-channel-banlist 'received-from-server nil))
+    t))
 
-     (t
-      (let* ((erc-fill-column (or (and (boundp 'erc-fill-column)
-                                       erc-fill-column)
-                                  (and (boundp 'fill-column)
-                                       fill-column)
-                                  (1- (window-width))))
-             (separator (make-string erc-fill-column ?=))
-             (fmt (concat
-                   "%-" (number-to-string (/ erc-fill-column 2)) "s"
-                   "%" (number-to-string (/ erc-fill-column 2)) "s")))
+(defvar erc-banlist-fill-padding 1.0
+  "Scaling factor from 0 to 1 of free space between entries, if any.")
 
-        (erc-display-message
-         nil 'notice 'active
-         (format "Ban list for channel: %s\n" (erc-default-target)))
+(cl-defgeneric erc--determine-fill-column-function ()
+  fill-column)
 
-        (erc-display-line separator 'active)
-        (erc-display-line (format fmt "Ban Mask" "Banned By") 'active)
-        (erc-display-line separator 'active)
-
-        (mapc
-         (lambda (x)
-           (erc-display-line
-            (format fmt
-                    (truncate-string-to-width (cdr x) (/ erc-fill-column 2))
-                    (if (car x)
-                        (truncate-string-to-width (car x) (/ erc-fill-column 2))
-                      ""))
-            'active))
-         erc-channel-banlist)
-
-        (erc-display-message nil 'notice 'active "End of Ban list")
-        (put 'erc-channel-banlist 'received-from-server nil)))))
+(defun erc-cmd-BANLIST (&rest args)
+  "Print the list of ban masks for the current channel.
+When uninitialized or with option -f, resync `erc-channel-banlist'."
+  (cond
+   ((not (erc-channel-p (current-buffer)))
+    (erc-display-message nil 'notice 'active "You're not on a channel\n"))
+   ((or (equal args '("-f"))
+        (and (not erc--channel-banlist-synchronized-p)
+             (not (get 'erc-channel-banlist 'received-from-server))))
+    (erc-sync-banlist (erc--wrap-banlist-cmd #'erc-cmd-BANLIST)))
+   ((null erc-channel-banlist)
+    (erc-display-message nil 'notice 'active
+                         (format "No bans for channel: %s\n" (erc-target))))
+   ((let ((max-width (erc--determine-fill-column-function))
+          (lw 0) (rw 0) separator fmt)
+      (dolist (entry erc-channel-banlist)
+        (setq rw (max (length (car entry)) rw)
+              lw (max (length (cdr entry)) lw)))
+      (let ((maxw (* 1.0 (min max-width (+ rw lw)))))
+        (when (< maxw (+ rw lw)) ; scale down when capped
+          (cl-psetq rw (/ (* rw maxw) (* 1.0 (+ rw lw)))
+                    lw (/ (* lw maxw) (* 1.0 (+ rw lw)))))
+        (when-let* ((larger (max rw lw)) ; cap ratio at 3:1
+                    (wavg (* maxw 0.75))
+                    ((> larger wavg)))
+          (setq rw (if (eql larger rw) wavg (- maxw wavg))
+                lw (- maxw rw)))
+        (cl-psetq rw (+ rw (* erc-banlist-fill-padding
+                              (- (/ (* rw max-width) maxw) rw)))
+                  lw (+ lw (* erc-banlist-fill-padding
+                              (- (/ (* lw max-width) maxw) lw)))))
+      (setq rw (truncate rw)
+            lw (truncate lw))
+      (cl-assert (<= (+ rw lw) max-width))
+      (setq separator (make-string (+ rw lw 1) ?=)
+            fmt (concat "%-" (number-to-string lw) "s "
+                        "%" (number-to-string rw) "s"))
+      (erc-display-message
+       nil 'notice 'active
+       (format "Ban list for channel: %s%s\n" (erc-target)
+               (if erc--channel-banlist-synchronized-p " (cached)" "")))
+      (erc-display-line separator 'active)
+      (erc-display-line (format fmt "Ban Mask" "Banned By") 'active)
+      (erc-display-line separator 'active)
+      (dolist (entry erc-channel-banlist)
+        (erc-display-line
+         (format fmt (truncate-string-to-width (cdr entry) lw)
+                 (truncate-string-to-width (car entry) rw))
+         'active))
+      (erc-display-message nil 'notice 'active "End of Ban list"))))
+  (put 'erc-channel-banlist 'received-from-server nil)
   t)
 
 (defalias 'erc-cmd-BL #'erc-cmd-BANLIST)
 
-(defun erc-cmd-MASSUNBAN ()
-  "Mass Unban.
-
-Unban all currently banned users in the current channel."
+(defun erc-cmd-MASSUNBAN (&rest args)
+  "Remove all bans in the current channel."
   (let ((chnl (erc-default-target)))
     (cond
-
      ((not (erc-channel-p chnl))
       (erc-display-message nil 'notice 'active "You're not on a channel\n"))
-
-     ((not (get 'erc-channel-banlist 'received-from-server))
-      (let ((old-367-hook erc-server-367-functions))
-        (setq erc-server-367-functions 'erc-banlist-store)
-        ;; fetch the ban list then callback
-        (erc-with-server-buffer
-          (erc-once-with-server-event
-           368
-           (lambda (_proc _parsed)
-             (with-current-buffer chnl
-               (put 'erc-channel-banlist 'received-from-server t)
-               (setq erc-server-367-functions old-367-hook)
-               (erc-cmd-MASSUNBAN)
-               t)))
-          (erc-server-send (format "MODE %s b" chnl)))))
-
+     ((or (equal args '("-f"))
+          (and (not erc--channel-banlist-synchronized-p)
+               (not (get 'erc-channel-banlist 'received-from-server))))
+      (erc-sync-banlist (erc--wrap-banlist-cmd #'erc-cmd-MASSUNBAN)))
      (t (let ((bans (mapcar #'cdr erc-channel-banlist)))
           (when bans
             ;; Glob the bans into groups of three, and carry out the unban.
@@ -5667,8 +5709,9 @@ Unban all currently banned users in the current channel."
                 (format "MODE %s -%s %s" (erc-default-target)
                         (make-string (length x) ?b)
                         (mapconcat #'identity x " "))))
-             (erc-group-list bans 3))))
-        t))))
+             (erc-group-list bans 3))))))
+    (put 'erc-channel-banlist 'received-from-server nil)
+    t))
 
 (defalias 'erc-cmd-MUB #'erc-cmd-MASSUNBAN)
 
@@ -6033,8 +6076,7 @@ manner implied above, which was lost sometime before ERC 5.4."
   :group 'erc-buffers
   :group 'erc-query
   :type '(choice boolean
-                 (choice :tag "Create pseudo queries for STATUSMSGs"
-                         status)))
+                 (const :tag "Create pseudo queries for STATUSMSGs" status)))
 
 (defcustom erc-format-query-as-channel-p t
   "If non-nil, format text from others in a query buffer like in a channel.
@@ -6340,20 +6382,18 @@ rely on their presence, and cleaner ways exist)."
   "Template for a CTCP ACTION status message from current client.")
 
 (defun erc--speakerize-nick (nick &optional disp)
-  "Propertize NICK with `erc--speaker' if not already present.
-Do so to DISP instead if it's non-nil.  In either case, assign
-NICK, sans properties, as the `erc--speaker' value.  As a side
-effect, pair the latter string (the same `eq'-able object) with
-the symbol `erc--spkr' in the \"msg prop\" environment for any
-imminent `erc-display-message' invocations.  While doing so,
-include any overrides defined in `erc--message-speaker-catalog'."
-  (let ((plain-nick (substring-no-properties nick)))
-    (erc--ensure-spkr-prop plain-nick (get erc--message-speaker-catalog
-                                           'erc--msg-prop-overrides))
-    (if (text-property-not-all 0 (length (or disp nick))
-                               'erc--speaker nil (or disp nick))
-        (or disp nick)
-      (propertize (or disp nick) 'erc--speaker plain-nick))))
+  "Return propertized NICK with canonical NICK in `erc--speaker'.
+Return propertized DISP instead if given.  As a side effect, pair NICK
+with `erc--spkr' in the \"msg prop\" environment for any imminent
+`erc-display-message' invocations, and include any overrides defined in
+`erc--message-speaker-catalog'.  Expect NICK (but not necessarily DISP)
+to be absent of any existing text properties."
+  (when-let* ((erc-server-process)
+              (cusr (erc-get-server-user nick)))
+    (setq nick (erc-server-user-nickname cusr)))
+  (erc--ensure-spkr-prop nick (get erc--message-speaker-catalog
+                                   'erc--msg-prop-overrides))
+  (propertize (or disp nick) 'erc--speaker nick))
 
 (defun erc--determine-speaker-message-format-args
     (nick message queryp privmsgp inputp &optional statusmsg prefix disp-nick)
@@ -6516,14 +6556,14 @@ similar to that performed by `erc-format-my-nick', but use either
 `erc--message-speaker-input-query-privmsg' as a formatting
 template, with MESSAGE being the actual message body.  Return a
 copy with possibly shared text-property values."
-  (if-let ((erc-show-my-nick)
-           (nick (erc-current-nick))
-           (pfx (erc-get-channel-membership-prefix nick))
-           (erc-current-message-catalog erc--message-speaker-catalog)
-           (key (if (or erc-format-query-as-channel-p
-                        (erc--target-channel-p erc--target))
-                    'input-chan-privmsg
-                  'input-query-privmsg)))
+  (if-let* ((erc-show-my-nick)
+            (nick (erc-current-nick))
+            (pfx (erc-get-channel-membership-prefix nick))
+            (erc-current-message-catalog erc--message-speaker-catalog)
+            (key (if (or erc-format-query-as-channel-p
+                         (erc--target-channel-p erc--target))
+                     'input-chan-privmsg
+                   'input-query-privmsg)))
       (progn
         (cond (erc--msg-props (puthash 'erc--msg key erc--msg-props))
               (erc--msg-prop-overrides (push (cons 'erc--msg key)
@@ -6641,17 +6681,31 @@ See also: `erc-echo-notice-in-user-buffers',
                                           erc-channel-banlist))))))
   nil)
 
+;; This was a default member of `erc-server-368-functions' (nee -hook)
+;; between January and June of 2003 (but not as part of any release).
 (defun erc-banlist-finished (proc parsed)
   "Record that we have received the banlist."
+  (declare (obsolete "uses obsolete and likely faulty logic" "31.1"))
   (let* ((channel (nth 1 (erc-response.command-args parsed)))
          (buffer (erc-get-buffer channel proc)))
     (with-current-buffer buffer
       (put 'erc-channel-banlist 'received-from-server t)))
   t)                                    ; suppress the 'end of banlist' message
 
+(defun erc--banlist-update (statep mask)
+  "Add or remove a mask from `erc-channel-banlist'."
+  (if statep
+      (let ((whoset (erc-response.sender erc--parsed-response)))
+        (cl-pushnew (cons whoset mask) erc-channel-banlist :test #'equal))
+    (let ((upcased (upcase mask)))
+      (setq erc-channel-banlist
+            (cl-delete-if (lambda (y) (equal (upcase (cdr y)) upcased))
+                          erc-channel-banlist)))))
+
 (defun erc-banlist-update (proc parsed)
   "Check MODE commands for bans and update the banlist appropriately."
   ;; FIXME: Possibly incorrect. -- Lawrence 2004-05-11
+  (declare (obsolete "continual syncing via `erc--banlist-update'" "31.1"))
   (let* ((tgt (car (erc-response.command-args parsed)))
          (mode (erc-response.contents parsed))
          (whoset (erc-response.sender parsed))
@@ -7142,7 +7196,7 @@ extensions."
   (let ((names (delete "" (split-string names-string)))
         (erc-channel-members-changed-hook nil))
     (dolist (name names)
-      (when-let ((args (erc--partition-prefixed-names name)))
+      (when-let* ((args (erc--partition-prefixed-names name)))
         (pcase-let* ((`(,status ,nick ,login ,host) args)
                      (cmem (erc-get-channel-user nick)))
           (progn
@@ -7288,7 +7342,7 @@ status switches among VOICE, HALFOP, OP, ADMIN, and OWNER to be
 the symbol `on' or `off' when needing to influence a new or
 existing `erc-channel-user' object's `status' slot.  Likewise,
 when UPDATE-MESSAGE-TIME is non-nil, update or initialize the
-`last-message-time' slot to the current-time.  If changes occur,
+`last-message-time' slot to the `current-time'.  If changes occur,
 including creation, run `erc-channel-members-changed-hook'.
 Return non-nil when meaningful changes, including creation, have
 occurred.
@@ -7734,6 +7788,11 @@ Remember when STATE is non-nil and forget otherwise."
             (cl-pushnew (char-to-string c) erc-channel-modes :test #'equal)
           (delete (char-to-string c) erc-channel-modes))))
 
+;; We could specialize on type A, but that may be too brittle.
+(cl-defmethod erc--handle-channel-mode (_ (_ (eql ?b)) state arg)
+  "Update `erc-channel-banlist' when synchronized."
+  (when erc--channel-banlist-synchronized-p (erc--banlist-update state arg)))
+
 ;; We could specialize on type C, but that may be too brittle.
 (cl-defmethod erc--handle-channel-mode (_ (_ (eql ?l)) state arg)
   "Update channel user limit, remembering ARG when STATE is non-nil."
@@ -8133,10 +8192,10 @@ ERC prints them as a single message joined by newlines.")
           (let* ((str (erc-user-input))
                  (state (erc--make-input-split str)))
             (run-hook-with-args 'erc--input-review-functions state)
-            (when-let (((not (erc--input-split-abortp state)))
-                       (inhibit-read-only t)
-                       (erc--current-line-input-split state)
-                       (old-buf (current-buffer)))
+            (when-let* (((not (erc--input-split-abortp state)))
+                        (inhibit-read-only t)
+                        (erc--current-line-input-split state)
+                        (old-buf (current-buffer)))
               (progn ; unprogn this during next major surgery
                 (erc-set-active-buffer (current-buffer))
                 ;; Kill the input and the prompt
@@ -8146,10 +8205,9 @@ ERC prints them as a single message joined by newlines.")
                   ;; Fix the buffer if the command didn't kill it
                   (when (buffer-live-p old-buf)
                     (with-current-buffer old-buf
-                      (save-restriction
-                        (widen)
-                        (let ((buffer-modified (buffer-modified-p)))
-                          (set-buffer-modified-p buffer-modified))))))
+                      (setq buffer-undo-list nil)
+                      ;; `set-buffer-modified-p' used to do this here.
+                      (force-mode-line-update))))
 
                 ;; Only when last hook has been run...
                 (run-hook-with-args 'erc-send-completed-hook str)))
@@ -8786,7 +8844,7 @@ Sets the buffer local variables:
 - `erc-server-current-nick'"
   (setq erc-session-connector erc-server-connect-function
         erc-session-server (erc-compute-server server)
-        erc-session-port (or port erc-default-port)
+        erc-session-port (erc-compute-port port)
         erc-session-user-full-name (erc-compute-full-name name)
         erc-session-username (erc-compute-user user)
         erc-session-password (erc--compute-server-password passwd nick))
@@ -8795,7 +8853,7 @@ Sets the buffer local variables:
 (defun erc-compute-server (&optional server)
   "Return an IRC server name.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-nil value is found.
 
 - SERVER (the argument passed to this function)
@@ -8814,7 +8872,7 @@ non-nil value is found.
 (defun erc-compute-nick (&optional nick)
   "Return user's IRC nick.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-nil value is found.
 
 - NICK (the argument passed to this function)
@@ -8838,7 +8896,7 @@ the user field and use whatever it returns as the server password."
 (defun erc-compute-full-name (&optional full-name)
   "Return user's full name.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-nil value is found.
 
 - FULL-NAME (the argument passed to this function)
@@ -8854,13 +8912,17 @@ non-nil value is found.
 (defun erc-compute-port (&optional port)
   "Return a port for an IRC server.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-nil value is found.
 
 - PORT (the argument passed to this function)
 - The `erc-port' option
-- The `erc-default-port' variable"
-  (erc-normalize-port (or port erc-port erc-default-port)))
+- The `erc-default-port' variable
+
+Note that between ERC 5.5 and 5.6.1, this function filtered its result
+through `erc-normalize-port', which introduced regrettable surprises,
+such as unwelcome, possibly null, type conversions."
+  (or (and port (not (equal "" port)) port) erc-port erc-default-port))
 
 ;; time routines
 
@@ -8942,6 +9004,8 @@ If S is nil or an empty string then return general CLIENTINFO."
 
 ;; Hook functions
 
+;; FIXME rename this to something like `erc-ensure-directory-writable'.
+;; Functions suffixed with "-p" probably shouldn't have side effects.
 (defun erc-directory-writable-p (dir)
   "Determine whether DIR is a writable directory.
 If it doesn't exist, create it."
@@ -9128,12 +9192,11 @@ This should be a string with substitution variables recognized by
   "Return the network or the current target and network combined.
 If the name of the network is not available, then use the
 shortened server name instead."
-  (if-let ((erc--target)
-           (name (if-let ((erc-networks--id)
-                          (esid (erc-networks--id-symbol erc-networks--id)))
-                     (symbol-name esid)
-                   (erc-shorten-server-name (or erc-server-announced-name
-                                                erc-session-server)))))
+  (if-let* ((erc--target)
+            (name (if erc-networks--id
+                      (erc-networks--id-string erc-networks--id)
+                    (erc-shorten-server-name (or erc-server-announced-name
+                                                 erc-session-server)))))
       (concat (erc--target-string erc--target) "@" name)
     (buffer-name)))
 
@@ -9173,7 +9236,7 @@ Currently only used by the option `erc-prompt-format'.")
 ;; As of ERC 5.6, this is identical to the away variant aside from
 ;; the var names and `eq', which isn't important.
 (defun erc--format-user-modes ()
-  "Return server's user modes as a string"
+  "Return server's user modes as a string."
   (and-let* ((indicator (erc-with-server-buffer
                           (or erc--user-modes-indicator
                               (setq erc--user-modes-indicator (list "")))))
@@ -9714,8 +9777,8 @@ one of the following hooks:
 `erc-kill-channel-hook' if a channel buffer was killed,
 or `erc-kill-buffer-hook' if any other buffer."
   (when (eq major-mode 'erc-mode)
-    (when-let ((erc--target)
-               (nick (erc-current-nick)))
+    (when-let* ((erc--target)
+                (nick (erc-current-nick)))
       (erc--remove-channel-users-but nick))
     (cond
      ((eq (erc-server-buffer) (current-buffer))
@@ -9730,7 +9793,7 @@ or `erc-kill-buffer-hook' if any other buffer."
 (defun erc-check-text-conversion ()
   "Check if point is within the ERC prompt and toggle text conversion.
 If `text-conversion-style' is not `action' if point is within the
-prompt or `nil' otherwise, set it to such a value, so as to
+prompt or nil otherwise, set it to such a value, so as to
 guarantee that the input method functions properly for the
 purpose of typing within the ERC prompt."
   (when (and (eq major-mode 'erc-mode)
@@ -9770,10 +9833,10 @@ This function should be on `erc-kill-server-hook'."
 
 (defun erc-restore-text-properties ()
   "Ensure the `erc-parsed' and `tags' props cover the entire message."
-  (when-let ((parsed-posn (erc-find-parsed-property))
+  (when-let* ((parsed-posn (erc-find-parsed-property))
               (found (erc-get-parsed-vector parsed-posn)))
     (put-text-property (point-min) (point-max) 'erc-parsed found)
-    (when-let ((tags (get-text-property parsed-posn 'tags)))
+    (when-let* ((tags (get-text-property parsed-posn 'tags)))
       (put-text-property (point-min) (point-max) 'tags tags))))
 
 (defun erc-get-parsed-vector (point)
@@ -9799,7 +9862,7 @@ This function should be on `erc-kill-server-hook'."
 See also `erc-message-type'."
   ;; IRC numerics are three-digit numbers, possibly with leading 0s.
   ;; To invert: (if (numberp o) (format "%03d" o) (symbol-name o))
-  (if-let ((n (string-to-number command)) ((zerop n))) (intern command) n))
+  (if-let* ((n (string-to-number command)) ((zerop n))) (intern command) n))
 
 ;; Teach url.el how to open irc:// URLs with ERC.
 ;; To activate, customize `url-irc-function' to `url-irc-erc'.
@@ -9819,9 +9882,8 @@ by `erc' and `erc-tls'."
                   (or (eql 6697 (plist-get plist :port))
                       (yes-or-no-p "Connect using TLS? "))))
          (erc-server (plist-get plist :server))
-         (erc-port (or (plist-get plist :port)
-                       (and ircsp (erc-normalize-port 'ircs-u))
-                       erc-port))
+         (erc-default-port (if ircsp erc-default-port-tls erc-default-port))
+         (erc-port (erc-compute-port (plist-get plist :port)))
          (erc-nick (or (plist-get plist :nick) erc-nick))
          (erc-password (plist-get plist :password))
          (args (erc-select-read-args)))
@@ -9853,9 +9915,9 @@ Customize `erc-url-connect-function' to override this."
                            (and (string-equal erc-session-server host)
                                 ;; Ports only matter when dialed hosts
                                 ;; match and we have sufficient info.
-                                (or (not port)
-                                    (= (erc-normalize-port erc-session-port)
-                                       port)))))))))
+                                (or (null port)
+                                    (erc-port-equal erc-session-port
+                                                    port)))))))))
          key deferred)
     (unless server-buffer
       (setq deferred t

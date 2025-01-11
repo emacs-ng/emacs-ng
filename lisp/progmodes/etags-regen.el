@@ -1,6 +1,6 @@
 ;;; etags-regen.el --- Auto-(re)regenerating tags  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Dmitry Gutov <dmitry@gutov.dev>
 ;; Keywords: tools
@@ -118,9 +118,13 @@ We currently support only Emacs's etags program with this option."
 ;; when it cannot determine the type of the file.
 ;; http://lists.gnu.org/archive/html/emacs-devel/2018-01/msg00323.html
 (defcustom etags-regen-file-extensions
-  '("rb" "js" "py" "pl" "el" "c" "cpp" "cc" "h" "hh" "hpp"
-    "java" "go" "cl" "lisp" "prolog" "php" "erl" "hrl"
-    "F" "f" "f90" "for" "cs" "a" "asm" "ads" "adb" "ada")
+  '("ads" "adb" "ada" "asm" "ins" "s" "sa" "S" "src"
+    "c" "h" "c++" "cc" "cpp" "cxx" "h++" "hh" "hpp" "hxx" "m" "pdb"
+    "cs" "hs" "erl" "hrl" "fth" "tok" "f" "f90" "for" "go"
+    "java" "cl" "clisp" "el" "lisp" "lsp" "lua" "lm" "p" "pas"
+    "pl" "pm" "php" "php3" "php4" "pc" "prolog" "py" "rb" "ru" "rbw"
+    "rs" "oak" "rkt" "sch" "scheme" "scm" "sm" "ss"
+    "y" "y++" "ym" "yxx" "yy")
   "Code file extensions for `etags-regen-mode'.
 
 File extensions to generate the tags for."
@@ -242,11 +246,12 @@ File extensions to generate the tags for."
          (ir-start (1- (length root)))
          (ignores-regexps
           (mapcar #'etags-regen--ignore-regexp
-                  etags-regen-ignores)))
+                  etags-regen-ignores))
+         (case-fold-search t))
     (cl-delete-if
      (lambda (f) (or (not (string-match-p match-re f))
                 (string-match-p "/\\.#" f) ;Backup files.
-                (cl-some (lambda (ignore) (string-match ignore f ir-start))
+                (cl-some (lambda (ignore) (string-match-p ignore f ir-start))
                          ignores-regexps)))
      files)))
 
@@ -294,7 +299,9 @@ File extensions to generate the tags for."
   (add-hook 'before-save-hook #'etags-regen--mark-as-new)
   (setq etags-regen--tags-file tags-file
         etags-regen--tags-root root)
-  (visit-tags-table etags-regen--tags-file))
+  (visit-tags-table etags-regen--tags-file)
+  (with-current-buffer (get-file-buffer tags-file)
+    (add-hook 'kill-buffer-hook #'etags-regen--tags-cleanup nil t)))
 
 (defun etags-regen--ctags-p ()
   (string-search "Ctags"
@@ -390,7 +397,8 @@ File extensions to generate the tags for."
 
 (defun etags-regen--tags-cleanup ()
   (when etags-regen--tags-file
-    (let ((buffer (get-file-buffer etags-regen--tags-file)))
+    (let ((buffer (get-file-buffer etags-regen--tags-file))
+          kill-buffer-hook)
       (and buffer
            (kill-buffer buffer)))
     (tags-reset-tags-tables)

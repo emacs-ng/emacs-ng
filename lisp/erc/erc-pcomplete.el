@@ -1,6 +1,6 @@
 ;;; erc-pcomplete.el --- Provides programmable completion for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2004, 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Sacha Chua <sacha@free.net.ph>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -186,6 +186,14 @@ for use on `completion-at-point-function'."
 (defun pcomplete/erc-mode/RECONNECT ()
   (pcomplete-here '("cancel"))
   (pcomplete-opt "a"))
+
+(defun pcomplete/erc-mode/BANLIST ()
+  (pcomplete-opt "f"))
+(defalias 'pcomplete/erc-mode/BL #'pcomplete/erc-mode/BANLIST)
+
+(defun pcomplete/erc-mode/MASSUNBAN ()
+  (pcomplete-opt "f"))
+(defalias 'pcomplete/erc-mode/MUB #'pcomplete/erc-mode/MASSUNBAN)
 
 ;;; Functions that provide possible completions.
 

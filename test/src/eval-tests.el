@@ -1,6 +1,6 @@
 ;;; eval-tests.el --- unit tests for src/eval.c      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 ;; Author: Philipp Stephani <phst@google.com>
 
@@ -362,5 +362,13 @@ expressions works for identifiers starting with period."
             (error err))))
     (should (eq inner-error outer-error))))
 
+(ert-deftest eval-bad-specbind ()
+  (should-error (eval '(let (((a b) 23)) (+ 1 2)) t)
+                :type 'wrong-type-argument)
+  (should-error (eval '(let* (((a b) 23)) (+ 1 2)) t)
+                :type 'wrong-type-argument)
+  (should-error (eval '(condition-case (a b) (+ 1 2) (:success 'ok)))
+                :type 'wrong-type-argument)
+  (should-error (eval '(funcall '(lambda ((a b) 3.15) 84) 5 4))))
 
 ;;; eval-tests.el ends here

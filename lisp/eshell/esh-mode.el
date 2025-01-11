@@ -1,6 +1,6 @@
 ;;; esh-mode.el --- user interface  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -88,6 +88,10 @@
 (defcustom eshell-first-time-mode-hook nil
   "A hook that gets run the first time `eshell-mode' is entered.
 That is to say, the first time during an Emacs session."
+  :type 'hook)
+
+(defcustom eshell-after-initialize-hook nil
+  "A hook that gets run after an Eshell session has been fully initialized."
   :type 'hook)
 
 (defcustom eshell-exit-hook nil
@@ -406,7 +410,7 @@ and the hook `eshell-exit-hook'."
   (when eshell-first-time-p
     (setq eshell-first-time-p nil)
     (run-hooks 'eshell-first-time-mode-hook))
-
+  (run-hooks 'eshell-after-initialize-hook)
   (run-hooks 'eshell-post-command-hook))
 
 (put 'eshell-mode 'mode-class 'special)
@@ -530,11 +534,10 @@ Putting this function on `eshell-pre-command-hook' will mimic Plan 9's
 (defun eshell-interactive-print (string)
   "Print STRING to the eshell display buffer."
   (when string
-    (eshell--mark-as-output 0 (length string) string)
-    (eshell-interactive-filter nil string)))
+    (eshell-interactive-output-filter nil string)))
 
 (defsubst eshell-begin-on-new-line ()
-  "This function outputs a newline if not at beginning of line."
+  "Output a newline if not at beginning of line."
   (save-excursion
     (goto-char eshell-last-output-end)
     (or (bolp)
@@ -685,7 +688,7 @@ newline."
 (custom-add-option 'eshell-input-filter-functions 'eshell-kill-new)
 
 (defun eshell-interactive-filter (buffer string)
-  "Send output (STRING) to the interactive display, using BUFFER.
+  "Send STRING to the interactive display, using BUFFER.
 This is done after all necessary filtering has been done."
   (unless buffer
     (setq buffer (current-buffer)))
@@ -724,6 +727,17 @@ This is done after all necessary filtering has been done."
           (narrow-to-region obeg oend)
           (goto-char opoint)
           (eshell-run-output-filters))))))
+
+(defun eshell-interactive-output-filter (buffer string)
+  "Send STRING to the interactive display as command output, using BUFFER.
+This is like `eshell-interactive-filter', but marks the inserted string
+as command output (see `eshell--mark-as-output')."
+  (let ((eshell-output-filter-functions
+         (cons (lambda ()
+                 (eshell--mark-as-output eshell-last-output-start
+                                         eshell-last-output-end))
+               eshell-output-filter-functions)))
+    (eshell-interactive-filter buffer string)))
 
 (defun eshell-run-output-filters ()
   "Run the `eshell-output-filter-functions' on the current output."
@@ -862,20 +876,61 @@ When run interactively, widen the buffer first."
   (goto-char (point-max))
   (recenter -1))
 
-(defun eshell/clear (&optional scrollback)
-  "Scroll contents of eshell window out of sight, leaving a blank window.
-If SCROLLBACK is non-nil, clear the scrollback contents."
+(defun eshell-clear (&optional clear-scrollback)
+  "Scroll contents of the Eshell window out of sight, leaving a blank window.
+If CLEAR-SCROLLBACK is non-nil (interactively, with the prefix
+argument), clear the scrollback contents.
+
+Otherwise, the behavior depends on `eshell-scroll-show-maximum-output'.
+If non-nil, fill newlines before the current prompt so that the prompt
+is the last line in the window; if nil, just scroll the window so that
+the prompt is the first line in the window."
+  (interactive "P")
+  (cond
+   (clear-scrollback
+    (let ((inhibit-read-only t))
+      (widen)
+      (delete-region (point-min) (eshell-end-of-output))))
+   (eshell-scroll-show-maximum-output
+    (save-excursion
+      (goto-char (eshell-end-of-output))
+      (let ((inhibit-read-only t))
+        (insert-and-inherit (make-string (window-size) ?\n))))
+    (when (< (point) eshell-last-output-end)
+      (goto-char eshell-last-output-end)))
+  (t
+   (when (< (point) eshell-last-output-end)
+     (goto-char eshell-last-output-end))
+   (set-window-start nil (eshell-end-of-output)))))
+
+(defun eshell/clear (&optional clear-scrollback)
+  "Scroll contents of the Eshell window out of sight, leaving a blank window.
+If CLEAR-SCROLLBACK is non-nil, clear the scrollback contents.
+
+Otherwise, the behavior depends on `eshell-scroll-show-maximum-output'.
+If non-nil, fill newlines before the current prompt so that the prompt
+is the last line in the window; if nil, just scroll the window so that
+the prompt is the first line in the window.
+
+This command is for use as an Eshell command (entered at the prompt);
+for clearing the Eshell buffer from elsewhere (e.g. via
+\\[execute-extended-command]), use `eshell-clear'."
   (interactive)
-  (if scrollback
-      (eshell/clear-scrollback)
+  (cond
+   ((null eshell-current-handles)
+    (eshell-clear clear-scrollback))
+   (clear-scrollback
+    (let ((inhibit-read-only t))
+      (erase-buffer)))
+   (eshell-scroll-show-maximum-output
     (let ((eshell-input-filter-functions nil))
-      (insert (make-string (window-size) ?\n))
-      (eshell-send-input))))
+      (ignore (eshell-interactive-print (make-string (window-size) ?\n)))))
+   (t
+    (recenter 0))))
 
 (defun eshell/clear-scrollback ()
-  "Clear the scrollback content of the eshell window."
-  (let ((inhibit-read-only t))
-    (erase-buffer)))
+  "Clear the scrollback content of the Eshell window."
+  (eshell/clear t))
 
 (defun eshell-get-old-input (&optional use-current-region)
   "Return the command input on the current line.

@@ -1,6 +1,6 @@
 ;;; find-func.el --- find the definition of the Emacs Lisp function near point  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Jens Petersen <petersen@kurims.kyoto-u.ac.jp>
 ;; Keywords: emacs-lisp, functions, variables
@@ -26,7 +26,7 @@
 ;; The funniest thing about this is that I can't imagine why a package
 ;; so obviously useful as this hasn't been written before!!
 ;; ;;; find-func
-;; (find-function-setup-keys)
+;; (find-function-mode 1)
 ;;
 ;; or just:
 ;;
@@ -125,7 +125,7 @@ should insert the feature name."
 
 (defcustom find-ert-deftest-regexp
   "(ert-deftest +'%s"
-  "The regexp used to search for an ert-deftest definition.
+  "The regexp used to search for an `ert-deftest' definition.
 Note it must contain a `%s' at the place where `format'
 should insert the feature name."
   :type 'regexp
@@ -327,6 +327,8 @@ customizing the candidate completions."
       (switch-to-buffer (find-file-noselect (find-library-name library)))
     (run-hooks 'find-function-after-hook)))
 
+(defvar find-function--read-history-library nil)
+
 ;;;###autoload
 (defun read-library-name ()
   "Read and return a library name, defaulting to the one near point.
@@ -355,12 +357,14 @@ if non-nil)."
           (when (and def (not (test-completion def table)))
             (setq def nil))
           (completing-read (format-prompt "Library name" def)
-                           table nil nil nil nil def))
+                           table nil nil nil
+                           'find-function--read-history-library def))
       (let ((files (read-library-name--find-files dirs suffixes)))
         (when (and def (not (member def files)))
           (setq def nil))
         (completing-read (format-prompt "Library name" def)
-                         files nil t nil nil def)))))
+                         files nil t nil
+                         'find-function--read-history-library def)))))
 
 (defun read-library-name--find-files (dirs suffixes)
   "Return a list of all files in DIRS that match SUFFIXES."
@@ -579,6 +583,10 @@ is non-nil, signal an error instead."
   (let ((func-lib (find-function-library function lisp-only t)))
     (find-function-search-for-symbol (car func-lib) nil (cdr func-lib))))
 
+(defvar find-function--read-history-function nil)
+(defvar find-function--read-history-variable nil)
+(defvar find-function--read-history-face nil)
+
 (defun find-function-read (&optional type)
   "Read and return an interned symbol, defaulting to the one near point.
 
@@ -601,7 +609,9 @@ otherwise uses `variable-at-point'."
     (list (intern (completing-read
                    (format-prompt "Find %s" symb prompt-type)
                    obarray predicate
-                   'lambda nil nil (and symb (symbol-name symb)))))))
+                   'lambda nil
+                   (intern (format "find-function--read-history-%s" prompt-type))
+                   (and symb (symbol-name symb)))))))
 
 (defun find-function-do-it (symbol type switch-fn)
   "Find Emacs Lisp SYMBOL in a buffer and display it.
@@ -800,20 +810,35 @@ See `find-function-on-key'."
       (find-variable-other-window symb))))
 
 ;;;###autoload
+(define-minor-mode find-function-mode
+  "Enable some key bindings for the `find-function' family of functions."
+  :group 'find-function :version "31.1" :global t :lighter nil
+  ;; For compatibility with the historical behavior of the old
+  ;; `find-function-setup-keys', define our bindings at the precedence
+  ;; level of the global map.
+  :keymap nil
+  (pcase-dolist (`(,map ,key ,cmd)
+                 `((,ctl-x-map   "F" find-function)
+                   (,ctl-x-4-map "F" find-function-other-window)
+                   (,ctl-x-5-map "F" find-function-other-frame)
+                   (,ctl-x-map   "K" find-function-on-key)
+                   (,ctl-x-4-map "K" find-function-on-key-other-window)
+                   (,ctl-x-5-map "K" find-function-on-key-other-frame)
+                   (,ctl-x-map   "V" find-variable)
+                   (,ctl-x-4-map "V" find-variable-other-window)
+                   (,ctl-x-5-map "V" find-variable-other-frame)
+                   (,ctl-x-map   "L" find-library)
+                   (,ctl-x-4-map "L" find-library-other-window)
+                   (,ctl-x-5-map "L" find-library-other-frame)))
+    (if find-function-mode
+        (keymap-set map key cmd)
+      (keymap-unset map key t))))
+
+;;;###autoload
 (defun find-function-setup-keys ()
-  "Define some key bindings for the `find-function' family of functions."
-  (define-key ctl-x-map "F" 'find-function)
-  (define-key ctl-x-4-map "F" 'find-function-other-window)
-  (define-key ctl-x-5-map "F" 'find-function-other-frame)
-  (define-key ctl-x-map "K" 'find-function-on-key)
-  (define-key ctl-x-4-map "K" 'find-function-on-key-other-window)
-  (define-key ctl-x-5-map "K" 'find-function-on-key-other-frame)
-  (define-key ctl-x-map "V" 'find-variable)
-  (define-key ctl-x-4-map "V" 'find-variable-other-window)
-  (define-key ctl-x-5-map "V" 'find-variable-other-frame)
-  (define-key ctl-x-map "L" 'find-library)
-  (define-key ctl-x-4-map "L" 'find-library-other-window)
-  (define-key ctl-x-5-map "L" 'find-library-other-frame))
+  "Turn on `find-function-mode', which see."
+  (find-function-mode 1))
+(make-obsolete 'find-function-setup-keys 'find-function-mode "31.1")
 
 (provide 'find-func)
 

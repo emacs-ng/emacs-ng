@@ -1,5 +1,5 @@
 /* Check the access rights of a file relative to an open directory.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,15 +63,17 @@ rpl_faccessat (int fd, char const *file, int mode, int flag)
 {
   int result = orig_faccessat (fd, file, mode, flag);
 
-  if (result == 0 && file[strlen (file) - 1] == '/')
+  if (file[strlen (file) - 1] == '/')
     {
       struct stat st;
-      result = fstatat (fd, file, &st, 0);
-      if (result == 0 && !S_ISDIR (st.st_mode))
+      int ret = fstatat (fd, file, &st, 0);
+      if (ret == 0 && !S_ISDIR (st.st_mode))
         {
           errno = ENOTDIR;
           return -1;
         }
+      if (result == 0)
+        result = ret;
     }
 
   return result;

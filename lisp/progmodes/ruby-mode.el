@@ -1,6 +1,6 @@
 ;;; ruby-mode.el --- Major mode for editing Ruby files -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 ;; Authors: Yukihiro Matsumoto
 ;;	Nobuyoshi Nakada
@@ -336,7 +336,7 @@ Only has effect when `ruby-use-smie' is t."
   "If non-nil, align chained method calls.
 
 Each method call on a separate line will be aligned to the column
-of its parent. Example:
+of its parent.  Example:
 
   my_array.select { |str| str.size > 5 }
           .map    { |str| str.downcase }
@@ -386,7 +386,7 @@ Only has effect when `ruby-use-smie' is t."
   "Non-nil to align the body of a block to the statement's start.
 
 The body and the closer will be aligned to the column where the
-statement containing the block starts. Example:
+statement containing the block starts.  Example:
 
   foo.bar
     .each do
@@ -471,6 +471,26 @@ Only has effect when `ruby-use-smie' is t."
   :type 'boolean
   :safe 'booleanp
   :version "29.1")
+
+(defcustom ruby-bracketed-args-indent t
+  "Non-nil to align the contents of bracketed arguments with the brackets.
+
+Example:
+
+  qux({
+        foo => bar
+      })
+
+Set it to nil to align to the beginning of the statement:
+
+  qux({
+    foo => bar
+  })
+
+Only has effect when `ruby-use-smie' is t."
+  :type 'boolean
+  :safe 'booleanp
+  :version "30.1")
 
 (defcustom ruby-deep-arglist t
   "Deep indent lists in parenthesis when non-nil.
@@ -826,6 +846,9 @@ This only affects the output of the command `ruby-toggle-block'."
       ))
     (`(:before . ,(or "(" "[" "{"))
      (cond
+      ((and (not (eq ruby-bracketed-args-indent t))
+            (smie-rule-prev-p "," "(" "["))
+       (cons 'column (current-indentation)))
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";" "do"))
             (save-excursion
@@ -2557,10 +2580,11 @@ If there is no Rubocop config file, Rubocop will be passed a flag
   "Non-nil with allow `ruby-flymake-rubocop' to use `bundle exec'.
 When the value is `check', it will first see whether Gemfile exists in
 the same directory as the configuration file, and whether it mentions
-the gem \"rubocop\".  When t, it's used unconditionally.  "
+the gem \"rubocop\".  When t, it is used unconditionally."
   :type '(choice (const :tag "Always" t)
                  (const :tag "No" nil)
                  (const :tag "If rubocop is in Gemfile" check))
+  :version "30.1"
   :safe 'booleanp)
 
 (defun ruby-flymake-rubocop (report-fn &rest _args)
@@ -2724,6 +2748,10 @@ Currently there are `ruby-mode' and `ruby-ts-mode'."
 ;;;###autoload
 (dolist (name (list "ruby" "rbx" "jruby" "j?ruby\\(?:[0-9.]+\\)"))
   (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'ruby-mode)))
+
+;; See ruby-ts-mode.el for why we do this.
+(setq major-mode-remap-defaults
+      (assq-delete-all 'ruby-mode major-mode-remap-defaults))
 
 (provide 'ruby-mode)
 

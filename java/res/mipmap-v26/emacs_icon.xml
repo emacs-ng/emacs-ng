@@ -1,6 +1,6 @@
 <!-- Adaptive icon for Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -20,4 +20,5 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
   <background android:drawable="@drawable/emacs_background"/>
   <foreground android:drawable="@drawable/emacs_foreground"/>
+  <monochrome android:drawable="@drawable/emacs_foreground"/>
 </adaptive-icon>

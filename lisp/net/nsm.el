@@ -1,6 +1,6 @@
 ;;; nsm.el --- Network Security Manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: encryption, security, network
@@ -65,10 +65,10 @@ checked and warned against."
 
 The default suite of TLS checks in NSM is designed to follow the
 most current security best practices.  Under some situations,
-such as attempting to connect to an email server that do not
+such as attempting to connect to an email server that does not
 follow these practices inside a school or corporate network, NSM
 may produce warnings for such occasions.  Setting this option to
-a non-nil value, or a zero-argument function that returns non-nil
+a non-nil value, or a zero-argument function that returns non-nil,
 tells NSM to skip checking for potential TLS vulnerabilities when
 connecting to hosts on a local network.
 
@@ -100,21 +100,20 @@ This means that no queries should be performed.")
 (defun nsm-verify-connection (process host port &optional
 				      save-fingerprint warn-unencrypted)
   "Verify the security status of PROCESS that's connected to HOST:PORT.
-If PROCESS is a gnutls connection, the certificate validity will
-be examined.  If it's a non-TLS connection, it may be compared
-against previous connections.  If the function determines that
-there is something odd about the connection, the user will be
-queried about what to do about it.
+If PROCESS is a GnuTLS connection, the certificate validity will be
+examined.  If it's a non-TLS connection, it may be compared against
+previous connections.  If the function determines that there is
+something odd about the connection, the user will be queried about what
+to do about it.
 
-The process is returned if everything is OK, and otherwise, the
-process will be deleted and nil is returned.
+Return the process if all the checks pass.  Otherwise, delete the
+process and return nil.
 
-If SAVE-FINGERPRINT, always save the fingerprint of the
-server (if the connection is a TLS connection).  This is useful
-to keep track of the TLS status of STARTTLS servers.
+If SAVE-FINGERPRINT, always save the fingerprint of the server (if the
+connection is a TLS connection).  This is useful to keep track of the
+TLS status of STARTTLS servers.
 
-If WARN-UNENCRYPTED, query the user if the connection is
-unencrypted."
+If WARN-UNENCRYPTED, query the user if the connection is unencrypted."
   (let* ((status (gnutls-peer-status process))
          (id (nsm-id host port))
          (settings (nsm-host-settings id)))
@@ -155,17 +154,16 @@ unencrypted."
     (dhe-kx                 high)
     (rsa-kx                 high)
     (cbc-cipher             high))
-  "This variable specifies what TLS connection checks to perform.
-It's an alist where the key is the name of the check, and the
-value is the minimum security level the check should begin.
+  "Alist of TLS connection checks to perform.
+The key is the name of the check, and the value is the minimum security
+level the check should begin.
 
-Each check function is called with the parameters HOST PORT
-STATUS SETTINGS.  HOST is the host domain, PORT is a TCP port
-number, STATUS is the peer status returned by
-`gnutls-peer-status', and SETTINGS is the persistent and session
-settings for the host HOST.  Please refer to the contents of
-`nsm-settings-file' for details.  If a problem is found, the check
-function is required to return an error message, and nil
+Each check function is called with the parameters HOST PORT STATUS
+SETTINGS.  HOST is the host domain, PORT is a TCP port number, STATUS is
+the peer status returned by `gnutls-peer-status', and SETTINGS is the
+persistent and session settings for the host HOST.  Please refer to the
+contents of `nsm-settings-file' for details.  If a problem is found, the
+check function is required to return an error message, and nil
 otherwise.
 
 See also: `nsm-check-tls-connection', `nsm-save-host-names',
@@ -227,27 +225,18 @@ If `nsm-trust-local-network' is or returns non-nil, and if the
 host address is a localhost address, or in the same subnet as one
 of the local interfaces, this function returns nil.  Non-nil
 otherwise."
-  (let ((addresses (network-lookup-address-info host))
-        (network-interface-list (network-interface-list t))
-        (off-net t))
-    (when
-     (or (and (functionp nsm-trust-local-network)
-              (funcall nsm-trust-local-network))
-         nsm-trust-local-network)
-     (mapc
-      (lambda (ip)
-        (mapc
-         (lambda (info)
-           (let ((local-ip (nth 1 info))
-                 (mask (nth 3 info)))
-             (when
-                 (nsm-network-same-subnet (substring local-ip 0 -1)
-                                          (substring mask 0 -1)
-                                          (substring ip 0 -1))
-               (setq off-net nil))))
-         network-interface-list))
-      addresses))
-     off-net))
+  (not (and-let* (((or (and (functionp nsm-trust-local-network)
+                            (funcall nsm-trust-local-network))
+                       nsm-trust-local-network))
+                  (addresses (network-lookup-address-info host))
+                  (network-interface-list (network-interface-list t)))
+         (catch 'nsm-should-check
+           (dolist (ip addresses)
+             (dolist (info network-interface-list)
+               (when (nsm-network-same-subnet (substring (nth 1 info) 0 -1)
+                                              (substring (nth 3 info) 0 -1)
+                                              (substring ip 0 -1))
+                 (throw 'nsm-should-check t))))))))
 
 (defun nsm-check-tls-connection (process host port status settings)
   "Check TLS connection against potential security problems.

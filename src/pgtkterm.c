@@ -1,6 +1,6 @@
 /* Communication module for window systems using GTK.
 
-Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2024 Free Software
+Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -933,7 +933,7 @@ pgtk_set_parent_frame (struct frame *f, Lisp_Object new_value,
       if (p != NULL)
 	{
 	  if (FRAME_DISPLAY_INFO (f) != FRAME_DISPLAY_INFO (p))
-	    error ("Cross display reparent.");
+	    error ("Cross display reparent");
 	}
 
       GtkWidget *fixed = FRAME_GTK_WIDGET (f);
@@ -3606,20 +3606,7 @@ pgtk_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
   pgtk_clip_to_row (w, row, ANY_AREA, cr);
 
   if (p->bx >= 0 && !p->overlay_p)
-    {
-      /* In case the same realized face is used for fringes and for
-         something displayed in the text (e.g. face `region' on
-         mono-displays, the fill style may have been changed to
-         FillSolid in pgtk_draw_glyph_string_background.  */
-      if (face->stipple)
-	fill_background_by_face (f, face, p->bx, p->by, p->nx, p->ny);
-      else
-	{
-	  pgtk_set_cr_source_with_color (f, face->background, true);
-	  cairo_rectangle (cr, p->bx, p->by, p->nx, p->ny);
-	  cairo_fill (cr);
-	}
-    }
+    fill_background_by_face (f, face, p->bx, p->by, p->nx, p->ny);
 
   if (p->which
       && p->which < max_fringe_bmp
@@ -7733,7 +7720,6 @@ pgtk_cr_export_frames (Lisp_Object frames, cairo_surface_type_t surface_type)
   Lisp_Object acc = Qnil;
   specpdl_ref count = SPECPDL_INDEX ();
 
-  specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (31);
 
   f = XFRAME (XCAR (frames));

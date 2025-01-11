@@ -1,9 +1,10 @@
 # memmem.m4
-# serial 29
-dnl Copyright (C) 2002-2004, 2007-2024 Free Software Foundation, Inc.
+# serial 30
+dnl Copyright (C) 2002-2004, 2007-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
+dnl This file is offered as-is, without any warranty.
 
 dnl Check that memmem is present and functional.
 AC_DEFUN([gl_FUNC_MEMMEM_SIMPLE],
@@ -102,7 +103,7 @@ static void quit (int sig) { _exit (sig + 128); }
     char *haystack = (char *) malloc (2 * m + 1);
     char *needle = (char *) malloc (m + 1);
     /* Failure to compile this test due to missing alarm is okay,
-       since all such platforms (mingw) also lack memmem.  */
+       since all such platforms (mingw, MSVC) also lack memmem.  */
     signal (SIGALRM, quit);
     alarm (5);
     /* Check for quadratic performance.  */

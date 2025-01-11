@@ -1,6 +1,6 @@
 ;;; tramp-sshfs.el --- Tramp access functions via sshfs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -44,7 +44,8 @@
   "The sshfs mount command."
   :group 'tramp
   :version "28.1"
-  :type 'string)
+  :type 'string
+  :link '(info-link :tag "Tramp manual" "(tramp) Setup of sshfs method"))
 
 ;;;###tramp-autoload
 (defvar tramp-default-remote-shell) ;; Silence byte compiler.
@@ -169,15 +170,15 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
 ;;;###tramp-autoload
 (defsubst tramp-sshfs-file-name-p (vec-or-filename)
   "Check if it's a VEC-OR-FILENAME for sshfs."
-  (when-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename)))
-    (string= (tramp-file-name-method vec) tramp-sshfs-method)))
+  (and-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename))
+	     ((string= (tramp-file-name-method vec) tramp-sshfs-method)))))
 
 ;;;###tramp-autoload
 (defun tramp-sshfs-file-name-handler (operation &rest args)
   "Invoke the sshfs handler for OPERATION and ARGS.
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
-  (if-let ((fn (assoc operation tramp-sshfs-file-name-handler-alist)))
+  (if-let* ((fn (assoc operation tramp-sshfs-file-name-handler-alist)))
       (prog1 (save-match-data (apply (cdr fn) args))
 	(setq tramp-debug-message-fnh-function (cdr fn)))
     (prog1 (tramp-run-real-handler operation args)
@@ -254,10 +255,10 @@ arguments to pass to the OPERATION."
     (let ((coding-system-for-read 'utf-8-dos)) ; Is this correct?
 
       (setq command
-	   (format
-	    "cd %s && exec %s"
-	    (tramp-unquote-shell-quote-argument localname)
-	    (mapconcat #'tramp-shell-quote-argument (cons program args) " ")))
+	    (format
+	     "cd %s && exec %s"
+	     (tramp-unquote-shell-quote-argument localname)
+	     (mapconcat #'tramp-shell-quote-argument (cons program args) " ")))
       (when input (setq command (format "%s <%s" command input)))
       (when stderr (setq command (format "%s 2>%s" command stderr)))
 
@@ -301,15 +302,13 @@ arguments to pass to the OPERATION."
   "Like `set-file-modes' for Tramp files."
   (unless (and (eq flag 'nofollow) (file-symlink-p filename))
     (tramp-skeleton-set-file-modes-times-uid-gid filename
-      (tramp-compat-set-file-modes
-       (tramp-fuse-local-file-name filename) mode flag))))
+      (set-file-modes (tramp-fuse-local-file-name filename) mode flag))))
 
 (defun tramp-sshfs-handle-set-file-times (filename &optional timestamp flag)
   "Like `set-file-times' for Tramp files."
   (unless (and (eq flag 'nofollow) (file-symlink-p filename))
     (tramp-skeleton-set-file-modes-times-uid-gid filename
-      (tramp-compat-set-file-times
-       (tramp-fuse-local-file-name filename) timestamp flag))))
+      (set-file-times (tramp-fuse-local-file-name filename) timestamp flag))))
 
 (defun tramp-sshfs-handle-write-region
   (start end filename &optional append visit lockname mustbenew)

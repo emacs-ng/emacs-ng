@@ -1,6 +1,6 @@
 ;;; ispell.el --- interface to spell checkers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-1995, 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1995, 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Ken Stevens <k.stevens@ieee.org>
 
@@ -346,11 +346,10 @@ calling \\[ispell-change-dictionary] with that value.  This variable
 is automatically set when defined in the file with either
 `ispell-dictionary-keyword' or the Local Variable syntax."
   :type '(choice string
-                 (const :tag "default" nil)))
+                 (const :tag "default" nil))
+  :local t)
 ;;;###autoload
 (put 'ispell-local-dictionary 'safe-local-variable 'string-or-null-p)
-
-(make-variable-buffer-local 'ispell-local-dictionary)
 
 (defcustom ispell-dictionary nil
   "Default dictionary to use if `ispell-local-dictionary' is nil."
@@ -377,10 +376,8 @@ such as \"&amp;\".  See `ispell-html-skip-alists' for more details.
 
 This variable affects spell-checking of HTML, XML, and SGML files."
   :type '(choice (const :tag "always" t) (const :tag "never" nil)
-                 (const :tag "use-mode-name" use-mode-name)))
-
-(make-variable-buffer-local 'ispell-skip-html)
-
+                 (const :tag "use-mode-name" use-mode-name))
+  :local t)
 
 (defcustom ispell-local-dictionary-alist nil
   "List of local or customized dictionary definitions.
@@ -2416,7 +2413,7 @@ Global `ispell-quit' is set to start location to continue spell session."
 			    (progn
 			      (set-marker ispell-recursive-edit-marker nil)
 			      (error
-			       "Cannot continue ispell from this buffer.")))
+                               "Cannot continue ispell from this buffer")))
 			(set-marker ispell-recursive-edit-marker nil)))
 		    (list word nil))	; recheck starting at this word.
 		   ((= char ?\C-z)
@@ -3320,9 +3317,7 @@ Generated from `ispell-tex-skip-alists'."
    "\\|"
    ;; keys wrapped in begin{}
    (mapconcat (lambda (lst)
-                (concat "\\\\begin[ \t\n]*{[ \t\n]*"
-                        (car lst)
-                        "[ \t\n]*}"))
+                (concat "\\\\begin[ \t\n]*{" (car lst) "}"))
 	      (car (cdr ispell-tex-skip-alists))
 	      "\\|")))
 
@@ -3728,7 +3723,7 @@ If APPEND is non-nil, don't erase previous debugging output."
          (while cur
            (unless (string-prefix-p word (car cur))
              (setcar cur (concat word (substring (car cur) len))))
-           (while (when-let ((next (cadr cur)))
+           (while (when-let* ((next (cadr cur)))
                     (not (string-prefix-p word next t)))
              (setcdr cur (cddr cur)))
            (setq cur (cdr cur)))

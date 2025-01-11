@@ -1,6 +1,6 @@
 ;;; decipher.el --- cryptanalyze monoalphabetic substitution ciphers  -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 1995-1996, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 2001-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Christopher J. Madsen <chris_madsen@geocities.com>
 ;; Keywords: games
@@ -109,8 +109,8 @@ This variable must be set before typing `\\[decipher]'."
 You should set this to nil if the cipher message is divided into words,
 or t if it is not.
 This variable is buffer-local."
-  :type 'boolean)
-(make-variable-buffer-local 'decipher-ignore-spaces)
+  :type 'boolean
+  :local t)
 
 (defcustom decipher-undo-limit 5000
   "The maximum number of entries in the undo list.

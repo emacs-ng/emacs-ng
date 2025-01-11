@@ -1,6 +1,6 @@
 ;;; rmailsum.el --- make summary buffers for the mail reader  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1993-1996, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1985, 1993-1996, 2000-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -83,6 +83,11 @@ commands consecutively.  Filled by
 Message A is parent of message B if the id of A appears in the
 \"References\" or \"In-reply-to\" fields of B, or if A is the first
 message with the same \"Subject\" as B.  First element is ignored.")
+
+(defcustom rmail-summary-starting-message 1
+  "Message number to start summarizing at."
+  :type 'integer
+  :group 'rmail-summary)
 
 (defvar rmail-summary-message-descendants-vector nil
   "Vector that holds the direct descendants of each message.
@@ -700,7 +705,7 @@ message."
 	(sumbuf (rmail-get-create-summary-buffer)))
     ;; Scan the messages, getting their summary strings
     ;; and putting the list of them in SUMMARY-MSGS.
-    (let ((msgnum 1)
+    (let ((msgnum rmail-summary-starting-message)
 	  (main-buffer (current-buffer))
 	  (total rmail-total-messages)
 	  (inhibit-read-only t))

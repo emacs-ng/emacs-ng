@@ -1,6 +1,6 @@
 ;;; ox-latex.el --- LaTeX Backend for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Maintainer: Daniel Fleischer <danflscr@gmail.com>
@@ -993,7 +993,7 @@ The most comprehensive option can be set with,
 
 which causes source code to be run through
 `engrave-faces-latex-buffer', which generates colorings using
-Emacs' font-lock information.  This requires the Emacs package
+Emacs's font-lock information.  This requires the Emacs package
 engrave-faces (available from GNU ELPA), and the LaTeX package
 fvextra be installed.
 
@@ -1391,7 +1391,7 @@ default values of which are given by `org-latex-engraved-preamble' and
                         "\n"))
                (t (funcall gen-theme-spec engraved-theme))))
            (funcall gen-theme-spec engraved-theme))
-       (warn "Cannot engrave source blocks. Consider installing `engrave-faces'.")
+       (warn "Cannot engrave source blocks.  Consider installing `engrave-faces'.")
        "% WARNING syntax highlighting unavailable as engrave-faces-latex was missing.\n")
      "\n")))
 
@@ -3548,7 +3548,7 @@ and FLOAT are extracted from SRC-BLOCK and INFO in `org-latex-src-block'."
 When the THEME symbol is non-nil, that theme will be used.
 
 When INLINE is nil, a Verbatim environment wrapped in a Code
-environment will be used. When t, a Verb command will be used.
+environment will be used.  When t, a Verb command will be used.
 
 When OPTIONS is provided, as either a string or list of key-value
 pairs accepted by `org-latex--make-option-string', it is passed
@@ -3591,7 +3591,7 @@ to the Verbatim environment or Verb command."
                     engraved-wrapped
                     "}")
           engraved-wrapped))
-    (user-error "Cannot engrave code as `engrave-faces-latex' is unavailable.")))
+    (user-error "Cannot engrave code as `engrave-faces-latex' is unavailable")))
 
 (cl-defun org-latex-src-block--engraved
     (&key src-block info lang caption caption-above-p num-start retain-labels attributes float &allow-other-keys)
@@ -4097,7 +4097,7 @@ a communication channel."
           (unless (hash-table-p table-head-cache)
             (setq table-head-cache (make-hash-table :test #'eq))
             (plist-put info :org-latex-table-head-cache table-head-cache))
-          (if-let ((head-contents (gethash (org-element-parent table-row) table-head-cache)))
+          (if-let* ((head-contents (gethash (org-element-parent table-row) table-head-cache)))
               (puthash (org-element-parent table-row) (concat head-contents "\\\\\n" contents)
                        table-head-cache)
             (puthash (org-element-parent table-row) contents table-head-cache))))

@@ -1,6 +1,6 @@
 ;;; octave.el --- editing octave source files under emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Kurt Hornik <Kurt.Hornik@wu-wien.ac.at>
 ;;	   John Eaton <jwe@octave.org>
@@ -535,8 +535,6 @@ Non-nil means always go to the next Octave code line after sending."
                            'syntax-table (string-to-syntax ".")))
       (put-text-property (match-beginning 1) (match-end 1)
                          'syntax-table (string-to-syntax "\"'")))))
-
-(defvar electric-layout-rules)
 
 ;; FIXME: cc-mode.el also adds an entry for .m files, mapping them to
 ;; objc-mode.  We here rely on the fact that loaddefs.el is filled in

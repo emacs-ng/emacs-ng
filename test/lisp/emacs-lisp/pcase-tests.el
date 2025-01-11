@@ -1,6 +1,6 @@
 ;;; pcase-tests.el --- Test suite for pcase macro.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -85,7 +85,7 @@
                                     (`(,_ . ,_) (BAR))
                                     ('(a b) (FOO))))))
   (let ((exp1 (macroexpand '(pcase EXP
-                              (`(`(,(or 'a1 'b1)) (FOO1)))
+                              (`((,(or 'a1 'b1))) (FOO1))
                               ('(c) (FOO2))
                               ('(d) (FOO3))))))
     (should (= 1 (with-temp-buffer (prin1 exp1 (current-buffer))

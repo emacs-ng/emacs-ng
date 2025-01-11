@@ -1,6 +1,6 @@
 /* sfnt format font support for GNU Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1394,6 +1394,8 @@ struct sfnt_OS_2_table
 
   /* Microsoft ``panose'' classification.  */
   unsigned char panose[10];
+
+  /* Alignment boundary! */
 
   /* Unicode range specification.  */
   uint32_t ul_unicode_range[4];

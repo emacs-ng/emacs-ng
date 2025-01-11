@@ -1,6 +1,6 @@
 ;;; ol.el --- Org links library                      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -542,7 +542,7 @@ original string length.")
 (defvar-local org-target-link-regexps nil
   "List of regular expressions matching radio targets in plain text.
 This list is non-nil, when a single regexp would be too long to match
-all the possible targets, exceeding Emacs' regexp length limit.")
+all the possible targets, exceeding Emacs's regexp length limit.")
 
 (defvar org-link-types-re nil
   "Matches a link that has a url-like prefix like \"http:\".")
@@ -2028,7 +2028,7 @@ non-interactively, don't allow editing the default description."
 			   (setq link (substring link 0 -1))))
 	      (setq link (with-current-buffer origbuf
 			   (org-link--try-special-completion link)))))
-        (when-let ((window (get-buffer-window "*Org Links*" t)))
+        (when-let* ((window (get-buffer-window "*Org Links*" t)))
           (quit-window 'kill window))
 	(set-window-configuration wcf)
 	(when (get-buffer "*Org Links*")

@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Programs
@@ -84,7 +84,6 @@ mode for the C programming language is @code{c-mode}.
 @cindex Javascript mode
 @cindex Awk mode
 @cindex C# mode
-@cindex IDLWAVE mode
 @cindex JSON mode
 @cindex SQL mode
 @cindex TypeScript mode
@@ -94,7 +93,7 @@ mode for the C programming language is @code{c-mode}.
 @cindex TOML mode
   Emacs has programming language modes for Lisp, Scheme, the
 Scheme-based DSSSL expression language, Ada, ASM, AWK, C, C++, C#,
-Elixir, Fortran, Icon, IDL (CORBA), HEEx, IDLWAVE, Java, Javascript,
+Elixir, Fortran, Icon, IDL (CORBA), HEEx, Java, Javascript,
 Lua, M4, Makefiles, Metafont (@TeX{}'s companion for font creation),
 Modula2, Object Pascal, Objective-C, Octave, Pascal, Perl, PHP, Pike,
 PostScript, Prolog, Python, Ruby, Simula, SQL, Tcl, TypeScript, Verilog,
@@ -141,10 +140,9 @@ For instance, entering C mode runs the hooks @code{prog-mode-hook} and
 @code{c-mode-hook}.  @xref{Hooks}, for information about hooks.
 
 @ifnottex
-  Separate manuals are available for the modes for Ada (@pxref{Top,,
-Ada Mode, ada-mode, Ada Mode}), C/C++/Objective C/Java/Corba
-IDL/Pike/AWK (@pxref{Top, , CC Mode, ccmode, CC Mode}), Octave, VHDL,
-and IDLWAVE (@pxref{Top,, IDLWAVE, idlwave, IDLWAVE User Manual}).
+  Separate manuals are available for the modes for Ada (@pxref{Top,, Ada
+Mode, ada-mode, Ada Mode}), C/C++/Objective C/Java/Corba IDL/Pike/AWK
+(@pxref{Top, , CC Mode, ccmode, CC Mode}), Octave, and VHDL.
 @end ifnottex
 @iftex
   The Emacs distribution contains Info manuals for the major modes for
@@ -1061,7 +1059,9 @@ one, no insertion takes places, and that position is simply skipped
 over.  If the region is active (@pxref{Mark}), insertion of a
 delimiter operates on the region: the characters in the region are
 enclosed in a pair of matching delimiters, leaving point after the
-delimiter you typed.
+delimiter you typed.  If you provide a prefix argument when inserting
+a delimiter, the numeric value of that prefix argument specifies the
+number of pairs to insert.
 
 These variables control additional features of Electric Pair mode:
 
@@ -1430,7 +1430,7 @@ line shows how many manual pages are available.
 @vindex Man-prefer-synchronous-call
   By default, @kbd{M-x man} calls the @code{man} program
 asynchronously.  You can force the invocation to be synchronous by
-customizing @code{Man-prefer-synchronous-calls} to a non-@code{nil}
+customizing @code{Man-prefer-synchronous-call} to a non-@code{nil}
 value.
 
 @vindex Man-support-remote-systems

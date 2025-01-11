@@ -1,6 +1,6 @@
 ;;; vc-svn.el --- non-resident support for Subversion version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
 ;; Maintainer:  Stefan Monnier <monnier@gnu.org>
@@ -661,7 +661,7 @@ NAME is assumed to be a URL."
 
 (defun vc-svn-command (buffer okstatus file-or-list &rest flags)
   "A wrapper around `vc-do-command' for use in vc-svn.el.
-The difference to vc-do-command is that this function always invokes `svn',
+The difference to `vc-do-command' is that this function always invokes `svn',
 and that it passes `vc-svn-global-switches' to it before FLAGS."
   (apply #'vc-do-command (or buffer "*vc*") okstatus vc-svn-program file-or-list
          (if (stringp vc-svn-global-switches)

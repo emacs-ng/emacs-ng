@@ -1,6 +1,6 @@
 ;;; cus-edit.el --- tools for customizing Emacs and Lisp packages -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -175,16 +175,9 @@
   "Support for editing files."
   :group 'emacs)
 
-(defgroup wp nil
-  "Support for editing text files.
-Use group `text' for this instead.  This group is obsolete."
-  :group 'emacs)
-
 (defgroup text nil
   "Support for editing text files."
-  :group 'emacs
-  ;; Inherit from deprecated `wp' for compatibility, for now.
-  :group 'wp)
+  :group 'emacs)
 
 (defgroup data nil
   "Support for editing binary data files."
@@ -1060,6 +1053,11 @@ This is like `setq', but is meant for user options instead of
 plain variables.  This means that `setopt' will execute any
 `custom-set' form associated with VARIABLE.
 
+Note that `setopt' will emit a warning if the type of a VALUE
+does not match the type of the corresponding VARIABLE as
+declared by `defcustom'.  (VARIABLE will be assigned the value
+even if it doesn't match the type.)
+
 \(fn [VARIABLE VALUE]...)"
   (declare (debug setq))
   (unless (zerop (mod (length pairs) 2))
@@ -1077,9 +1075,10 @@ plain variables.  This means that `setopt' will execute any
 (defun setopt--set (variable value)
   (custom-load-symbol variable)
   ;; Check that the type is correct.
-  (when-let ((type (get variable 'custom-type)))
+  (when-let* ((type (get variable 'custom-type)))
     (unless (widget-apply (widget-convert type) :match value)
-      (warn "Value `%S' does not match type %s" value type)))
+      (warn "Value `%S' for variable `%s' does not match its type \"%s\""
+            value variable type)))
   (put variable 'custom-check-value (list value))
   (funcall (or (get variable 'custom-set) #'set-default) variable value))
 
@@ -3426,6 +3425,28 @@ to switch between two values."
 
 ;;; The `custom-face-edit' Widget.
 
+(defvar custom-face--font-cache-timeout 60
+  "Refresh the cache of font families after at most this many seconds.")
+
+(defalias 'custom-face--font-completion
+  (let ((lastlist nil)
+        (lasttime nil)
+        (lastframe nil))
+    (completion-table-case-fold
+     (completion-table-dynamic
+      (lambda (_string)
+        ;; Flush the cache timeout after a while.
+        (let ((time (float-time)))
+         (if (and lastlist (eq (selected-frame) lastframe)
+                  (> custom-face--font-cache-timeout (- time lasttime)))
+             lastlist
+           ;; (message "last list time: %s" (if lasttime (- time lasttime)))
+           (setq lasttime time)
+           (setq lastframe (selected-frame))
+           (setq lastlist
+                 (nconc (mapcar #'car face-font-family-alternatives)
+                        (font-family-list))))))))))
+
 (define-widget 'custom-face-edit 'checklist
   "Widget for editing face attributes.
 The following properties have special meanings for this widget:
@@ -5535,6 +5556,53 @@ its standard value."
   "A menu for `custom-icon' widgets.
 Used in `custom-icon-action' to show a menu to the user.")
 
+(defconst custom-icon--images-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Images"
+         (const  :tag "" image)
+         (repeat :tag "Values"
+                 (string :tag "Image filename"))
+         (plist  :tag "Image attributes")))
+
+(defconst custom-icon--emojis-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Colorful Emojis"
+         (const  :tag "" emoji)
+         (repeat :tag "Values"
+                 (string :tag "Emoji text"))
+         (plist  :tag "Emoji text properties")))
+
+(defconst custom-icon--symbols-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Monochrome Symbols"
+         (const  :tag "" symbol)
+         (repeat :tag "Values"
+                 (string :tag "Symbol text"))
+         (plist  :tag "Symbol text properties")))
+
+(defconst custom-icon--texts-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Texts Only"
+         (const  :tag "" text)
+         (repeat :tag "Values"
+                 (string :tag "Text"))
+         (plist  :tag "Text properties")))
+
+(defconst custom-icon--type
+  `(repeat :format ,(concat "%{%t%}"
+                            (propertize ":" 'display "")
+                            "\n\n%v%i\n")
+           :tag "Icon elements:
+- Only the first occurrence of a same element counts.
+- Missing elements will take their default value.
+- At least one element should be provided with a valid value."
+    (choice :void ,custom-icon--texts-sub-type
+            :extra-offset -3
+            ,custom-icon--images-sub-type
+            ,custom-icon--emojis-sub-type
+            ,custom-icon--symbols-sub-type
+            ,custom-icon--texts-sub-type)))
+
 (defun custom-icon-value-create (widget)
   "Here is where you edit the icon's specification."
   (custom-load-widget widget)
@@ -5545,13 +5613,7 @@ Used in `custom-icon-action' to show a menu to the user.")
 	 (form (widget-get widget :custom-form))
 	 (symbol (widget-get widget :value))
 	 (tag (widget-get widget :tag))
-	 (type '(repeat
-                 (list (choice (const :tag "Images" image)
-                               (const :tag "Colorful Emojis" emoji)
-                               (const :tag "Monochrome Symbols" symbol)
-                               (const :tag "Text Only" text))
-                       (repeat string)
-                       plist)))
+	 (type custom-icon--type)
 	 (prefix (widget-get widget :custom-prefix))
 	 (last (widget-get widget :custom-last))
 	 (style (widget-get widget :custom-style))
@@ -5932,7 +5994,7 @@ The appropriate types are:
 
 (defun custom-dirlocals-maybe-update-cons ()
   "If focusing out from the first widget in a cons widget, update its value."
-  (when-let ((w (widget-at)))
+  (when-let* ((w (widget-at)))
     (when (widget-get w :custom-dirlocals-symbol)
       (widget-value-set (widget-get w :parent)
                         (cons (widget-value w) ""))
@@ -6023,7 +6085,7 @@ Moves point into the widget that holds the value."
 If at least an option doesn't validate, signals an error and moves point
 to the widget with the invalid value."
   (dolist (opt (custom-dirlocals-get-options))
-    (when-let ((w (widget-apply opt :validate)))
+    (when-let* ((w (widget-apply opt :validate)))
       (goto-char (widget-get w :from))
       (error "%s" (widget-get w :error))))
   t)

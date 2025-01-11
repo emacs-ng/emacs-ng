@@ -1,6 +1,6 @@
 /* Set file access and modification times.
 
-   Copyright 2012-2024 Free Software Foundation, Inc.
+   Copyright 2012-2025 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -24,12 +24,24 @@
 
 #include <time.h>
 
+#if HAVE_UTIMENS || HAVE_LUTIMENS
+# include <sys/time.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int fdutimens (int, char const *, struct timespec const [2]);
+
+#if HAVE_UTIMENS
+# define utimens rpl_utimens
+#endif
 int utimens (char const *, struct timespec const [2]);
+
+#if HAVE_LUTIMENS
+# define lutimens rpl_lutimens
+#endif
 int lutimens (char const *, struct timespec const [2]);
 
 #ifdef __cplusplus

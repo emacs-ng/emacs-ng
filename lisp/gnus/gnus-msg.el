@@ -1,6 +1,6 @@
 ;;; gnus-msg.el --- mail and post interface for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -1918,7 +1918,7 @@ can be attached to them.  If not, a new Message buffer is
 created.
 
 This command uses the process/prefix convention, so if you
-process-mark several articles, they will all be attached."
+`process-mark' several articles, they will all be attached."
   (interactive "P" gnus-summary-mode)
   (let ((buffers (message-buffers))
 	destination)

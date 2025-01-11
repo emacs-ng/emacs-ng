@@ -1,6 +1,6 @@
 ;;; gnus-art.el --- article mode commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -330,8 +330,7 @@ to match a mail address in the From: header, BANNER is one of a symbol
 If ADDRESS matches author's mail address, it will remove things like
 advertisements.  For example:
 
-\((\"@yoo-hoo\\\\.co\\\\.jp\\\\\\='\" . \"\\n_+\\nDo You Yoo-hoo!\\\\?\\n.*\\n.*\\n\"))
-"
+\((\"@yoo-hoo\\\\.co\\\\.jp\\\\\\='\" . \"\\n_+\\nDo You Yoo-hoo!\\\\?\\n.*\\n.*\\n\"))"
   :type '(repeat
 	  (cons
 	   (regexp :tag "Address")
@@ -513,7 +512,7 @@ might have."
   :type 'boolean)
 
 (defcustom gnus-prompt-before-saving 'always
-  "This variable says how much prompting is to be done when saving articles.
+  "How much prompting to do when saving articles.
 If it is nil, no prompting will be done, and the articles will be
 saved to the default files.  If this variable is `always', each and
 every article that is saved will be preceded by a prompt, even when
@@ -557,15 +556,15 @@ command, and friends such as `gnus-summary-save-article-rmail'.
 
 Gnus provides the following functions:
 
-* gnus-summary-save-in-rmail (Rmail format)
-* gnus-summary-save-in-mail (Unix mail format)
-* gnus-summary-save-in-folder (MH folder)
-* gnus-summary-save-in-file (article format)
-* gnus-summary-save-body-in-file (article body)
-* gnus-summary-save-in-vm (use VM's folder format)
-* gnus-summary-write-to-file (article format -- overwrite)
-* gnus-summary-write-body-to-file (article body -- overwrite)
-* gnus-summary-save-in-pipe (article format)
+* `gnus-summary-save-in-rmail' (Rmail format)
+* `gnus-summary-save-in-mail' (Unix mail format)
+* `gnus-summary-save-in-folder' (MH folder)
+* `gnus-summary-save-in-file' (article format)
+* `gnus-summary-save-body-in-file' (article body)
+* `gnus-summary-save-in-vm' (use VM's folder format)
+* `gnus-summary-write-to-file' (article format -- overwrite)
+* `gnus-summary-write-body-to-file' (article body -- overwrite)
+* `gnus-summary-save-in-pipe' (article format)
 
 The symbol of each function may have the following properties:
 
@@ -2420,8 +2419,8 @@ fill width."
 (defun article-emojize-symbols ()
   "Display symbols (that have an emoji version) as emojis."
   (interactive nil gnus-article-mode)
-  (when-let ((font (and (display-multi-font-p)
-                        (car (internal-char-font nil ?😀)))))
+  (when-let* ((font (and (display-multi-font-p)
+                         (car (internal-char-font nil ?😀)))))
     (save-excursion
       (let ((inhibit-read-only t))
         (goto-char (point-min))
@@ -5519,8 +5518,7 @@ CHARSET may either be a string or a symbol."
 	(setcdr type (cons (cons 'charset charset) (cdr type)))))))
 
 (defun gnus-mime-view-part-as-charset (&optional handle arg event)
-  "Insert the MIME part under point into the current buffer using the
-specified charset."
+  "Insert MIME part under point into current buffer using specified charset."
   (interactive (list nil current-prefix-arg last-nonmenu-event)
 	       gnus-article-mode)
   (save-excursion
@@ -7304,8 +7302,7 @@ If given a prefix, show the hidden text instead."
 			    (point)))))))
 
 (defun gnus-block-private-groups (group)
-  "Allows images in newsgroups to be shown, blocks images in all
-other groups."
+  "Allows images in newsgroups to be shown, blocks images in all other groups."
   (if (or (gnus-news-group-p group)
 	  (gnus-member-of-valid 'global group)
 	  (member group gnus-global-groups))
@@ -7389,7 +7386,7 @@ other groups."
 
 (define-derived-mode gnus-article-edit-mode message-mode "Article Edit"
   "Major mode for editing articles.
-This is an extended text-mode.
+This is an extended `text-mode'.
 
 \\{gnus-article-edit-mode-map}"
   (make-local-variable 'gnus-article-edit-done-function)

@@ -1,6 +1,6 @@
 /* Storage allocation and gc for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -453,6 +453,7 @@ no_sanitize_memcpy (void *dest, void const *src, size_t size)
 
 #endif /* MAX_SAVE_STACK > 0 */
 
+static struct Lisp_Vector *allocate_clear_vector (ptrdiff_t, bool);
 static void unchain_finalizer (struct Lisp_Finalizer *);
 static void mark_terminals (void);
 static void gc_sweep (void);
@@ -708,7 +709,7 @@ buffer_memory_full (ptrdiff_t nbytes)
    where Emacs would crash if malloc returned a non-GCALIGNED pointer.  */
 enum { LISP_ALIGNMENT = alignof (union { union emacs_align_type x;
 					 GCALIGNED_UNION_MEMBER }) };
-verify (LISP_ALIGNMENT % GCALIGNMENT == 0);
+static_assert (LISP_ALIGNMENT % GCALIGNMENT == 0);
 
 /* True if malloc (N) is known to return storage suitably aligned for
    Lisp objects whenever N is a multiple of LISP_ALIGNMENT.  In
@@ -838,7 +839,7 @@ xfree (void *block)
 /* Other parts of Emacs pass large int values to allocator functions
    expecting ptrdiff_t.  This is portable in practice, but check it to
    be safe.  */
-verify (INT_MAX <= PTRDIFF_MAX);
+static_assert (INT_MAX <= PTRDIFF_MAX);
 
 
 /* Allocate an array of NITEMS items, each of size ITEM_SIZE.
@@ -998,6 +999,7 @@ record_xmalloc (size_t size)
    allocated memory block (for strings, for conses, ...).  */
 
 #if ! USE_LSB_TAG
+extern void *lisp_malloc_loser;
 void *lisp_malloc_loser EXTERNALLY_VISIBLE;
 #endif
 
@@ -1074,7 +1076,7 @@ lisp_free (void *block)
 #else  /* !HAVE_UNEXEC */
 # define BLOCK_ALIGN (1 << 15)
 #endif
-verify (POWER_OF_2 (BLOCK_ALIGN));
+static_assert (POWER_OF_2 (BLOCK_ALIGN));
 
 /* Use aligned_alloc if it or a simple substitute is available.
    Aligned allocation is incompatible with unexmacosx.c, so don't use
@@ -1094,11 +1096,11 @@ aligned_alloc (size_t alignment, size_t size)
 {
   /* POSIX says the alignment must be a power-of-2 multiple of sizeof (void *).
      Verify this for all arguments this function is given.  */
-  verify (BLOCK_ALIGN % sizeof (void *) == 0
-	  && POWER_OF_2 (BLOCK_ALIGN / sizeof (void *)));
-  verify (MALLOC_IS_LISP_ALIGNED
-	  || (LISP_ALIGNMENT % sizeof (void *) == 0
-	      && POWER_OF_2 (LISP_ALIGNMENT / sizeof (void *))));
+  static_assert (BLOCK_ALIGN % sizeof (void *) == 0
+		 && POWER_OF_2 (BLOCK_ALIGN / sizeof (void *)));
+  static_assert (MALLOC_IS_LISP_ALIGNED
+		 || (LISP_ALIGNMENT % sizeof (void *) == 0
+		     && POWER_OF_2 (LISP_ALIGNMENT / sizeof (void *))));
   eassert (alignment == BLOCK_ALIGN
 	   || (!MALLOC_IS_LISP_ALIGNED && alignment == LISP_ALIGNMENT));
 
@@ -1219,7 +1221,7 @@ lisp_align_malloc (size_t nbytes, enum mem_type type)
 #endif
 
 #ifdef USE_ALIGNED_ALLOC
-      verify (ABLOCKS_BYTES % BLOCK_ALIGN == 0);
+      static_assert (ABLOCKS_BYTES % BLOCK_ALIGN == 0);
       abase = base = aligned_alloc (BLOCK_ALIGN, ABLOCKS_BYTES);
 #else
       base = malloc (ABLOCKS_BYTES);
@@ -1403,8 +1405,8 @@ lmalloc (size_t size, bool clearit)
       if (laligned (p, size) && (MALLOC_0_IS_NONNULL || size || p))
 	return p;
       free (p);
-      size_t bigger = size + LISP_ALIGNMENT;
-      if (size < bigger)
+      size_t bigger;
+      if (!ckd_add (&bigger, size, LISP_ALIGNMENT))
 	size = bigger;
     }
 }
@@ -1417,8 +1419,8 @@ lrealloc (void *p, size_t size)
       p = realloc (p, size);
       if (laligned (p, size) && (size || p))
 	return p;
-      size_t bigger = size + LISP_ALIGNMENT;
-      if (size < bigger)
+      size_t bigger;
+      if (!ckd_add (&bigger, size, LISP_ALIGNMENT))
 	size = bigger;
     }
 }
@@ -2405,30 +2407,39 @@ bool_vector_fill (Lisp_Object a, Lisp_Object init)
   return a;
 }
 
+/* Return a newly allocated, bool vector of size NBITS.  If CLEARIT,
+   clear its slots; otherwise the vector's slots are uninitialized.  */
+
+Lisp_Object
+make_clear_bool_vector (EMACS_INT nbits, bool clearit)
+{
+  eassert (0 <= nbits && nbits <= BOOL_VECTOR_LENGTH_MAX);
+  Lisp_Object val;
+  ptrdiff_t words = bool_vector_words (nbits);
+  ptrdiff_t word_bytes = words * sizeof (bits_word);
+  ptrdiff_t needed_elements = ((bool_header_size - header_size + word_bytes
+				+ word_size - 1)
+			       / word_size);
+  struct Lisp_Bool_Vector *p
+    = (struct Lisp_Bool_Vector *) allocate_clear_vector (needed_elements,
+							 clearit);
+  /* Clear padding at end; but only if necessary, to avoid polluting the
+     data cache.  */
+  if (!clearit && nbits % BITS_PER_BITS_WORD != 0)
+    p->data[words - 1] = 0;
+
+  XSETVECTOR (val, p);
+  XSETPVECTYPESIZE (XVECTOR (val), PVEC_BOOL_VECTOR, 0, 0);
+  p->size = nbits;
+  return val;
+}
+
 /* Return a newly allocated, uninitialized bool vector of size NBITS.  */
 
 Lisp_Object
 make_uninit_bool_vector (EMACS_INT nbits)
 {
-  Lisp_Object val;
-  EMACS_INT words = bool_vector_words (nbits);
-  EMACS_INT word_bytes = words * sizeof (bits_word);
-  EMACS_INT needed_elements = ((bool_header_size - header_size + word_bytes
-				+ word_size - 1)
-			       / word_size);
-  if (PTRDIFF_MAX < needed_elements)
-    memory_full (SIZE_MAX);
-  struct Lisp_Bool_Vector *p
-    = (struct Lisp_Bool_Vector *) allocate_vector (needed_elements);
-  XSETVECTOR (val, p);
-  XSETPVECTYPESIZE (XVECTOR (val), PVEC_BOOL_VECTOR, 0, 0);
-  p->size = nbits;
-
-  /* Clear padding at the end.  */
-  if (words)
-    p->data[words - 1] = 0;
-
-  return val;
+  return make_clear_bool_vector (nbits, false);
 }
 
 DEFUN ("make-bool-vector", Fmake_bool_vector, Smake_bool_vector, 2, 2, 0,
@@ -2436,11 +2447,12 @@ DEFUN ("make-bool-vector", Fmake_bool_vector, Smake_bool_vector, 2, 2, 0,
 LENGTH must be a number.  INIT matters only in whether it is t or nil.  */)
   (Lisp_Object length, Lisp_Object init)
 {
-  Lisp_Object val;
-
   CHECK_FIXNAT (length);
-  val = make_uninit_bool_vector (XFIXNAT (length));
-  return bool_vector_fill (val, init);
+  EMACS_INT len = XFIXNAT (length);
+  if (BOOL_VECTOR_LENGTH_MAX < len)
+    memory_full (SIZE_MAX);
+  Lisp_Object val = make_clear_bool_vector (len, NILP (init));
+  return NILP (init) ? val : bool_vector_fill (val, init);
 }
 
 DEFUN ("bool-vector", Fbool_vector, Sbool_vector, 0, MANY, 0,
@@ -2449,13 +2461,12 @@ Allows any number of arguments, including zero.
 usage: (bool-vector &rest OBJECTS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
-  ptrdiff_t i;
-  Lisp_Object vector;
-
-  vector = make_uninit_bool_vector (nargs);
-  for (i = 0; i < nargs; i++)
-    bool_vector_set (vector, i, !NILP (args[i]));
-
+  if (BOOL_VECTOR_LENGTH_MAX < nargs)
+    memory_full (SIZE_MAX);
+  Lisp_Object vector = make_clear_bool_vector (nargs, true);
+  for (ptrdiff_t i = 0; i < nargs; i++)
+    if (!NILP (args[i]))
+      bool_vector_set (vector, i, true);
   return vector;
 }
 
@@ -3037,7 +3048,7 @@ enum { VECTOR_BLOCK_SIZE = 4096 };
 enum { roundup_size = COMMON_MULTIPLE (LISP_ALIGNMENT, word_size) };
 
 /* Verify assumption described above.  */
-verify (VECTOR_BLOCK_SIZE % roundup_size == 0);
+static_assert (VECTOR_BLOCK_SIZE % roundup_size == 0);
 
 /* Round up X to nearest mult-of-ROUNDUP_SIZE --- use at compile time.  */
 #define vroundup_ct(x) ROUNDUP (x, roundup_size)
@@ -3051,7 +3062,7 @@ enum {VECTOR_BLOCK_BYTES = VECTOR_BLOCK_SIZE - vroundup_ct (sizeof (void *))};
 /* The current code expects to be able to represent an unused block by
    a single PVEC_FREE object, whose size is limited by the header word.
    (Of course we could use multiple such objects.)  */
-verify (VECTOR_BLOCK_BYTES <= (word_size << PSEUDOVECTOR_REST_BITS));
+static_assert (VECTOR_BLOCK_BYTES <= (word_size << PSEUDOVECTOR_REST_BITS));
 
 /* Size of the minimal vector allocated from block.  */
 
@@ -3308,7 +3319,7 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
 	  ptrdiff_t word_bytes = (bool_vector_words (bv->size)
 				  * sizeof (bits_word));
 	  ptrdiff_t boolvec_bytes = bool_header_size + word_bytes;
-	  verify (header_size <= bool_header_size);
+	  static_assert (header_size <= bool_header_size);
 	  nwords = (boolvec_bytes - header_size + word_size - 1) / word_size;
         }
       else
@@ -3688,7 +3699,7 @@ allocate_pseudovector (int memlen, int lisplen,
   /* Catch bogus values.  */
   enum { size_max = (1 << PSEUDOVECTOR_SIZE_BITS) - 1 };
   enum { rest_max = (1 << PSEUDOVECTOR_REST_BITS) - 1 };
-  verify (size_max + rest_max <= VECTOR_ELTS_MAX);
+  static_assert (size_max + rest_max <= VECTOR_ELTS_MAX);
   eassert (0 <= tag && tag <= PVEC_TAG_MAX);
   eassert (0 <= lisplen && lisplen <= zerolen && zerolen <= memlen);
   eassert (lisplen <= size_max);
@@ -6846,18 +6857,19 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
 	    struct glyph *end_glyph = glyph + row->used[area];
 
 	    for (; glyph < end_glyph; ++glyph)
-	      if (STRINGP (glyph->object)
-		  && !string_marked_p (XSTRING (glyph->object)))
-		mark_object (glyph->object);
+	      {
+		if (STRINGP (glyph->object)
+		    && !string_marked_p (XSTRING (glyph->object)))
+		  mark_object (glyph->object);
+	      }
 	  }
       }
 }
 
-/* Whether to remember a few of the last marked values for debugging.  */
-#define GC_REMEMBER_LAST_MARKED 0
-
 #if GC_REMEMBER_LAST_MARKED
+/* Remember a few of the last marked values for debugging purposes.  */
 enum { LAST_MARKED_SIZE = 1 << 9 }; /* Must be a power of 2.  */
+extern Lisp_Object last_marked[LAST_MARKED_SIZE];
 Lisp_Object last_marked[LAST_MARKED_SIZE] EXTERNALLY_VISIBLE;
 static int last_marked_index;
 #endif
@@ -7002,33 +7014,6 @@ mark_face_cache (struct face_cache *c)
     }
 }
 
-/* Remove killed buffers or items whose car is a killed buffer from
-   LIST, and mark other items.  Return changed LIST, which is marked.  */
-
-static Lisp_Object
-mark_discard_killed_buffers (Lisp_Object list)
-{
-  Lisp_Object tail, *prev = &list;
-
-  for (tail = list; CONSP (tail) && !cons_marked_p (XCONS (tail));
-       tail = XCDR (tail))
-    {
-      Lisp_Object tem = XCAR (tail);
-      if (CONSP (tem))
-	tem = XCAR (tem);
-      if (BUFFERP (tem) && !BUFFER_LIVE_P (XBUFFER (tem)))
-	*prev = XCDR (tail);
-      else
-	{
-	  set_cons_marked (XCONS (tail));
-	  mark_object (XCAR (tail));
-	  prev = xcdr_addr (tail);
-	}
-    }
-  mark_object (tail);
-  return list;
-}
-
 static void
 mark_frame (struct Lisp_Vector *ptr)
 {
@@ -7083,15 +7068,6 @@ mark_window (struct Lisp_Vector *ptr)
       mark_glyph_matrix (w->current_matrix);
       mark_glyph_matrix (w->desired_matrix);
     }
-
-  /* Filter out killed buffers from both buffer lists
-     in attempt to help GC to reclaim killed buffers faster.
-     We can do it elsewhere for live windows, but this is the
-     best place to do it for dead windows.  */
-  wset_prev_buffers
-    (w, mark_discard_killed_buffers (w->prev_buffers));
-  wset_next_buffers
-    (w, mark_discard_killed_buffers (w->next_buffers));
 }
 
 /* Entry of the mark stack.  */
@@ -8326,6 +8302,9 @@ N should be nonnegative.  */);
   DEFSYM (QCemergency, ":emergency");
 }
 
+/* The below is for being able to do platform-specific stuff in .gdbinit
+   without risking error messages from GDB about missing types and
+   variables on other platforms.  */
 #ifdef HAVE_X_WINDOWS
 enum defined_HAVE_X_WINDOWS { defined_HAVE_X_WINDOWS = true };
 #else
@@ -8336,6 +8315,12 @@ enum defined_HAVE_X_WINDOWS { defined_HAVE_X_WINDOWS = false };
 enum defined_HAVE_PGTK { defined_HAVE_PGTK = true };
 #else
 enum defined_HAVE_PGTK { defined_HAVE_PGTK = false };
+#endif
+
+#ifdef WINDOWSNT
+enum defined_WINDOWSNT { defined_WINDOWSNT = true };
+#else
+enum defined_WINDOWSNT { defined_WINDOWSNT = false };
 #endif
 
 /* When compiled with GCC, GDB might say "No enum type named
@@ -8358,6 +8343,7 @@ extern union enums_for_gdb
   enum pvec_type pvec_type;
   enum defined_HAVE_X_WINDOWS defined_HAVE_X_WINDOWS;
   enum defined_HAVE_PGTK defined_HAVE_PGTK;
+  enum defined_WINDOWSNT defined_WINDOWSNT;
 } const gdb_make_enums_visible;
 union enums_for_gdb const EXTERNALLY_VISIBLE gdb_make_enums_visible = {0};
 #endif	/* __GNUC__ */

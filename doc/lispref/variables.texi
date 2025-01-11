@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1990--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Variables
 @chapter Variables
@@ -1096,7 +1096,7 @@ x                        ; @r{Note that @code{x} has no global value.}
 @end example
 
 @noindent
-The @code{let} binding defines a lexical environment in which the
+Here, the @code{let} binding defines a lexical environment in which the
 variable @code{x} is locally bound to 0.  Within this binding
 construct, we define a lambda expression which increments @code{x} by
 one and returns the incremented value.  This lambda expression is
@@ -1112,6 +1112,12 @@ functions which take a symbol argument (like @code{symbol-value},
 @code{boundp}, and @code{set}) can only retrieve or modify a
 variable's dynamic binding (i.e., the contents of its symbol's value
 cell).
+
+  Note also that variables may be declared special, in which case they
+will use dynamic binding, even for new bindings such as a @code{let}
+binding.  Depending on how the variable is declared, it can be
+special globally, for a single file, or for a portion of a file.
+@xref{Dynamic Binding} for details.
 
 @node Dynamic Binding
 @subsection Dynamic Binding
@@ -1732,11 +1738,11 @@ buffer-local variables interactively.
 @defun kill-all-local-variables &optional kill-permanent
 This function eliminates all the buffer-local variable bindings of the
 current buffer.  As a result, the buffer will see the default values
-of most variables.  By default, for variables marked as permanent and
+of most variables.  By default, variables marked as permanent and
 local hook functions that have a non-@code{nil}
 @code{permanent-local-hook} property (@pxref{Setting Hooks}) won't be
 killed, but if the optional @var{kill-permanent} argument is
-non-@code{nil}, even these variables will be killed.
+non-@code{nil}, even those variables will be killed.
 
 This function also resets certain other information pertaining to the
 buffer: it sets the local keymap to @code{nil}, the syntax table to the
@@ -2613,7 +2619,7 @@ compatibility.  You can do this with @code{defvaralias}.
 
 @defun defvaralias new-alias base-variable &optional docstring
 This function defines the symbol @var{new-alias} as a variable alias
-for symbol @var{base-variable}. This means that retrieving the value
+for symbol @var{base-variable}.  This means that retrieving the value
 of @var{new-alias} returns the value of @var{base-variable}, and
 changing the value of @var{new-alias} changes the value of
 @var{base-variable}.  The two aliased variable names always share the
@@ -2641,10 +2647,10 @@ This function makes the byte compiler warn that the variable
 @var{obsolete-name} is obsolete.  If @var{current-name} is a symbol,
 it is the variable's new name; then the warning message says to use
 @var{current-name} instead of @var{obsolete-name}.  If
-@var{current-name} is a string, this is the message and there is no
-replacement variable.  @var{when} should be a string indicating when
-the variable was first made obsolete (usually a version number
-string).
+@var{current-name} is a string, this is the message (after passing
+through @code{substitute-command-keys}) and there is no replacement
+variable.  @var{when} should be a string indicating when the variable
+was first made obsolete (usually a version number string).
 
 The optional argument @var{access-type}, if non-@code{nil}, should
 specify the kind of access that will trigger obsolescence warnings; it

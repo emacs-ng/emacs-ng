@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -308,6 +308,12 @@
 ;;   that is provided.  This function is only needed if locking is
 ;;   used for files under this backend, and if files can indeed be
 ;;   locked by other users.
+;;
+;; - get-change-comment (files rev)
+;;
+;;   Return the change comments associated with the files at the given
+;;   revision.  The FILES argument it for forward-compatibility;
+;;   existing implementations care only about REV.
 ;;
 ;; - modify-change-comment (files rev comment)
 ;;
@@ -698,27 +704,6 @@
 ;;
 ;; - Add the ability to list tags and branches.
 ;;
-;;;; Unify two different versions of the amend capability
-;;
-;; - Some back ends (SCCS/RCS/SVN/SRC), have an amend capability that can
-;;   be invoked from log-view.
-;;
-;; - The git backend supports amending, but in a different
-;;   way (press `C-c C-e' in log-edit buffer, when making a new commit).
-;;
-;; - Second, `log-view-modify-change-comment' doesn't seem to support
-;;   modern backends at all because `log-view-extract-comment'
-;;   unconditionally calls `log-view-current-file'.  This should be easy to
-;;   fix.
-;;
-;; - Third, doing message editing in log-view might be a natural way to go
-;;   about it, but editing any but the last commit (and even it, if it's
-;;   been pushed) is a dangerous operation in Git, which we shouldn't make
-;;   too easy for users to perform.
-;;
-;;   There should be a check that the given comment is not reachable
-;;   from any of the "remote" refs?
-;;
 ;;;; Other
 ;;
 ;; - asynchronous checkin and commit, so you can keep working in other
@@ -929,6 +914,91 @@ is sensitive to blank lines."
   :type 'boolean
   :version "27.1")
 
+;; The default is nil because only a VC user who also possesses a lot of
+;; knowledge specific to the VCS in use can know when it is okay to
+;; rewrite history, and we can't convey to a user who is relatively
+;; naïve regarding the VCS in use the potential risks in only the space
+;; of a minibuffer yes/no prompt.
+;;
+;; See `vc-git--assert-allowed-rewrite' for an example of how to use
+;; this variable in VCS backend code.
+(defcustom vc-allow-rewriting-published-history nil
+  "When non-nil, permit VCS operations that may rewrite published history.
+
+Many VCS commands can change your copy of published change history
+without warning.  If this occurs, you won't be able to pull and push in
+the ordinary way until you take special action.  For example, for Git,
+see \"Recovering from Upstream Rebase\" in the Man page git-rebase(1).
+
+Normally, Emacs refuses to run VCS commands that it thinks will rewrite
+published history.  If you customize this variable to `ask', Emacs will
+instead prompt you to confirm that you really want to perform the
+rewrite.  Any other non-nil value means to proceed with no prompting.
+
+We recommend customizing this variable to `ask' or leaving it nil,
+because if published history is rewritten unexpectedly it can be fairly
+time-consuming to recover.  Only customize this variable to a non-nil
+value other than `ask' if you have a strong grasp of the VCS in use."
+  :type '(choice (const :tag "Don't allow" nil)
+                 (const :tag "Prompt to allow" ask)
+                 (const :tag "Allow without prompting" t))
+  :version "31.1")
+
+(defconst vc-cloneable-backends-custom-type
+  `(choice :convert-widget
+           ,(lambda (widget)
+              (let (opts)
+                (dolist (be vc-handled-backends)
+                  (when (or (vc-find-backend-function be 'clone)
+                            (alist-get 'clone (get be 'vc-functions)))
+                    (push (widget-convert (list 'const be)) opts)))
+                (widget-put widget :args opts))
+              widget))
+  "The type of VC backends that support cloning VCS repositories.")
+
+(defcustom vc-clone-heuristic-alist
+  `((,(rx bos "http" (? "s") "://"
+          (or (: (? "www.") "github.com"
+                 "/" (+ (or alnum "-" "." "_"))
+                 "/" (+ (or alnum "-" "." "_")))
+              (: "codeberg.org"
+                 "/" (+ (or alnum "-" "." "_"))
+                 "/" (+ (or alnum "-" "." "_")))
+              (: (? "www.") "gitlab" (+ "." (+ alnum))
+                 "/" (+ (or alnum "-" "." "_"))
+                 "/" (+ (or alnum "-" "." "_")))
+              (: "git.sr.ht"
+                 "/~" (+ (or alnum "-" "." "_"))
+                 "/" (+ (or alnum "-" "." "_")))
+              (: "git." (or "savannah" "sv") "." (? "non") "gnu.org/"
+                 (or "r" "git") "/"
+                 (+ (or alnum "-" "." "_")) (? "/")))
+          (or (? "/") ".git") eos)
+     . Git)
+    (,(rx bos "http" (? "s") "://"
+          (or (: "hg.sr.ht"
+                 "/~" (+ (or alnum "-" "." "_"))
+                 "/" (+ (or alnum "-" "." "_")))
+              (: "hg." (or "savannah" "sv") "." (? "non") "gnu.org/hgweb/"
+                 (+ (or alnum "-" "." "_")) (? "/")))
+          eos)
+     . Hg)
+    (,(rx bos "http" (? "s") "://"
+          (or (: "bzr." (or "savannah" "sv") "." (? "non") "gnu.org/r/"
+                 (+ (or alnum "-" "." "_")) (? "/")))
+          eos)
+     . Bzr))
+  "Alist mapping repository URLs to VC backends.
+`vc-clone' consults this alist to determine the VC
+backend from the repository URL when you call it without
+specifying a backend.  Each element of the alist has the form
+\(URL-REGEXP . BACKEND).  `vc-clone' will use BACKEND of
+the first association for which the URL of the repository matches
+the URL-REGEXP of the association."
+  :type `(alist :key-type (regexp :tag "Regular expression matching URLs")
+                :value-type ,vc-cloneable-backends-custom-type)
+  :version "31.1")
+
 
 ;; File property caching
 
@@ -1018,6 +1088,13 @@ use."
 	(vc-call-backend bk 'create-repo))
       (throw 'found bk))))
 
+(defun vc-guess-url-backend (url)
+  "Guess the VC backend for URL.
+This function will internally query `vc-clone-heuristic-alist'
+and return nil if it cannot reasonably guess."
+  (and url (alist-get url vc-clone-heuristic-alist
+                      nil nil #'string-match-p)))
+
 ;;;###autoload
 (defun vc-responsible-backend (file &optional no-error)
   "Return the name of a backend system that is responsible for FILE.
@@ -1043,8 +1120,8 @@ responsible for the given file."
              (dirs (delq nil
                          (mapcar
                           (lambda (backend)
-                            (when-let ((dir (vc-call-backend
-                                             backend 'responsible-p file)))
+                            (when-let* ((dir (vc-call-backend
+                                              backend 'responsible-p file)))
                               ;; We run DIR through `expand-file-name'
                               ;; so that abbreviated directories, such
                               ;; as "~/", wouldn't look "less specific"
@@ -1661,6 +1738,8 @@ Type \\[vc-next-action] to check in changes.")
 	 (format "%d files" (length files))
        "this file"))))
 
+(declare-function mail-text "sendmail" ())
+(declare-function message-goto-body "message" (&optional interactive))
 (defun vc-steal-lock (file rev owner)
   "Steal the lock on FILE."
   (let (file-description)
@@ -1681,7 +1760,10 @@ Type \\[vc-next-action] to check in changes.")
     ;; goes wrong, we don't want to send any mail.
     (compose-mail owner (format "Stolen lock on %s" file-description))
     (setq default-directory (expand-file-name "~/"))
-    (goto-char (point-max))
+    (cond
+     ((eq mail-user-agent 'sendmail-user-agent)
+      (mail-text))
+     ((message-goto-body)))
     (insert
      (format "I stole the lock on %s, " file-description)
      (current-time-string)
@@ -1691,10 +1773,12 @@ Type \\[vc-next-action] to check in changes.")
       "Please explain why you stole the lock.  Type \\`C-c C-c' when done"))))
 
 (defun vc-checkin (files backend &optional comment initial-contents rev patch-string)
-  "Check in FILES. COMMENT is a comment string; if omitted, a
-buffer is popped up to accept a comment.  If INITIAL-CONTENTS is
-non-nil, then COMMENT is used as the initial contents of the log
-entry buffer.
+  "Check in FILES.
+
+COMMENT is a comment string; if omitted, a buffer is popped up to accept
+a comment.  If INITIAL-CONTENTS is non-nil, then COMMENT is used as the
+initial contents of the log entry buffer.
+
 The optional argument REV may be a string specifying the new revision
 level (only supported for some older VCSes, like RCS and CVS).
 The optional argument PATCH-STRING is a string to check in as a patch.
@@ -1917,7 +2001,7 @@ in the output buffer."
     (setq-local revert-buffer-function
                 (lambda (_ _) (vc-diff-patch-string patch-string)))
     (setq-local vc-patch-string patch-string)
-    (pop-to-buffer (current-buffer))
+    (display-buffer (current-buffer))
     (vc-run-delayed (vc-diff-finish (current-buffer) nil))))
 
 (defun vc-diff-internal (async vc-fileset rev1 rev2 &optional verbose buffer)
@@ -2072,20 +2156,15 @@ INITIAL-INPUT are passed on to `vc-read-revision' directly."
      ;; filesets, but not yet.
      ((/= (length files) 1)
       nil)
-     ;; if it's a directory, don't supply any revision default
-     ((file-directory-p first)
-      nil)
-     ;; if the file is not up-to-date, use working revision as older revision
-     ((not (vc-up-to-date-p first))
-      (setq rev1-default (vc-working-revision first)))
-     ;; if the file is not locked, use last revision and current source as defaults
+     ;; if the file is not locked, use previous revision and current source as defaults
      (t
-      (setq rev1-default (ignore-errors ;If `previous-revision' doesn't work.
-                           (vc-call-backend backend 'previous-revision first
-                                            (vc-working-revision first))))
-      (when (string= rev1-default "") (setq rev1-default nil))))
+      (push (ignore-errors         ;If `previous-revision' doesn't work.
+              (vc-call-backend backend 'previous-revision first
+                               (vc-working-revision first backend)))
+            rev1-default)
+      (when (member (car rev1-default) '("" nil)) (setq rev1-default nil))))
     ;; construct argument list
-    (let* ((rev1-prompt (format-prompt "Older revision" rev1-default))
+    (let* ((rev1-prompt (format-prompt "Older revision" (car rev1-default)))
            (rev2-prompt (format-prompt "Newer revision"
                                        ;; (or rev2-default
                                        "current source"))
@@ -2099,8 +2178,8 @@ INITIAL-INPUT are passed on to `vc-read-revision' directly."
 (defun vc-version-diff (_files rev1 rev2)
   "Report diffs between revisions REV1 and REV2 in the repository history.
 This compares two revisions of the current fileset.
-If REV1 is nil, it defaults to the current revision, i.e. revision
-of the last commit.
+If REV1 is nil, it defaults to the previous revision, i.e. revision
+before the last commit.
 If REV2 is nil, it defaults to the work tree, i.e. the current
 state of each file in the fileset."
   (interactive (vc-diff-build-argument-list-internal))
@@ -2117,9 +2196,8 @@ state of each file in the fileset."
   "Report diffs between REV1 and REV2 revisions of the whole tree."
   (interactive
    (vc-diff-build-argument-list-internal
-    (or (ignore-errors (vc-deduce-fileset t))
-        (let ((backend (or (vc-deduce-backend) (vc-responsible-backend default-directory))))
-          (list backend (list (vc-call-backend backend 'root default-directory)))))))
+    (let ((backend (or (vc-deduce-backend) (vc-responsible-backend default-directory))))
+      (list backend (list (vc-call-backend backend 'root default-directory))))))
   ;; This is a mix of `vc-root-diff' and `vc-version-diff'
   (when (and (not rev1) rev2)
     (error "Not a valid revision range"))
@@ -2163,7 +2241,7 @@ deduced fileset."
 
 (defun vc-buffer-sync-fileset (fileset not-urgent)
   (dolist (filename (cadr fileset))
-    (when-let ((buffer (find-buffer-visiting filename)))
+    (when-let* ((buffer (find-buffer-visiting filename)))
       (with-current-buffer buffer
 	(vc-buffer-sync not-urgent)))))
 
@@ -2444,7 +2522,30 @@ the variable `vc-BACKEND-header'."
      (lambda () (vc-call-backend backend 'log-edit-mode))
      (lambda (files comment)
        (vc-call-backend backend
-                        'modify-change-comment files rev comment)))))
+                        'modify-change-comment files rev comment)
+       ;; We are now back in `vc-parent-buffer'.
+       ;; If this is Log View, then revision IDs might now be
+       ;; out-of-date, which could be hazardous if the user immediately
+       ;; tries to use `log-view-modify-change-comment' a second time.
+       ;; E.g. with Git, `vc-git-modify-change-comment' could create an
+       ;; "amend!" commit referring to a commit which no longer exists
+       ;; on the branch, such that it wouldn't be autosquashed.
+       ;; So refresh the view.
+       (when (derived-mode-p 'log-view-mode)
+         (revert-buffer)))
+     nil backend nil
+     (lambda ()
+       ;; Here we want the root diff for REV, even if we were called
+       ;; from a buffer generated by C-x v l, because the change comment
+       ;; we will edit applies to the whole revision.
+       (let* ((rootdir
+               (vc-call-backend backend 'root default-directory))
+              (prevrev
+               (vc-call-backend backend
+                                'previous-revision rootdir rev)))
+         (save-selected-window
+           (vc-diff-internal nil (list backend (list rootdir))
+                             prevrev rev)))))))
 
 ;;;###autoload
 (defun vc-merge ()
@@ -3802,30 +3903,54 @@ to provide the `find-revision' operation instead."
   (interactive)
   (vc-call-backend (vc-backend buffer-file-name) 'check-headers))
 
-(defun vc-clone (remote &optional backend directory rev)
+(defvar vc--remotes-history)
+
+(defun vc-clone (remote &optional backend directory rev open-dir)
   "Clone repository REMOTE using version-control BACKEND, into DIRECTORY.
 If successful, return the string with the directory of the checkout;
 otherwise return nil.
 REMOTE should be a string, the URL of the remote repository or the name
 of a directory (if the repository is local).
+
+When called interactively, prompt for REMOTE, BACKEND and DIRECTORY,
+except attempt to determine BACKEND automatically based on REMOTE.
+
 If DIRECTORY is nil or omitted, it defaults to `default-directory'.
 If BACKEND is nil or omitted, the function iterates through every known
 backend in `vc-handled-backends' until one succeeds to clone REMOTE.
 If REV is non-nil, it indicates a specific revision to check out after
-cloning; the syntax of REV depends on what BACKEND accepts."
-  (setq directory (expand-file-name (or directory default-directory)))
-  (if backend
-      (progn
-        (unless (memq backend vc-handled-backends)
-          (error "Unknown VC backend %s" backend))
-        (vc-call-backend backend 'clone remote directory rev))
-    (catch 'ok
-      (dolist (backend vc-handled-backends)
-        (ignore-error vc-not-supported
-          (when-let ((res (vc-call-backend
-                           backend 'clone
-                           remote directory rev)))
-            (throw 'ok res)))))))
+cloning; the syntax of REV depends on what BACKEND accepts.
+If OPEN-DIR is non-nil, as it is interactively, also switches to a
+buffer visiting DIRECTORY."
+  (interactive
+   (let* ((url (read-string "Remote: " nil 'vc--remotes-history))
+          (backend (or (vc-guess-url-backend url)
+                       (intern (completing-read
+                                "Backend: " vc-handled-backends nil t)))))
+     (list url backend
+           (read-directory-name
+            "Clone into new or empty directory: " nil nil
+            (lambda (dir) (or (not (file-exists-p dir))
+                              (directory-empty-p dir))))
+           nil t)))
+  (let* ((directory (expand-file-name (or directory default-directory)))
+         (backend (or backend (vc-guess-url-backend remote)))
+         (directory (if backend
+                        (progn
+                          (unless (memq backend vc-handled-backends)
+                            (error "Unknown VC backend %s" backend))
+                          (vc-call-backend backend 'clone remote directory rev))
+                      (catch 'ok
+                        (dolist (backend vc-handled-backends)
+                          (ignore-error vc-not-supported
+                            (when-let* ((res (vc-call-backend
+                                              backend 'clone
+                                              remote directory rev)))
+                              (throw 'ok res))))))))
+    (when (file-directory-p directory)
+      (when open-dir
+        (find-file directory))
+      directory)))
 
 (declare-function log-view-current-tag "log-view" (&optional pos))
 (defun vc-default-last-change (_backend file line)

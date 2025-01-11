@@ -1,5 +1,5 @@
 /* Manipulation of keymaps
-   Copyright (C) 1985-1988, 1993-1995, 1998-2024 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -518,7 +518,7 @@ union map_keymap
   } s;
   GCALIGNED_UNION_MEMBER
 };
-verify (GCALIGNED (union map_keymap));
+static_assert (GCALIGNED (union map_keymap));
 
 static void
 map_keymap_char_table_item (Lisp_Object args, Lisp_Object key, Lisp_Object val)
@@ -749,7 +749,7 @@ store_in_keymap (Lisp_Object keymap, register Lisp_Object idx,
     def = Fcons (XCAR (def), XCDR (def));
 
   if (!CONSP (keymap) || !EQ (XCAR (keymap), Qkeymap))
-    error ("attempt to define a key in a non-keymap");
+    error ("Attempt to define a key in a non-keymap");
 
   /* If idx is a cons, and the car part is a character, idx must be of
      the form (FROM-CHAR . TO-CHAR).  */

@@ -1,6 +1,6 @@
 ;;; yaml-ts-mode.el --- tree-sitter support for YAML  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -148,7 +148,7 @@ boundaries.  JUSTIFY is passed to `fill-paragraph'."
   :syntax-table yaml-ts-mode--syntax-table
 
   (when (treesit-ready-p 'yaml)
-    (treesit-parser-create 'yaml)
+    (setq treesit-primary-parser (treesit-parser-create 'yaml))
 
     ;; Comments.
     (setq-local comment-start "# ")

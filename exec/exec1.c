@@ -1,6 +1,6 @@
 /* Program execution for Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -42,6 +42,9 @@ main (int argc, char **argv)
   extern char **environ;
   int wstatus;
 
+  /* Provide the file name of the loader.  */
+  exec_init (argv[1]);
+
   pid1 = getpid ();
   pid = fork ();
 
@@ -58,9 +61,6 @@ main (int argc, char **argv)
     }
   else
     {
-      /* Provide the file name of the loader.  */
-      exec_init (argv[1]);
-
       if (after_fork (pid))
 	exit (127);
 

@@ -1,6 +1,6 @@
 ;;; esh-arg-tests.el --- esh-arg test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -179,6 +179,19 @@ chars."
      (should (equal eshell-test-value marker))
      (eshell-insert-command
       "setq eshell-test-value #<marker 1 #<buffer (buffer-name)>>")
+     (should (equal eshell-test-value marker)))))
+
+(ert-deftest esh-arg-test/special-reference/command-form ()
+  "Test that command forms inside special references work."
+  (with-temp-eshell
+   (let ((marker (make-marker))
+         eshell-test-value)
+     (set-marker marker 1 (current-buffer))
+     (eshell-insert-command
+      "setq eshell-test-value #<marker 1 {current-buffer}>")
+     (should (equal eshell-test-value marker))
+     (eshell-insert-command
+      "setq eshell-test-value #<marker 1 #<buffer {buffer-name}>>")
      (should (equal eshell-test-value marker)))))
 
 (ert-deftest esh-arg-test/special-reference/special-characters ()

@@ -1,5 +1,5 @@
 /* GnuTLS glue for GNU Emacs.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1646,8 +1646,7 @@ string representation.  */)
 	     emacs_gnutls_strerror (err));
     }
 
-  Lisp_Object result = make_string_from_bytes ((char *) out.data, out.size,
-					       out.size);
+  Lisp_Object result = make_unibyte_string ((char *) out.data, out.size);
   gnutls_free (out.data);
   gnutls_x509_crt_deinit (crt);
 

@@ -1,6 +1,6 @@
 ;;; vc-hg.el --- VC backend for the mercurial version control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Ivan Kanis
 ;; Maintainer: emacs-devel@gnu.org
@@ -397,8 +397,11 @@ specific file to query."
 (defun vc-hg-print-log (files buffer &optional shortlog start-revision limit)
   "Print commit log associated with FILES into specified BUFFER.
 If SHORTLOG is non-nil, use a short format based on `vc-hg-root-log-format'.
-If START-REVISION is non-nil, it is the newest revision to show.
-If LIMIT is non-nil, show no more than this many entries."
+If LIMIT is a positive integer, show no more than that many entries.
+
+If START-REVISION is nil, print the commit log starting from the working
+directory parent (revset \".\").  If START-REVISION is a string, print
+the log starting from that revision."
   ;; `vc-do-command' creates the buffer, but we need it before running
   ;; the command.
   (vc-setup-buffer buffer)
@@ -408,8 +411,8 @@ If LIMIT is non-nil, show no more than this many entries."
     (with-current-buffer
 	buffer
       (apply #'vc-hg-command buffer 'async files "log"
+             (format "-r%s:0" (or start-revision "."))
 	     (nconc
-	      (when start-revision (list (format "-r%s:0" start-revision)))
 	      (when limit (list "-l" (format "%s" limit)))
               (when (eq vc-log-view-type 'with-diff)
                 (list "-p"))
@@ -1553,7 +1556,7 @@ This runs the command \"hg merge\"."
 
 (defun vc-hg-command (buffer okstatus file-or-list &rest flags)
   "A wrapper around `vc-do-command' for use in vc-hg.el.
-This function differs from vc-do-command in that it invokes
+This function differs from `vc-do-command' in that it invokes
 `vc-hg-program', and passes `vc-hg-global-switches' to it before FLAGS."
   ;; Disable pager.
   (let ((process-environment (cons "HGPLAIN=1" process-environment))

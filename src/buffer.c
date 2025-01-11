@@ -1,6 +1,6 @@
 /* Buffer manipulation primitives for GNU Emacs.
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -26,8 +26,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-#include <verify.h>
 
 #include "lisp.h"
 #include "intervals.h"
@@ -113,7 +111,7 @@ static int last_per_buffer_idx;
 static void call_overlay_mod_hooks (Lisp_Object list, Lisp_Object overlay,
                                     bool after, Lisp_Object arg1,
                                     Lisp_Object arg2, Lisp_Object arg3);
-static void reset_buffer_local_variables (struct buffer *, bool);
+static void reset_buffer_local_variables (struct buffer *, int);
 
 /* Alist of all buffer names vs the buffers.  This used to be
    a Lisp-visible variable, but is no longer, to prevent lossage
@@ -1112,10 +1110,11 @@ reset_buffer (register struct buffer *b)
    Instead, use Fkill_all_local_variables.
 
    If PERMANENT_TOO, reset permanent buffer-local variables.
-   If not, preserve those.  */
+   If not, preserve those.  PERMANENT_TOO = 2 means ignore
+   the permanent-local property of non-builtin variables.  */
 
 static void
-reset_buffer_local_variables (struct buffer *b, bool permanent_too)
+reset_buffer_local_variables (struct buffer *b, int permanent_too)
 {
   int offset, i;
 
@@ -1141,7 +1140,7 @@ reset_buffer_local_variables (struct buffer *b, bool permanent_too)
   bset_invisibility_spec (b, Qt);
 
   /* Reset all (or most) per-buffer variables to their defaults.  */
-  if (permanent_too)
+  if (permanent_too == 1)
     bset_local_var_alist (b, Qnil);
   else
     {
@@ -1170,7 +1169,7 @@ reset_buffer_local_variables (struct buffer *b, bool permanent_too)
 	      swap_in_global_binding (XSYMBOL (sym));
 	    }
 
-          if (!NILP (prop))
+          if (!NILP (prop) && !permanent_too)
             {
               /* If permanent-local, keep it.  */
               last = tmp;
@@ -2012,6 +2011,13 @@ cleaning up all windows currently displaying the buffer to be killed. */)
      buffer (bug#10114).  */
   replace_buffer_in_windows (buffer);
 
+  /* For dead windows that have not been collected yet, remove this
+     buffer from those windows' lists of previously and next shown
+     buffers and remove any 'quit-restore' or 'quit-restore-prev'
+     parameters mentioning the buffer.  */
+  if (XFIXNUM (BVAR (b, display_count)) > 0)
+    window_discard_buffer_from_dead_windows (buffer);
+
   /* Exit if replacing the buffer in windows has killed our buffer.  */
   if (!BUFFER_LIVE_P (b))
     return Qt;
@@ -2029,7 +2035,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
   /* If the buffer now current is shown in the minibuffer and our buffer
      is the sole other buffer give up.  */
   XSETBUFFER (tem, current_buffer);
-  if (EQ (tem, XWINDOW (minibuf_window)->contents)
+  if (BASE_EQ (tem, XWINDOW (minibuf_window)->contents)
       && BASE_EQ (buffer, Fother_buffer (buffer, Qnil, Qnil)))
     return Qnil;
 
@@ -3001,7 +3007,7 @@ the normal hook `change-major-mode-hook'.  */)
 
   /* Actually eliminate all local bindings of this buffer.  */
 
-  reset_buffer_local_variables (current_buffer, !NILP (kill_permanent));
+  reset_buffer_local_variables (current_buffer, !NILP (kill_permanent) ? 2 : 0);
 
   /* Force mode-line redisplay.  Useful here because all major mode
      commands call this function.  */
@@ -3168,7 +3174,7 @@ mouse_face_overlay_overlaps (Lisp_Object overlay)
     {
       if (node->begin < end && node->end > start
           && node->begin < node->end
-          && !EQ (node->data, overlay)
+          && !BASE_EQ (node->data, overlay)
           && (tem = Foverlay_get (overlay, Qmouse_face),
 	      !NILP (tem)))
 	return true;
@@ -3231,7 +3237,7 @@ compare_overlays (const void *v1, const void *v2)
     return s2->end < s1->end ? -1 : 1;
   else if (s1->spriority != s2->spriority)
     return (s1->spriority < s2->spriority ? -1 : 1);
-  else if (EQ (s1->overlay, s2->overlay))
+  else if (BASE_EQ (s1->overlay, s2->overlay))
     return 0;
   else
     /* Avoid the non-determinism of qsort by choosing an arbitrary ordering
@@ -4083,7 +4089,7 @@ report_overlay_modification (Lisp_Object start, Lisp_Object end, bool after,
 			     Lisp_Object arg1, Lisp_Object arg2, Lisp_Object arg3)
 {
   /* True if this change is an insertion.  */
-  bool insertion = (after ? XFIXNAT (arg3) == 0 : EQ (start, end));
+  bool insertion = (after ? XFIXNAT (arg3) == 0 : BASE_EQ (start, end));
 
   /* We used to run the functions as soon as we found them and only register
      them in last_overlay_modification_hooks for the purpose of the `after'
@@ -4853,7 +4859,7 @@ init_buffer_once (void)
      The local flag bits are in the local_var_flags slot of the buffer.  */
 
   /* Nothing can work if this isn't true.  */
-  { verify (sizeof (EMACS_INT) == word_size); }
+  { static_assert (sizeof (EMACS_INT) == word_size); }
 
   Vbuffer_alist = Qnil;
   current_buffer = 0;

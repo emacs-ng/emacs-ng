@@ -1,5 +1,5 @@
 /* Declarations useful when processing input.
-   Copyright (C) 1985-1987, 1993, 2001-2024 Free Software Foundation,
+   Copyright (C) 1985-1987, 1993, 2001-2025 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -497,8 +497,8 @@ INLINE void
 kbd_buffer_store_event_hold (struct input_event *event,
 			     struct input_event *hold_quit)
 {
-  verify (alignof (struct input_event) == alignof (union buffered_input_event)
-	  && sizeof (struct input_event) == sizeof (union buffered_input_event));
+  static_assert (alignof (struct input_event) == alignof (union buffered_input_event)
+		 && sizeof (struct input_event) == sizeof (union buffered_input_event));
   kbd_buffer_store_buffered_event ((union buffered_input_event *) event,
 				   hold_quit);
 }

@@ -1,6 +1,6 @@
 ;;; cus-edit-tests.el --- Tests for cus-edit.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -31,7 +31,7 @@
   `(save-window-excursion
      (unwind-protect
          (progn ,@body)
-       (when-let ((buf (get-buffer ,buffer)))
+       (when-let* ((buf (get-buffer ,buffer)))
          (kill-buffer buf)))))
 
 
@@ -90,7 +90,7 @@
               (erase-buffer))
             (setopt cus-edit-test-foo1 :foo)
             (buffer-substring-no-properties (point-min) (point-max)))))
-    (should (string-search "Value `:foo' does not match type number"
+    (should (string-search "Value `:foo' for variable `cus-edit-test-foo1' does not match its type \"number\""
                            warn-txt))))
 
 (defcustom cus-edit-test-bug63290-option nil

@@ -1,6 +1,6 @@
 ;;; url-util.el --- Miscellaneous helper routines for URL library -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Bill Perry <wmperry@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -378,7 +378,7 @@ These characters are specified in RFC 3986, Appendix A.")
     (aset vec ?\; nil)
     vec)
   "Allowed-character byte mask for keys and values in the query segment of a URI.
-url-query-allowed-chars minus '=', '&', and ';'.")
+`url-query-allowed-chars' minus '=', '&', and ';'.")
 
 ;;;###autoload
 (defun url-encode-url (url)

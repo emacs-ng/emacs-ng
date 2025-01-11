@@ -1,6 +1,6 @@
 ERC NEWS
 
-Copyright (C) 2006-2024 Free Software Foundation, Inc.
+Copyright (C) 2006-2025 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send ERC bug reports to 'bug-gnu-emacs@gnu.org',
@@ -10,6 +10,96 @@ If possible, use 'M-x erc-bug' or 'M-x report-emacs-bug'.
 This file is about changes in ERC, the powerful, modular, and
 extensible IRC (Internet Relay Chat) client distributed with
 GNU Emacs since Emacs version 22.1.
+
+
+* Changes in ERC 5.6.1
+
+** Reliable library access for ban lists.
+Say goodbye to continually running "/BANLIST" for programmatic
+purposes.  Modules can instead use the function 'erc-sync-banlist' to
+guarantee that the variable 'erc-channel-banlist' remains synced for
+the remainder of an IRC session.
+
+** Option 'erc-truncate-padding-size' controls truncation frequency.
+In fast-moving channels and in queries with long-winded bots, the
+'truncate' module has historically been asked to work overtime, mostly
+on account of a rather stingy buffering threshold of 512 characters.
+Now configurable, its default has been relaxed eightfold to 4096.
+
+** Option 'erc-modules' no longer autoloaded.
+This cornerstone of ERC's configuration system was autoloaded globally
+in 5.6 to allow users the freedom of running 'customize-option' without
+first having to load the package.  Unfortunately, this also had the side
+effect of arranging for ERC to load on startup whenever someone
+customized the variable.
+
+** Stray key binding removed from 'erc-fill-wrap-mode-map'.
+The command 'erc-fill-wrap-cycle-visual-movement' was mistakenly given
+the key binding "C-c a" in an inadvertent holdover from development.  It
+has been removed.
+
+** New option determines 'keep-place-indicator's influence on 'truncate'.
+Option 'erc-keep-place-indicator-truncation' manages the tension between
+truncation and place keeping, prioritizing one or the other.
+
+** Updated defaults for the 'track' module's face-list options.
+The default values of options 'erc-track-faces-priority-list' and
+'erc-track-faces-normal-list' have both gained a face for buttonized
+speaker names, with the latter option also gaining 'erc-notice-face'.
+This was done to provide a more frequent and practical indication of
+channel activity in keeping with the module's original design.
+
+** Command 'erc-track-clear' clears the mode-line activity indicator.
+
+** An arguably less distracting 'erc-nicks-track-faces' variant.
+Setting this option to t tells the 'track' module to have the mode-line
+indicator stick with the most recent speaker's face, even when they're
+monologuing, instead of alternating between it and the highest ranked
+'erc-track-faces-normal-list' member in a given message.
+
+** Module 'querypoll' has left 'goodies' and moved in with 'notify'.
+The 'querypoll' module was initially placed in 'erc-goodies' even though
+a far more sensible home existed in 'erc-notify'.  Given the similarity
+of concerns and the newer module's "experimental" status, the migration
+was deemed worth any potential disruption, despite this being a point
+release.  ERC appreciates your understanding in this matter.
+
+** Option 'erc-server-reconnect-function' has a new default.
+ERC 5.6 added 'erc-server-delayed-check-reconnect', whose "probing"
+strategy worked better for most users.  While compatibility concerns
+prevented it from becoming the new 'erc-server-reconnect-function'
+outright, a new solution has emerged that defers to it when sensible.
+
+** Entry-point command 'erc-tls' once again considers option 'erc-port'.
+In its zeal to enforce a preference for TLS connections, ERC 5.5 went a
+bit far in disregarding the useful user option 'erc-port'.  When called
+from Lisp code without a ':port' keyword, 'erc-tls' once again respects
+the option.
+
+** Changes in the library API.
+
+*** Function 'erc-normalize-port' may return 0 instead of nil.
+When given a nonempty, non-numeric string, this function now returns 0.
+Moreover, ERC officially requests that users not use its output for
+anything but comparing port equality, which was always its intended
+purpose.
+
+*** Function 'erc-compute-port' no longer uses 'erc-normalize-port'.
+An uninformed change in ERC 5.5 led to 'erc-compute-port' filtering its
+result through 'erc-normalize-port', which brought unwelcome type
+coercion and possible null return values.  This defied its purpose of
+ensuring a usable port.  Users reliant on the aberrant 5.5 behavior
+should wrap its return value in 'erc-normalize-port'.
+
+*** Local variable 'erc-session-port' may be a string.
+Although this has always been the case, string values are now more
+likely to be seen because ERC no longer coerces service names to port
+numbers.
+
+*** The 'spelling' module makes better use of Flyspell's API.
+As a consequence, the library functions 'erc-spelling-flyspell-verify'
+and 'erc-spelling-unhighlight-word' are now unused and have been marked
+obsolete.
 
 
 * Changes in ERC 5.6
@@ -1345,7 +1435,7 @@ easily enabled.
 
 ** M-x erc RET now starts ERC.
 `erc-select' has been changed to `erc'.  `erc-select' still remains as
-an alias of `erc'. Likewise, `erc-select-ssl' has been renamed to
+an alias of `erc'.  Likewise, `erc-select-ssl' has been renamed to
 `erc-ssl' with `erc-select-ssl' as its alias.  The function that was
 known as `erc' is now `erc-open'.
 
@@ -2221,13 +2311,13 @@ have been split into more groups for better organization.
     in the mode-line when you are away.
 
   o `erc-header-line-uses-help-echo-p' - The header-line now uses the
-    help-echo property. You can set this to nil to disable it.
+    help-echo property.  You can set this to nil to disable it.
 
   o `erc-format-query-as-channel-p' - Set this to nil to have messages
     in the query buffer formatted like private messages.
 
   o `erc-show-channel-key-p' - The channel key is now shown with the
-    other channel modes in the header line. Set this to nil if you
+    other channel modes in the header line.  Set this to nil if you
     want it hidden.
 
   o `erc-prompt-for-channel-key' - Set this if you want to be prompted
@@ -2241,7 +2331,7 @@ have been split into more groups for better organization.
 
   o `erc-join-hook' - Called when you join a channel.
 
-  o `erc-kick-hook' - Called when you are kicked from a channel. The
+  o `erc-kick-hook' - Called when you are kicked from a channel.  The
     channel's buffer is sent as an argument to functions called from
     this hook.
 
@@ -2409,7 +2499,7 @@ in XEmacs.
 
 This finally implements DCC.  It requires server sockets to fully work
 in both directions.  This feature is currently only available in Emacs
-21.3.50 (CVS). Here is a short list of what should work though.
+21.3.50 (CVS).  Here is a short list of what should work though.
 
 ** Compatibility:
   * Emacs 21.2, DCC get, and accepting DCC chat offers.

@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Packages
@@ -693,9 +693,9 @@ an Org file.
 
 @item :make
 A string or list of strings providing the target or targets defined in
-the repository Makefile which should run before building the Info
-file.  Only takes effect when @code{package-vc-allow-build-commands}
-is non-nil.
+the repository Makefile which should run before building the Info file.
+Only takes effect when @code{package-vc-allow-build-commands} is
+non-@code{nil}.
 
 @item :shell-command
 A string providing the shell command to run before building the Info

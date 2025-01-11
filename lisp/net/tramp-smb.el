@@ -1,6 +1,6 @@
 ;;; tramp-smb.el --- Tramp access functions for SMB servers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -340,15 +340,15 @@ This can be used to disable echo etc."
 ;;;###tramp-autoload
 (defsubst tramp-smb-file-name-p (vec-or-filename)
   "Check if it's a VEC-OR-FILENAME for SMB servers."
-  (when-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename)))
-    (string= (tramp-file-name-method vec) tramp-smb-method)))
+  (and-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename))
+	     ((string= (tramp-file-name-method vec) tramp-smb-method)))))
 
 ;;;###tramp-autoload
 (defun tramp-smb-file-name-handler (operation &rest args)
   "Invoke the SMB related OPERATION and ARGS.
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
-  (if-let ((fn (assoc operation tramp-smb-file-name-handler-alist)))
+  (if-let* ((fn (assoc operation tramp-smb-file-name-handler-alist)))
       (prog1 (save-match-data (apply (cdr fn) args))
 	(setq tramp-debug-message-fnh-function (cdr fn)))
     (prog1 (tramp-run-real-handler operation args)
@@ -428,11 +428,7 @@ arguments to pass to the OPERATION."
 	  (t2 (tramp-tramp-file-p newname))
 	  target)
       (with-parsed-tramp-file-name (if t1 dirname newname) nil
-	(unless (file-exists-p dirname)
-	  (tramp-error v 'file-missing dirname))
-
-	;; `copy-directory-create-symlink' exists since Emacs 28.1.
-	(if (and (bound-and-true-p copy-directory-create-symlink)
+	(if (and copy-directory-create-symlink
 		 (setq target (file-symlink-p dirname))
 		 (tramp-equal-remote dirname newname))
 	    (make-symbolic-link
@@ -485,7 +481,7 @@ arguments to pass to the OPERATION."
 
 		(let* ((share (tramp-smb-get-share v))
 		       (localname (file-name-as-directory
-				   (tramp-compat-string-replace
+				   (string-replace
 				    "\\" "/" (tramp-smb-get-localname v))))
 		       (tmpdir    (tramp-compat-make-temp-name))
 		       (args      (list (concat "//" host "/" share) "-E"))
@@ -530,13 +526,13 @@ arguments to pass to the OPERATION."
 
 		  (unwind-protect
 		      (with-tramp-saved-connection-properties
-			  v '("process-name" "process-buffer")
+			  v '(" process-name" " process-buffer")
 			(with-temp-buffer
 			  ;; Set the transfer process properties.
 			  (tramp-set-connection-property
-			   v "process-name" (buffer-name (current-buffer)))
+			   v " process-name" (buffer-name (current-buffer)))
 			  (tramp-set-connection-property
-			   v "process-buffer" (current-buffer))
+			   v " process-buffer" (current-buffer))
 
 			  (when t1
 			    ;; The smbclient tar command creates
@@ -572,7 +568,7 @@ arguments to pass to the OPERATION."
 
 		;; Handle KEEP-DATE argument.
 		(when keep-date
-		  (tramp-compat-set-file-times
+		  (set-file-times
 		   newname
 		   (file-attribute-modification-time (file-attributes dirname))
 		   (unless ok-if-already-exists 'nofollow)))
@@ -617,8 +613,8 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       ;; `file-local-copy' returns a file name also for a local file
       ;; with `jka-compr-handler', so we cannot trust its result as
       ;; indication for a remote file name.
-      (if-let ((tmpfile
-		(and (tramp-tramp-file-p filename) (file-local-copy filename))))
+      (if-let* ((tmpfile
+		 (and (tramp-tramp-file-p filename) (file-local-copy filename))))
 	  ;; Remote filename.
 	  (condition-case err
 	      (rename-file tmpfile newname ok-if-already-exists)
@@ -656,7 +652,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 
     ;; KEEP-DATE handling.
     (when keep-date
-      (tramp-compat-set-file-times
+      (set-file-times
        newname
        (file-attribute-modification-time (file-attributes filename))
        (unless ok-if-already-exists 'nofollow)))))
@@ -716,7 +712,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
     (setq name "."))
   ;; Unless NAME is absolute, concat DIR and NAME.
   (unless (file-name-absolute-p name)
-    (setq name (tramp-compat-file-name-concat dir name)))
+    (setq name (file-name-concat dir name)))
   ;; If NAME is not a Tramp file, run the real handler.
   (if (not (tramp-tramp-file-p name))
       (tramp-run-real-handler #'expand-file-name (list name))
@@ -769,7 +765,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	(forward-line)
 	(delete-region (point-min) (point)))
       (while (and (not (eobp)) (looking-at-p (rx bol (+ nonl) ":" (+ nonl))))
- 	(forward-line))
+	(forward-line))
       (delete-region (point) (point-max))
       (throw 'tramp-action 'ok))))
 
@@ -780,7 +776,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       (with-tramp-file-property v localname "file-acl"
 	(when (tramp-smb-remote-acl-p v)
 	  (let* ((share     (tramp-smb-get-share v))
-		 (localname (tramp-compat-string-replace
+		 (localname (string-replace
 			     "\\" "/" (tramp-smb-get-localname v)))
 		 (args      (list (concat "//" host "/" share) "-E"))
 		 (options   tramp-smb-options))
@@ -803,13 +799,13 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 				(concat "2>" (tramp-get-remote-null-device v)))))
 
 	    (with-tramp-saved-connection-properties
-		v '("process-name" "process-buffer")
+		v '(" process-name" " process-buffer")
 	      (with-temp-buffer
 		;; Set the transfer process properties.
 		(tramp-set-connection-property
-		 v "process-name" (buffer-name (current-buffer)))
+		 v " process-name" (buffer-name (current-buffer)))
 		(tramp-set-connection-property
-		 v "process-buffer" (current-buffer))
+		 v " process-buffer" (current-buffer))
 
 		;; Use an asynchronous process.  By this, password
 		;; can be handled.
@@ -845,8 +841,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 
 	    ;; Check result.
 	    (when entry
-	      (list (and (tramp-compat-string-search "d" (nth 1 entry))
-			 t)              ;0 file type
+	      (list (and (string-search "d" (nth 1 entry)) t) ;0 file type
 		    -1                   ;1 link count
 		    (cons
 		     tramp-unknown-id-string tramp-unknown-id-integer) ;2 uid
@@ -865,7 +860,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
   "Implement `file-attributes' for Tramp files using `stat' command."
   (tramp-message
    vec 5 "file attributes with stat: %s" (tramp-file-name-localname vec))
-  (let* (size id link uid gid atime mtime ctime mode inode)
+  (let (size id link uid gid atime mtime ctime mode inode)
     (when (tramp-smb-send-command
 	   vec (format "stat %s" (tramp-smb-shell-quote-localname vec)))
 
@@ -981,7 +976,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	   (mapcar
 	    (lambda (x)
 	      (list
-	       (if (tramp-compat-string-search "d" (nth 1 x))
+	       (if (string-search "d" (nth 1 x))
 		   (file-name-as-directory (nth 0 x))
 		 (nth 0 x))))
 	    (tramp-smb-get-file-entries directory))))))))
@@ -1020,7 +1015,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 (defun tramp-smb-handle-file-writable-p (filename)
   "Like `file-writable-p' for Tramp files."
   (if (file-exists-p filename)
-      (tramp-compat-string-search
+      (string-search
        "w" (or (file-attribute-modes (file-attributes filename)) ""))
     (let ((dir (file-name-directory filename)))
       (and (file-exists-p dir)
@@ -1083,14 +1078,14 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		(sort
 		 entries
 		 (lambda (x y)
-		   (if (tramp-compat-string-search "t" switches)
+		   (if (string-search "t" switches)
 		       ;; Sort by date.
 		       (time-less-p (nth 3 y) (nth 3 x))
 		     ;; Sort by name.
 		     (string-lessp (nth 0 x) (nth 0 y))))))
 
 	  ;; Handle "-F" switch.
-	  (when (tramp-compat-string-search "F" switches)
+	  (when (string-search "F" switches)
 	    (mapc
 	     (lambda (x)
 	       (unless (string-empty-p (car x))
@@ -1121,7 +1116,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 			   (expand-file-name
 			    (nth 0 x) (file-name-directory filename))
 			   'string)))))
-		 (when (tramp-compat-string-search "l" switches)
+		 (when (string-search "l" switches)
 		   (insert
 		    (format
 		     "%10s %3d %-8s %-8s %8s %s "
@@ -1150,7 +1145,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		   (put-text-property start (point) 'dired-filename t))
 
 		 ;; Insert symlink.
-		 (when (and (tramp-compat-string-search "l" switches)
+		 (when (and (string-search "l" switches)
 			    (stringp (file-attribute-type attr)))
 		   (insert " -> " (file-attribute-type attr))))
 
@@ -1252,11 +1247,11 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       ;; Call it.
       (condition-case nil
 	  (with-tramp-saved-connection-properties
-	      v '("process-name" "process-buffer")
+	      v '(" process-name" " process-buffer")
 	    ;; Set the new process properties.
-	    (tramp-set-connection-property v "process-name" name1)
+	    (tramp-set-connection-property v " process-name" name1)
 	    (tramp-set-connection-property
-	     v "process-buffer"
+	     v " process-buffer"
 	     (or outbuf (generate-new-buffer tramp-temp-buffer-name)))
 	    (with-current-buffer (tramp-get-connection-buffer v)
 	      ;; Preserve buffer contents.
@@ -1292,9 +1287,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       ;; Cleanup.  We remove all file cache values for the connection,
       ;; because the remote process could have changed them.
       (when tmpinput (delete-file tmpinput))
-      ;; FIXME: Does connection-property "process-buffer" still exist?
+      ;; FIXME: Does connection-property " process-buffer" still exist?
       (unless outbuf
-	(kill-buffer (tramp-get-connection-property v "process-buffer")))
+	(kill-buffer (tramp-get-connection-property v " process-buffer")))
       (when process-file-side-effects
 	(tramp-flush-directory-properties v "/"))
 
@@ -1369,11 +1364,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 
       (when (and (stringp acl-string) (tramp-smb-remote-acl-p v))
 	(let* ((share     (tramp-smb-get-share v))
-	       (localname (tramp-compat-string-replace
-			   "\\" "/" (tramp-smb-get-localname v)))
+	       (localname (string-replace "\\" "/" (tramp-smb-get-localname v)))
 	       (args      (list (concat "//" host "/" share) "-E" "-S"
-				(tramp-compat-string-replace
-				 "\n" "," acl-string)))
+				(string-replace "\n" "," acl-string)))
 	       (options   tramp-smb-options))
 
 	  (if (tramp-string-empty-or-nil-p user)
@@ -1395,13 +1388,13 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 			      "||" "echo" "tramp_exit_status" "1")))
 
 	  (with-tramp-saved-connection-properties
-	      v '("process-name" "process-buffer")
+	      v '(" process-name" " process-buffer")
 	    (with-temp-buffer
 	      ;; Set the transfer process properties.
 	      (tramp-set-connection-property
-	       v "process-name" (buffer-name (current-buffer)))
+	       v " process-name" (buffer-name (current-buffer)))
 	      (tramp-set-connection-property
-	       v "process-buffer" (current-buffer))
+	       v " process-buffer" (current-buffer))
 
 	      ;; Use an asynchronous process.  By this, password
 	      ;; can be handled.
@@ -1457,7 +1450,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	   p)
       (unwind-protect
 	  (with-tramp-saved-connection-properties
-	      v '("process-name" "process-buffer")
+	      v '(" process-name" " process-buffer")
 	    (save-excursion
 	      (save-restriction
 		(while (get-process name1)
@@ -1465,8 +1458,8 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		  (setq i (1+ i)
 			name1 (format "%s<%d>" name i)))
 		;; Set the new process properties.
-		(tramp-set-connection-property v "process-name" name1)
-		(tramp-set-connection-property v "process-buffer" buffer)
+		(tramp-set-connection-property v " process-name" name1)
+		(tramp-set-connection-property v " process-buffer" buffer)
 		;; Activate narrowing in order to save BUFFER contents.
 		(with-current-buffer (tramp-get-connection-buffer v)
 		  (let ((buffer-undo-list t))
@@ -1483,16 +1476,14 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		    (tramp-send-string v command)))
 		(setq p (tramp-get-connection-process v))
 		(when program
-		  (process-put p 'remote-command (cons program args))
-		  (tramp-set-connection-property
-		   p "remote-command" (cons program args)))
+		  (process-put p 'remote-command (cons program args)))
 		;; Return value.
 		p)))
 
 	;; Save exit.
 	;; FIXME: Does `tramp-get-connection-buffer' return the proper value?
 	(with-current-buffer (tramp-get-connection-buffer v)
-	  (if (tramp-compat-string-search tramp-temp-buffer-name (buffer-name))
+	  (if (string-search tramp-temp-buffer-name (buffer-name))
 	      (progn
 		(set-process-buffer (tramp-get-connection-process v) nil)
 		(kill-buffer (current-buffer)))
@@ -1765,12 +1756,10 @@ are listed.  Result is the list (LOCALNAME MODE SIZE MTIME)."
 	     mode (or (match-string 1 line) "")
 	     mode (format
 		    "%s%s"
-		    (if (tramp-compat-string-search "D" mode) "d" "-")
+		    (if (string-search "D" mode) "d" "-")
 		    (mapconcat
 		     (lambda (_x) "") "    "
-		     (format
-		      "r%sx"
-		      (if (tramp-compat-string-search "R" mode) "-" "w"))))
+		     (format "r%sx" (if (string-search "R" mode) "-" "w"))))
 	     line (substring line 0 -6))
 	  (cl-return))
 

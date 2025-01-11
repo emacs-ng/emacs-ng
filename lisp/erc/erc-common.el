@@ -1,6 +1,6 @@
 ;;; erc-common.el --- Macros and types for ERC  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 ;;
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; Keywords: comm, IRC, chat, client, internet
@@ -267,9 +267,9 @@ instead of a `set' state, which precludes any actual saving."
                        (rassq known custom-current-group-alist)))
           (throw 'found known))
         (when (setq known (intern-soft (concat "erc-" downed "-mode")))
-          (when-let ((found (custom-group-of-mode known)))
+          (when-let* ((found (custom-group-of-mode known)))
             (throw 'found found))))
-      (when-let ((found (get (erc--normalize-module-symbol s) 'erc-group)))
+      (when-let* ((found (get (erc--normalize-module-symbol s) 'erc-group)))
         (throw 'found found)))
     'erc))
 
@@ -363,7 +363,7 @@ instead of a `set' state, which precludes any actual saving."
 Non-nil inside an ERC module's activation (or deactivation)
 command, such as `erc-spelling-enable', when it's been called
 indirectly via the module's minor-mode toggle, i.e.,
-`erc-spelling-mode'.  Nil otherwise.  Its value is either the
+`erc-spelling-mode'.  nil otherwise.  Its value is either the
 symbol `toggle' or an integer produced by `prefix-numeric-value'.
 See Info node `(elisp) Defining Minor Modes' for more.")
 

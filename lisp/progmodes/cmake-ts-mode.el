@@ -1,6 +1,6 @@
 ;;; cmake-ts-mode.el --- tree-sitter support for CMake  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -22,6 +22,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Tree-sitter language versions
+;;
+;; cmake-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-cmake: v0.5.0-5-ge409ae3
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
+
 ;;; Commentary:
 ;;
 
@@ -29,11 +38,7 @@
 
 (require 'treesit)
 (eval-when-compile (require 'rx))
-
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-query-capture "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-search-subtree "treesit.c")
+(treesit-declare-unavailable-functions)
 
 (defcustom cmake-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `cmake-ts-mode'."
@@ -73,8 +78,7 @@
   "Tree-sitter indent rules for `cmake-ts-mode'.")
 
 (defvar cmake-ts-mode--constants
-  '("1" "ON" "TRUE" "YES" "Y" "0" "OFF" "FALSE" "NO" "N" "IGNORE"
-    "NOTFOUND")
+  '("ON" "TRUE" "YES" "Y" "OFF" "FALSE" "NO" "N" "IGNORE" "NOTFOUND")
   "CMake constants for tree-sitter font-locking.")
 
 (defvar cmake-ts-mode--keywords
@@ -164,7 +168,7 @@ Check if a node type is available, then return the right font lock rules."
    :language 'cmake
    :feature 'number
    '(((unquoted_argument) @font-lock-number-face
-      (:match "\\`[[:digit:]]*\\.?[[:digit:]]*\\.?[[:digit:]]+\\'"
+      (:match "\\`-?[[:digit:]]*\\.?[[:digit:]]*\\.?[[:digit:]]+\\'"
               @font-lock-number-face)))
 
    :language 'cmake
@@ -180,7 +184,7 @@ Check if a node type is available, then return the right font lock rules."
    :feature 'misc-punctuation
    ;; Don't override strings.
    :override 'nil
-   '((["$" "{" "}" "<" ">"]) @font-lock-misc-punctuation-face)
+   '((["$" "{" "}"]) @font-lock-misc-punctuation-face)
 
    :language 'cmake
    :feature 'variable
@@ -209,7 +213,7 @@ Return nil if there is no name or if NODE is not a defun node."
   :syntax-table cmake-ts-mode--syntax-table
 
   (when (treesit-ready-p 'cmake)
-    (treesit-parser-create 'cmake)
+    (setq treesit-primary-parser (treesit-parser-create 'cmake))
 
     ;; Comments.
     (setq-local comment-start "# ")

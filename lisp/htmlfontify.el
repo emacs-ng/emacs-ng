@@ -1,6 +1,6 @@
 ;;; htmlfontify.el --- htmlize a buffer/source tree with optional hyperlinks -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Package: htmlfontify
 ;; Old-Version: 0.21
@@ -766,7 +766,7 @@ may happen."
 
 (defcustom hfy-font-zoom 1.05
   "Font scaling from Emacs to HTML."
-  :type 'float)
+  :type 'number)
 
 (defun hfy-size (height)
   "Derive a CSS font-size specifier from an Emacs font :height attribute HEIGHT.

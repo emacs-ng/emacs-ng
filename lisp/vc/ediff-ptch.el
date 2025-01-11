@@ -1,6 +1,6 @@
 ;;; ediff-ptch.el --- Ediff's  patch support  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: ediff
@@ -542,8 +542,8 @@ are two possible targets for this %spatch.  However, these files do not exist."
 
 (defun ediff-get-patch-buffer (&optional arg patch-buf)
   "Obtain patch buffer.  If patch is already in a buffer---use it.
-Else, read patch file into a new buffer. If patch buffer is passed as an
-optional argument, then use it."
+Else, read patch file into a new buffer.  If patch buffer is passed as
+an optional argument, then use it."
   (let ((last-nonmenu-event t) ; Emacs: don't use dialog box
 	last-command-event)    ; XEmacs: don't use dialog box
 

@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 
@@ -301,6 +301,13 @@ a pure white space string to the kill ring, you can say:
   If you change the variable @code{kill-do-not-save-duplicates} to a
 non-@code{nil} value, identical subsequent kills yield a single
 kill-ring entry, without duplication.
+
+@findex kill-ring-deindent-mode
+  If you enable the minor mode @code{kill-ring-deindent-mode}, text
+saved to the kill-ring will have its indentation decreased by the amount
+of indentation of the first saved line.  That is, if the first line of
+the saved text was indented @var{n} columns, this mode will remove that
+number of columns from the indentation of each saved line.
 
 @node Yanking
 @section Yanking

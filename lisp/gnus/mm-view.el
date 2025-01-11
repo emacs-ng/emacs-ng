@@ -1,6 +1,6 @@
 ;;; mm-view.el --- functions for viewing MIME objects  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -108,14 +108,14 @@ This is only used if `mm-inline-large-images' is set to
 	 (delete-region b (+ b 2)))))))
 
 (defvar mm-w3m-setup nil
-  "Whether gnus-article-mode has been setup to use emacs-w3m.")
+  "Whether `gnus-article-mode' has been setup to use emacs-w3m.")
 
 ;; External.
 (declare-function w3m-detect-meta-charset "ext:w3m" ())
 (declare-function w3m-region "ext:w3m" (start end &optional url charset))
 
 (defun mm-setup-w3m ()
-  "Setup gnus-article-mode to use emacs-w3m."
+  "Setup `gnus-article-mode' to use emacs-w3m."
   (unless mm-w3m-setup
     (require 'w3m)
     (unless (assq 'gnus-article-mode w3m-cid-retrieve-function-alist)

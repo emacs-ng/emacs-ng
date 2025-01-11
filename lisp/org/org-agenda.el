@@ -1,6 +1,6 @@
 ;;; org-agenda.el --- Dynamic task and appointment lists for Org  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -1041,7 +1041,7 @@ headlines as the agenda display heavily relies on them."
   :type 'hook)
 
 (defcustom org-agenda-mouse-1-follows-link nil
-  "Non-nil means mouse-1 on a link will follow the link in the agenda.
+  "Non-nil means \\`mouse-1' on a link will follow the link in the agenda.
 A longer mouse click will still set point.  Needs to be set
 before org.el is loaded."
   :group 'org-agenda-startup
@@ -1100,7 +1100,7 @@ removed from entry text before it is shown in the agenda."
   :type 'string)
 
 (defcustom org-agenda-start-with-archives-mode nil
-  "Initial value of archive-mode in a newly created agenda window.
+  "Initial value of archive mode in a newly created agenda window.
 See `org-agenda-archives-mode' for acceptable values and their
 meaning."
   :group 'org-agenda-startup
@@ -2048,6 +2048,9 @@ the normal rules apply."
 (defcustom org-agenda-category-icon-alist nil
   "Alist of category icon to be displayed in agenda views.
 
+The icons are displayed in place of the %i placeholders in
+`org-agenda-prefix-format', which see.
+
 Each entry should have the following format:
 
   (CATEGORY-REGEXP FILE-OR-DATA TYPE DATA-P PROPS)
@@ -2227,7 +2230,7 @@ This is an internal flag indicating either temporary or extended
 agenda restriction.  Specifically, it is set to t if the agenda
 is restricted to an entire file, and is set to the corresponding
 buffer if the agenda is restricted to a part of a file, e.g. a
-region or a substree.  In the latter case,
+region or a subtree.  In the latter case,
 `org-agenda-restrict-begin' and `org-agenda-restrict-end' are set
 to the beginning and the end of the part.
 
@@ -2372,14 +2375,8 @@ The following commands are available:
   (add-hook 'post-command-hook #'org-agenda-update-agenda-type nil 'local)
   (add-hook 'pre-command-hook #'org-unhighlight nil 'local)
   ;; Make sure properties are removed when copying text
-  (if (boundp 'filter-buffer-substring-functions)
-      (add-hook 'filter-buffer-substring-functions
-		(lambda (fun start end delete)
-                  (substring-no-properties (funcall fun start end delete)))
-		nil t)
-    ;; Emacs >= 24.4.
-    (add-function :filter-return (local 'filter-buffer-substring-function)
-                  #'substring-no-properties))
+  (add-function :filter-return (local 'filter-buffer-substring-function)
+                #'substring-no-properties)
   (unless org-agenda-keep-modes
     (setq org-agenda-follow-mode org-agenda-start-with-follow-mode
 	  org-agenda-entry-text-mode org-agenda-start-with-entry-text-mode
@@ -9190,7 +9187,7 @@ When called with a prefix argument, include all archive files as well."
   (org-agenda-do-context-action))
 
 (defun org-agenda-previous-line ()
-  "Move cursor to the previous line, and show if follow-mode is active."
+  "Move cursor to the previous line, and show if follow mode is active."
   (interactive)
   (call-interactively 'previous-line)
   (org-agenda-do-context-action))

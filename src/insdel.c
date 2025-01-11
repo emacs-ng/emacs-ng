@@ -1,5 +1,5 @@
 /* Buffer insertion/deletion and gap motion for GNU Emacs. -*- coding: utf-8 -*-
-   Copyright (C) 1985-1986, 1993-1995, 1997-2024 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1929,10 +1929,10 @@ del_range_2 (ptrdiff_t from, ptrdiff_t from_byte,
   offset_intervals (current_buffer, from, - nchars_del);
 
   GAP_SIZE += nbytes_del;
-  ZV_BYTE -= nbytes_del;
-  Z_BYTE -= nbytes_del;
   ZV -= nchars_del;
   Z -= nchars_del;
+  ZV_BYTE -= nbytes_del;
+  Z_BYTE -= nbytes_del;
   GPT = from;
   GPT_BYTE = from_byte;
   if (GAP_SIZE > 0 && !current_buffer->text->inhibit_shrinking)

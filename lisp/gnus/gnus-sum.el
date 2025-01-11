@@ -1,6 +1,6 @@
 ;;; gnus-sum.el --- summary mode commands for Gnus  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -8501,7 +8501,7 @@ with MARKS.  MARKS can either be a string of marks or a list of marks.
 Returns how many articles were removed."
   (interactive
    (list
-    (completing-read "Marks:"
+    (completing-read "Marks: "
 		     (let ((mark-list '()))
 		       (mapc (lambda (datum)
 			       (cl-pushnew   (gnus-data-mark datum) mark-list))
@@ -8518,7 +8518,7 @@ list of marks.
 Returns how many articles were removed."
   (interactive
    (list
-    (completing-read "Marks:"
+    (completing-read "Marks: "
 		     (let ((mark-list '()))
 		       (mapc (lambda (datum)
 			       (cl-pushnew   (gnus-data-mark datum) mark-list))
@@ -9374,9 +9374,9 @@ The 1st element is the button named by `gnus-collect-urls-primary-text'."
   (let ((pt (point)) urls primary)
     (while (forward-button 1 nil nil t)
       (setq pt (point))
-      (when-let ((w (button-at pt))
-                 (u (or (button-get w 'shr-url)
-                        (get-text-property pt 'gnus-string))))
+      (when-let* ((w (button-at pt))
+                  (u (or (button-get w 'shr-url)
+                         (get-text-property pt 'gnus-string))))
 	(when (string-match-p "\\`[[:alpha:]]+://" u)
           (if (and gnus-collect-urls-primary-text (null primary)
                    (string= gnus-collect-urls-primary-text (button-label w)))
@@ -9404,7 +9404,7 @@ See `gnus-collect-urls'."
     (let* ((parsed (url-generic-parse-url url))
            (host (url-host parsed))
            (rest (concat (url-filename parsed)
-                         (when-let ((target (url-target parsed)))
+                         (when-let* ((target (url-target parsed)))
                            (concat "#" target)))))
       (concat host (string-truncate-left rest (- max (length host)))))))
 

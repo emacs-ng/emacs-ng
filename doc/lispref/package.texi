@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 2010--2024 Free Software Foundation, Inc.
+@c Copyright (C) 2010--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Packaging
 @chapter Preparing Lisp code for distribution
@@ -133,7 +133,7 @@ file (@pxref{Init File,,, emacs, The GNU Emacs Manual}).
 @end defun
 
 @deffn Command package-initialize &optional no-activate
-This function initializes Emacs' internal record of which packages are
+This function initializes Emacs's internal record of which packages are
 installed, and then calls @code{package-activate-all}.
 
 The optional argument @var{no-activate}, if non-@code{nil}, causes
@@ -155,7 +155,7 @@ the various headers, as illustrated by the following example:
 @group
 ;;; superfrobnicator.el --- Frobnicate and bifurcate flanges  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022 Free Software Foundation, Inc.
+;; Copyright (C) 2022, 2025 Free Software Foundation, Inc.
 @end group
 
 ;; Author: J. R. Hacker <jrh@@example.com>
@@ -192,10 +192,11 @@ used as the long description.  (When displaying the description, Emacs
 omits the @samp{;;; Commentary:} line, as well as the leading comment
 characters in the commentary itself.)
 
-  If the file has a @samp{Package-Requires} header, that is used as
-the package dependencies.  In the above example, the package depends
-on the @samp{flange} package, version 1.0 or higher.  @xref{Library
-Headers}, for a description of the @samp{Package-Requires} header.  If
+  If the file has a @samp{Package-Requires} header, that is used as the
+package dependencies.  In the above example, the package depends on the
+@samp{flange} package, version 1.0 or higher.  @xref{Library Headers},
+for a description of the @samp{Package-Requires} header.  To depend on a
+specific version of Emacs, specify @samp{emacs} as the package name.  If
 the header is omitted, the package has no dependencies.
 
   The @samp{Keywords} and @samp{URL} headers are optional, but recommended.
@@ -247,9 +248,10 @@ is the brief description.
 
 @var{requirements} is a list of required packages and their versions.
 Each element in this list should have the form @code{(@var{dep-name}
-@var{dep-version})}, where @var{dep-name} is a symbol whose name is
-the dependency's package name, and @var{dep-version} is the
-dependency's version (a string).
+@var{dep-version})}, where @var{dep-name} is a symbol whose name is the
+dependency's package name, and @var{dep-version} is the dependency's
+version (a string).  The special value @samp{emacs} means that the
+package depends on the given version of Emacs.
 @end defun
 
   If the content directory contains a file named @file{README}, this
@@ -385,7 +387,7 @@ following queries:
 
 @table @asis
 @item archive-contents
-Return a lisp form describing the archive contents. The form is a list
+Return a lisp form describing the archive contents.  The form is a list
 of 'package-desc' structures (see @file{package.el}), except the first
 element of the list is the archive version.
 
@@ -396,7 +398,7 @@ Return the long description of the package.
 Return the signature for the file.
 
 @item <file name>
-Return the file. This will be the tarball for a multi-file
+Return the file.  This will be the tarball for a multi-file
 package, or the single file for a simple package.
 
 @end table

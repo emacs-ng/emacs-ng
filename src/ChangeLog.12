@@ -19776,7 +19776,7 @@
 
 2011-05-10  Jim Meyering  <meyering@redhat.com>
 
-	* xdisp.c (x_intersect_rectangles): Fix typo "the the -> the".
+	* xdisp.c (x_intersect_rectangles): Fix typo.
 
 2011-05-10  Juanma Barranquero  <lekktu@gmail.com>
 
@@ -22936,7 +22936,7 @@ See ChangeLog.11 for earlier changes.
 ;; coding: utf-8
 ;; End:
 
-  Copyright (C) 2011-2024 Free Software Foundation, Inc.
+  Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
   This file is part of GNU Emacs.
 

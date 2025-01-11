@@ -1,5 +1,5 @@
 ## DO NOT EDIT! GENERATED AUTOMATICALLY!
-# Copyright (C) 2002-2024 Free Software Foundation, Inc.
+# Copyright (C) 2002-2025 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -42,11 +42,13 @@
 #  --avoid=dup \
 #  --avoid=fchdir \
 #  --avoid=fstat \
+#  --avoid=gnulib-i18n \
 #  --avoid=iswblank \
 #  --avoid=iswctype \
 #  --avoid=iswdigit \
 #  --avoid=iswxdigit \
-#  --avoid=langinfo \
+#  --avoid=langinfo-h \
+#  --avoid=libgmp-mpq \
 #  --avoid=localename-unsafe-limited \
 #  --avoid=lock \
 #  --avoid=mbrtowc \
@@ -65,20 +67,22 @@
 #  --avoid=setenv \
 #  --avoid=sigprocmask \
 #  --avoid=stat \
-#  --avoid=stdarg \
+#  --avoid=stdarg-h \
 #  --avoid=threadlib \
 #  --avoid=tzset \
 #  --avoid=unsetenv \
 #  --avoid=utime \
 #  --avoid=utime-h \
-#  --avoid=wchar \
+#  --avoid=wchar-h \
 #  --avoid=wcrtomb \
 #  --avoid=wctype \
 #  --avoid=wctype-h \
 #  alignasof \
 #  alloca-opt \
 #  binary-io \
+#  bool \
 #  boot-time \
+#  builtin-expect \
 #  byteswap \
 #  c-ctype \
 #  c-strcase \
@@ -152,19 +156,18 @@
 #  socklen \
 #  stat-time \
 #  std-gnu11 \
-#  stdbool \
 #  stdc_bit_width \
 #  stdc_count_ones \
 #  stdc_trailing_zeros \
-#  stdckdint \
-#  stddef \
-#  stdio \
+#  stdckdint-h \
+#  stddef-h \
+#  stdio-h \
 #  stpcpy \
 #  strnlen \
 #  strtoimax \
 #  symlink \
-#  sys_stat \
-#  sys_time \
+#  sys_stat-h \
+#  sys_time-h \
 #  tempname \
 #  time-h \
 #  time_r \
@@ -226,6 +229,7 @@ CAIRO_XCB_CFLAGS = @CAIRO_XCB_CFLAGS@
 CAIRO_XCB_LIBS = @CAIRO_XCB_LIBS@
 CAIRO_XLIB_CFLAGS = @CAIRO_XLIB_CFLAGS@
 CAIRO_XLIB_LIBS = @CAIRO_XLIB_LIBS@
+CAN_PRINT_STACK_TRACE = @CAN_PRINT_STACK_TRACE@
 CC = @CC@
 CFLAGS = @CFLAGS@
 CFLAGS_SOUND = @CFLAGS_SOUND@
@@ -259,7 +263,6 @@ DYNLIB_OBJ = @DYNLIB_OBJ@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
-EGREP = @EGREP@
 EMACSRES = @EMACSRES@
 EMACS_MANIFEST = @EMACS_MANIFEST@
 EMULTIHOP_HIDDEN = @EMULTIHOP_HIDDEN@
@@ -334,6 +337,7 @@ GL_COND_OBJ_PTHREAD_SIGMASK_CONDITION = @GL_COND_OBJ_PTHREAD_SIGMASK_CONDITION@
 GL_COND_OBJ_RAWMEMCHR_CONDITION = @GL_COND_OBJ_RAWMEMCHR_CONDITION@
 GL_COND_OBJ_READLINKAT_CONDITION = @GL_COND_OBJ_READLINKAT_CONDITION@
 GL_COND_OBJ_READLINK_CONDITION = @GL_COND_OBJ_READLINK_CONDITION@
+GL_COND_OBJ_REALLOC_POSIX_CONDITION = @GL_COND_OBJ_REALLOC_POSIX_CONDITION@
 GL_COND_OBJ_REGEX_CONDITION = @GL_COND_OBJ_REGEX_CONDITION@
 GL_COND_OBJ_SIG2STR_CONDITION = @GL_COND_OBJ_SIG2STR_CONDITION@
 GL_COND_OBJ_SIGDESCR_NP_CONDITION = @GL_COND_OBJ_SIGDESCR_NP_CONDITION@
@@ -386,6 +390,7 @@ GL_GNULIB_DPRINTF = @GL_GNULIB_DPRINTF@
 GL_GNULIB_DUP = @GL_GNULIB_DUP@
 GL_GNULIB_DUP2 = @GL_GNULIB_DUP2@
 GL_GNULIB_DUP3 = @GL_GNULIB_DUP3@
+GL_GNULIB_DZPRINTF = @GL_GNULIB_DZPRINTF@
 GL_GNULIB_ENVIRON = @GL_GNULIB_ENVIRON@
 GL_GNULIB_EUIDACCESS = @GL_GNULIB_EUIDACCESS@
 GL_GNULIB_EXECL = @GL_GNULIB_EXECL@
@@ -431,6 +436,7 @@ GL_GNULIB_FTELLO = @GL_GNULIB_FTELLO@
 GL_GNULIB_FTRUNCATE = @GL_GNULIB_FTRUNCATE@
 GL_GNULIB_FUTIMENS = @GL_GNULIB_FUTIMENS@
 GL_GNULIB_FWRITE = @GL_GNULIB_FWRITE@
+GL_GNULIB_FZPRINTF = @GL_GNULIB_FZPRINTF@
 GL_GNULIB_GETC = @GL_GNULIB_GETC@
 GL_GNULIB_GETCHAR = @GL_GNULIB_GETCHAR@
 GL_GNULIB_GETCWD = @GL_GNULIB_GETCWD@
@@ -545,6 +551,7 @@ GL_GNULIB_NANOSLEEP = @GL_GNULIB_NANOSLEEP@
 GL_GNULIB_NONBLOCKING = @GL_GNULIB_NONBLOCKING@
 GL_GNULIB_OBSTACK_PRINTF = @GL_GNULIB_OBSTACK_PRINTF@
 GL_GNULIB_OBSTACK_PRINTF_POSIX = @GL_GNULIB_OBSTACK_PRINTF_POSIX@
+GL_GNULIB_OBSTACK_ZPRINTF = @GL_GNULIB_OBSTACK_ZPRINTF@
 GL_GNULIB_OPEN = @GL_GNULIB_OPEN@
 GL_GNULIB_OPENAT = @GL_GNULIB_OPENAT@
 GL_GNULIB_OPENDIR = @GL_GNULIB_OPENDIR@
@@ -579,7 +586,6 @@ GL_GNULIB_READDIR = @GL_GNULIB_READDIR@
 GL_GNULIB_READLINK = @GL_GNULIB_READLINK@
 GL_GNULIB_READLINKAT = @GL_GNULIB_READLINKAT@
 GL_GNULIB_REALLOCARRAY = @GL_GNULIB_REALLOCARRAY@
-GL_GNULIB_REALLOC_GNU = @GL_GNULIB_REALLOC_GNU@
 GL_GNULIB_REALLOC_POSIX = @GL_GNULIB_REALLOC_POSIX@
 GL_GNULIB_REALPATH = @GL_GNULIB_REALPATH@
 GL_GNULIB_REMOVE = @GL_GNULIB_REMOVE@
@@ -594,6 +600,7 @@ GL_GNULIB_SECURE_GETENV = @GL_GNULIB_SECURE_GETENV@
 GL_GNULIB_SELECT = @GL_GNULIB_SELECT@
 GL_GNULIB_SETENV = @GL_GNULIB_SETENV@
 GL_GNULIB_SETHOSTNAME = @GL_GNULIB_SETHOSTNAME@
+GL_GNULIB_SIG2STR = @GL_GNULIB_SIG2STR@
 GL_GNULIB_SIGABBREV_NP = @GL_GNULIB_SIGABBREV_NP@
 GL_GNULIB_SIGACTION = @GL_GNULIB_SIGACTION@
 GL_GNULIB_SIGDESCR_NP = @GL_GNULIB_SIGDESCR_NP@
@@ -601,7 +608,9 @@ GL_GNULIB_SIGNAL_H_SIGPIPE = @GL_GNULIB_SIGNAL_H_SIGPIPE@
 GL_GNULIB_SIGPROCMASK = @GL_GNULIB_SIGPROCMASK@
 GL_GNULIB_SLEEP = @GL_GNULIB_SLEEP@
 GL_GNULIB_SNPRINTF = @GL_GNULIB_SNPRINTF@
+GL_GNULIB_SNZPRINTF = @GL_GNULIB_SNZPRINTF@
 GL_GNULIB_SPRINTF_POSIX = @GL_GNULIB_SPRINTF_POSIX@
+GL_GNULIB_STACK_TRACE = @GL_GNULIB_STACK_TRACE@
 GL_GNULIB_STAT = @GL_GNULIB_STAT@
 GL_GNULIB_STDIO_H_NONBLOCKING = @GL_GNULIB_STDIO_H_NONBLOCKING@
 GL_GNULIB_STDIO_H_SIGPIPE = @GL_GNULIB_STDIO_H_SIGPIPE@
@@ -636,6 +645,7 @@ GL_GNULIB_STRVERSCMP = @GL_GNULIB_STRVERSCMP@
 GL_GNULIB_SYMLINK = @GL_GNULIB_SYMLINK@
 GL_GNULIB_SYMLINKAT = @GL_GNULIB_SYMLINKAT@
 GL_GNULIB_SYSTEM_POSIX = @GL_GNULIB_SYSTEM_POSIX@
+GL_GNULIB_SZPRINTF = @GL_GNULIB_SZPRINTF@
 GL_GNULIB_TIME = @GL_GNULIB_TIME@
 GL_GNULIB_TIMEGM = @GL_GNULIB_TIMEGM@
 GL_GNULIB_TIMESPEC_GET = @GL_GNULIB_TIMESPEC_GET@
@@ -645,6 +655,7 @@ GL_GNULIB_TIME_RZ = @GL_GNULIB_TIME_RZ@
 GL_GNULIB_TMPFILE = @GL_GNULIB_TMPFILE@
 GL_GNULIB_TRUNCATE = @GL_GNULIB_TRUNCATE@
 GL_GNULIB_TTYNAME_R = @GL_GNULIB_TTYNAME_R@
+GL_GNULIB_TZNAME = @GL_GNULIB_TZNAME@
 GL_GNULIB_TZSET = @GL_GNULIB_TZSET@
 GL_GNULIB_UNISTD_H_GETOPT = @GL_GNULIB_UNISTD_H_GETOPT@
 GL_GNULIB_UNISTD_H_NONBLOCKING = @GL_GNULIB_UNISTD_H_NONBLOCKING@
@@ -656,17 +667,24 @@ GL_GNULIB_UNSETENV = @GL_GNULIB_UNSETENV@
 GL_GNULIB_USLEEP = @GL_GNULIB_USLEEP@
 GL_GNULIB_UTIMENSAT = @GL_GNULIB_UTIMENSAT@
 GL_GNULIB_VASPRINTF = @GL_GNULIB_VASPRINTF@
+GL_GNULIB_VASZPRINTF = @GL_GNULIB_VASZPRINTF@
 GL_GNULIB_VDPRINTF = @GL_GNULIB_VDPRINTF@
+GL_GNULIB_VDZPRINTF = @GL_GNULIB_VDZPRINTF@
 GL_GNULIB_VFPRINTF = @GL_GNULIB_VFPRINTF@
 GL_GNULIB_VFPRINTF_POSIX = @GL_GNULIB_VFPRINTF_POSIX@
 GL_GNULIB_VFSCANF = @GL_GNULIB_VFSCANF@
+GL_GNULIB_VFZPRINTF = @GL_GNULIB_VFZPRINTF@
 GL_GNULIB_VPRINTF = @GL_GNULIB_VPRINTF@
 GL_GNULIB_VPRINTF_POSIX = @GL_GNULIB_VPRINTF_POSIX@
 GL_GNULIB_VSCANF = @GL_GNULIB_VSCANF@
 GL_GNULIB_VSNPRINTF = @GL_GNULIB_VSNPRINTF@
+GL_GNULIB_VSNZPRINTF = @GL_GNULIB_VSNZPRINTF@
 GL_GNULIB_VSPRINTF_POSIX = @GL_GNULIB_VSPRINTF_POSIX@
+GL_GNULIB_VSZPRINTF = @GL_GNULIB_VSZPRINTF@
+GL_GNULIB_VZPRINTF = @GL_GNULIB_VZPRINTF@
 GL_GNULIB_WCTOMB = @GL_GNULIB_WCTOMB@
 GL_GNULIB_WRITE = @GL_GNULIB_WRITE@
+GL_GNULIB_ZPRINTF = @GL_GNULIB_ZPRINTF@
 GL_GNULIB__EXIT = @GL_GNULIB__EXIT@
 GL_STDC_BIT_CEIL = @GL_STDC_BIT_CEIL@
 GL_STDC_BIT_FLOOR = @GL_STDC_BIT_FLOOR@
@@ -690,7 +708,6 @@ GNUSTEP_CFLAGS = @GNUSTEP_CFLAGS@
 GNU_OBJC_CFLAGS = @GNU_OBJC_CFLAGS@
 GOBJECT_CFLAGS = @GOBJECT_CFLAGS@
 GOBJECT_LIBS = @GOBJECT_LIBS@
-GREP = @GREP@
 GSETTINGS_CFLAGS = @GSETTINGS_CFLAGS@
 GSETTINGS_LIBS = @GSETTINGS_LIBS@
 GTK_CFLAGS = @GTK_CFLAGS@
@@ -873,6 +890,7 @@ HAVE_SECURE_GETENV = @HAVE_SECURE_GETENV@
 HAVE_SETENV = @HAVE_SETENV@
 HAVE_SETHOSTNAME = @HAVE_SETHOSTNAME@
 HAVE_SETSTATE = @HAVE_SETSTATE@
+HAVE_SIG2STR = @HAVE_SIG2STR@
 HAVE_SIGABBREV_NP = @HAVE_SIGABBREV_NP@
 HAVE_SIGACTION = @HAVE_SIGACTION@
 HAVE_SIGDESCR_NP = @HAVE_SIGDESCR_NP@
@@ -887,6 +905,7 @@ HAVE_SPAWN_H = @HAVE_SPAWN_H@
 HAVE_STDINT_H = @HAVE_STDINT_H@
 HAVE_STPCPY = @HAVE_STPCPY@
 HAVE_STPNCPY = @HAVE_STPNCPY@
+HAVE_STR2SIG = @HAVE_STR2SIG@
 HAVE_STRCASESTR = @HAVE_STRCASESTR@
 HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
 HAVE_STRERRORNAME_NP = @HAVE_STRERRORNAME_NP@
@@ -908,6 +927,7 @@ HAVE_SYMLINK = @HAVE_SYMLINK@
 HAVE_SYMLINKAT = @HAVE_SYMLINKAT@
 HAVE_SYS_BITYPES_H = @HAVE_SYS_BITYPES_H@
 HAVE_SYS_CDEFS_H = @HAVE_SYS_CDEFS_H@
+HAVE_SYS_ENDIAN_H = @HAVE_SYS_ENDIAN_H@
 HAVE_SYS_INTTYPES_H = @HAVE_SYS_INTTYPES_H@
 HAVE_SYS_LOADAVG_H = @HAVE_SYS_LOADAVG_H@
 HAVE_SYS_PARAM_H = @HAVE_SYS_PARAM_H@
@@ -920,6 +940,7 @@ HAVE_TIMESPEC_GET = @HAVE_TIMESPEC_GET@
 HAVE_TIMESPEC_GETRES = @HAVE_TIMESPEC_GETRES@
 HAVE_TIMEZONE_T = @HAVE_TIMEZONE_T@
 HAVE_TYPE_VOLATILE_SIG_ATOMIC_T = @HAVE_TYPE_VOLATILE_SIG_ATOMIC_T@
+HAVE_TZALLOC = @HAVE_TZALLOC@
 HAVE_UNISTD_H = @HAVE_UNISTD_H@
 HAVE_UNLINKAT = @HAVE_UNLINKAT@
 HAVE_UNLOCKPT = @HAVE_UNLOCKPT@
@@ -928,7 +949,6 @@ HAVE_UTIMENSAT = @HAVE_UTIMENSAT@
 HAVE_VASPRINTF = @HAVE_VASPRINTF@
 HAVE_VDPRINTF = @HAVE_VDPRINTF@
 HAVE_WCHAR_H = @HAVE_WCHAR_H@
-HAVE_WCHAR_T = @HAVE_WCHAR_T@
 HAVE_WINSOCK2_H = @HAVE_WINSOCK2_H@
 HAVE_XSERVER = @HAVE_XSERVER@
 HAVE__EXIT = @HAVE__EXIT@
@@ -1012,11 +1032,13 @@ LIB_MATH = @LIB_MATH@
 LIB_NANOSLEEP = @LIB_NANOSLEEP@
 LIB_PTHREAD = @LIB_PTHREAD@
 LIB_PTHREAD_SIGMASK = @LIB_PTHREAD_SIGMASK@
+LIB_SELINUX = @LIB_SELINUX@
 LIB_TIMER_TIME = @LIB_TIMER_TIME@
 LIB_WSOCK32 = @LIB_WSOCK32@
 LIB_XATTR = @LIB_XATTR@
 LIMITS_H = @LIMITS_H@
 LN_S_FILEONLY = @LN_S_FILEONLY@
+LOCALE_EN_UTF8 = @LOCALE_EN_UTF8@
 LTLIBGMP = @LTLIBGMP@
 LTLIBINTL = @LTLIBINTL@
 LTLIBOBJS = @LTLIBOBJS@
@@ -1045,6 +1067,7 @@ NDK_BUILD_MODULES = @NDK_BUILD_MODULES@
 NDK_BUILD_NASM = @NDK_BUILD_NASM@
 NDK_BUILD_READELF = @NDK_BUILD_READELF@
 NDK_BUILD_SDK = @NDK_BUILD_SDK@
+NDK_BUILD_SO_LDFLAGS = @NDK_BUILD_SO_LDFLAGS@
 NEXT_ASSERT_H = @NEXT_ASSERT_H@
 NEXT_AS_FIRST_DIRECTIVE_ASSERT_H = @NEXT_AS_FIRST_DIRECTIVE_ASSERT_H@
 NEXT_AS_FIRST_DIRECTIVE_DIRENT_H = @NEXT_AS_FIRST_DIRECTIVE_DIRENT_H@
@@ -1206,6 +1229,7 @@ REPLACE_LINK = @REPLACE_LINK@
 REPLACE_LINKAT = @REPLACE_LINKAT@
 REPLACE_LOCALTIME = @REPLACE_LOCALTIME@
 REPLACE_LOCALTIME_R = @REPLACE_LOCALTIME_R@
+REPLACE_LOCALTIME_RZ = @REPLACE_LOCALTIME_RZ@
 REPLACE_LSEEK = @REPLACE_LSEEK@
 REPLACE_LSTAT = @REPLACE_LSTAT@
 REPLACE_MALLOC_FOR_MALLOC_GNU = @REPLACE_MALLOC_FOR_MALLOC_GNU@
@@ -1226,6 +1250,7 @@ REPLACE_MKOSTEMP = @REPLACE_MKOSTEMP@
 REPLACE_MKOSTEMPS = @REPLACE_MKOSTEMPS@
 REPLACE_MKSTEMP = @REPLACE_MKSTEMP@
 REPLACE_MKTIME = @REPLACE_MKTIME@
+REPLACE_MKTIME_Z = @REPLACE_MKTIME_Z@
 REPLACE_NANOSLEEP = @REPLACE_NANOSLEEP@
 REPLACE_NULL = @REPLACE_NULL@
 REPLACE_OBSTACK_PRINTF = @REPLACE_OBSTACK_PRINTF@
@@ -1255,7 +1280,6 @@ REPLACE_READDIR = @REPLACE_READDIR@
 REPLACE_READLINK = @REPLACE_READLINK@
 REPLACE_READLINKAT = @REPLACE_READLINKAT@
 REPLACE_REALLOCARRAY = @REPLACE_REALLOCARRAY@
-REPLACE_REALLOC_FOR_REALLOC_GNU = @REPLACE_REALLOC_FOR_REALLOC_GNU@
 REPLACE_REALLOC_FOR_REALLOC_POSIX = @REPLACE_REALLOC_FOR_REALLOC_POSIX@
 REPLACE_REALPATH = @REPLACE_REALPATH@
 REPLACE_REMOVE = @REPLACE_REMOVE@
@@ -1362,6 +1386,7 @@ UNISTD_H_HAVE_SYS_RANDOM_H = @UNISTD_H_HAVE_SYS_RANDOM_H@
 UNISTD_H_HAVE_WINSOCK2_H = @UNISTD_H_HAVE_WINSOCK2_H@
 UNISTD_H_HAVE_WINSOCK2_H_AND_USE_SOCKETS = @UNISTD_H_HAVE_WINSOCK2_H_AND_USE_SOCKETS@
 USE_ACL = @USE_ACL@
+USE_SELINUX_SELINUX_H = @USE_SELINUX_SELINUX_H@
 USE_STARTUP_NOTIFICATION = @USE_STARTUP_NOTIFICATION@
 VMLIMIT_OBJ = @VMLIMIT_OBJ@
 W32_LIBS = @W32_LIBS@
@@ -1412,6 +1437,7 @@ XSYNC_CFLAGS = @XSYNC_CFLAGS@
 XSYNC_LIBS = @XSYNC_LIBS@
 XWIDGETS_OBJ = @XWIDGETS_OBJ@
 X_TOOLKIT_TYPE = @X_TOOLKIT_TYPE@
+ZIP = @ZIP@
 ZIPALIGN = @ZIPALIGN@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
@@ -1447,16 +1473,13 @@ gl_GNULIB_ENABLED_260941c0e5dc67ec9e87d1fb321c300b_CONDITION = @gl_GNULIB_ENABLE
 gl_GNULIB_ENABLED_5264294aa0a5557541b53c8c741f7f31_CONDITION = @gl_GNULIB_ENABLED_5264294aa0a5557541b53c8c741f7f31_CONDITION@
 gl_GNULIB_ENABLED_6099e9737f757db36c47fa9d9f02e88c_CONDITION = @gl_GNULIB_ENABLED_6099e9737f757db36c47fa9d9f02e88c_CONDITION@
 gl_GNULIB_ENABLED_61bcaca76b3e6f9ae55d57a1c3193bc4_CONDITION = @gl_GNULIB_ENABLED_61bcaca76b3e6f9ae55d57a1c3193bc4_CONDITION@
-gl_GNULIB_ENABLED_682e609604ccaac6be382e4ee3a4eaec_CONDITION = @gl_GNULIB_ENABLED_682e609604ccaac6be382e4ee3a4eaec_CONDITION@
 gl_GNULIB_ENABLED_8444034ea779b88768865bb60b4fb8c9_CONDITION = @gl_GNULIB_ENABLED_8444034ea779b88768865bb60b4fb8c9_CONDITION@
 gl_GNULIB_ENABLED_925677f0343de64b89a9f0c790b4104c_CONDITION = @gl_GNULIB_ENABLED_925677f0343de64b89a9f0c790b4104c_CONDITION@
 gl_GNULIB_ENABLED_a9786850e999ae65a836a6041e8e5ed1_CONDITION = @gl_GNULIB_ENABLED_a9786850e999ae65a836a6041e8e5ed1_CONDITION@
 gl_GNULIB_ENABLED_be453cec5eecf5731a274f2de7f2db36_CONDITION = @gl_GNULIB_ENABLED_be453cec5eecf5731a274f2de7f2db36_CONDITION@
 gl_GNULIB_ENABLED_cloexec_CONDITION = @gl_GNULIB_ENABLED_cloexec_CONDITION@
-gl_GNULIB_ENABLED_d3b2383720ee0e541357aa2aac598e2b_CONDITION = @gl_GNULIB_ENABLED_d3b2383720ee0e541357aa2aac598e2b_CONDITION@
 gl_GNULIB_ENABLED_dirfd_CONDITION = @gl_GNULIB_ENABLED_dirfd_CONDITION@
 gl_GNULIB_ENABLED_e80bf6f757095d2e5fc94dafb8f8fc8b_CONDITION = @gl_GNULIB_ENABLED_e80bf6f757095d2e5fc94dafb8f8fc8b_CONDITION@
-gl_GNULIB_ENABLED_ef455225c00f5049c808c2eda3e76866_CONDITION = @gl_GNULIB_ENABLED_ef455225c00f5049c808c2eda3e76866_CONDITION@
 gl_GNULIB_ENABLED_endian_CONDITION = @gl_GNULIB_ENABLED_endian_CONDITION@
 gl_GNULIB_ENABLED_euidaccess_CONDITION = @gl_GNULIB_ENABLED_euidaccess_CONDITION@
 gl_GNULIB_ENABLED_fd38c7e463b54744b77b98aeafb4fa7c_CONDITION = @gl_GNULIB_ENABLED_fd38c7e463b54744b77b98aeafb4fa7c_CONDITION@
@@ -1802,8 +1825,8 @@ libgnu_a_SOURCES += diffseq.h
 endif
 ## end   gnulib module diffseq
 
-## begin gnulib module dirent
-ifeq (,$(OMIT_GNULIB_MODULE_dirent))
+## begin gnulib module dirent-h
+ifeq (,$(OMIT_GNULIB_MODULE_dirent-h))
 
 BUILT_SOURCES += dirent.h
 
@@ -1851,7 +1874,7 @@ MOSTLYCLEANFILES += dirent.h dirent.h-t
 EXTRA_DIST += dirent.in.h
 
 endif
-## end   gnulib module dirent
+## end   gnulib module dirent-h
 
 ## begin gnulib module dirfd
 ifeq (,$(OMIT_GNULIB_MODULE_dirfd))
@@ -1925,6 +1948,7 @@ endian.h: endian.in.h $(top_builddir)/config.status
 	      -e 's|@''PRAGMA_COLUMNS''@|@PRAGMA_COLUMNS@|g' \
 	      -e 's|@''HAVE_ENDIAN_H''@|$(HAVE_ENDIAN_H)|g' \
 	      -e 's|@''NEXT_ENDIAN_H''@|$(NEXT_ENDIAN_H)|g' \
+	      -e 's|@''HAVE_SYS_ENDIAN_H''@|$(HAVE_SYS_ENDIAN_H)|g' \
 	      -e 's|@''ENDIAN_H_JUST_MISSING_STDINT''@|$(ENDIAN_H_JUST_MISSING_STDINT)|g' \
 	$(srcdir)/endian.in.h > $@-t
 	$(AM_V_at)mv $@-t $@
@@ -1941,8 +1965,8 @@ EXTRA_DIST += endian.in.h
 endif
 ## end   gnulib module endian
 
-## begin gnulib module errno
-ifeq (,$(OMIT_GNULIB_MODULE_errno))
+## begin gnulib module errno-h
+ifeq (,$(OMIT_GNULIB_MODULE_errno-h))
 
 BUILT_SOURCES += $(ERRNO_H)
 
@@ -1973,7 +1997,7 @@ MOSTLYCLEANFILES += errno.h errno.h-t
 EXTRA_DIST += errno.in.h
 
 endif
-## end   gnulib module errno
+## end   gnulib module errno-h
 
 ## begin gnulib module euidaccess
 ifeq (,$(OMIT_GNULIB_MODULE_euidaccess))
@@ -2513,8 +2537,8 @@ EXTRA_DIST += intprops-internal.h intprops.h
 endif
 ## end   gnulib module intprops
 
-## begin gnulib module inttypes-incomplete
-ifeq (,$(OMIT_GNULIB_MODULE_inttypes-incomplete))
+## begin gnulib module inttypes-h-incomplete
+ifeq (,$(OMIT_GNULIB_MODULE_inttypes-h-incomplete))
 
 BUILT_SOURCES += inttypes.h
 
@@ -2556,7 +2580,7 @@ MOSTLYCLEANFILES += inttypes.h inttypes.h-t
 EXTRA_DIST += inttypes.in.h
 
 endif
-## end   gnulib module inttypes-incomplete
+## end   gnulib module inttypes-h-incomplete
 
 ## begin gnulib module lchmod
 ifeq (,$(OMIT_GNULIB_MODULE_lchmod))
@@ -2579,8 +2603,8 @@ EXTRA_DIST += cdefs.h libc-config.h
 endif
 ## end   gnulib module libc-config
 
-## begin gnulib module libgmp
-ifeq (,$(OMIT_GNULIB_MODULE_libgmp))
+## begin gnulib module libgmp-mpz
+ifeq (,$(OMIT_GNULIB_MODULE_libgmp-mpz))
 
 BUILT_SOURCES += $(GMP_H)
 
@@ -2589,6 +2613,9 @@ ifneq (,$(GL_GENERATE_MINI_GMP_H_CONDITION))
 # Build gmp.h as a wrapper for mini-gmp.h when using mini-gmp.
 gmp.h: $(top_builddir)/config.status
 	echo '#include "mini-gmp.h"' > $@-t
+	echo '#if GNULIB_LIBGMP_MPQ' >> $@-t
+	echo '# include "mini-mpq.h"' >> $@-t
+	echo '#endif' >> $@-t
 	mv $@-t $@
 endif
 ifneq (,$(GL_GENERATE_GMP_GMP_H_CONDITION))
@@ -2612,7 +2639,7 @@ EXTRA_DIST += mini-gmp.c mini-gmp.h
 EXTRA_libgnu_a_SOURCES += mini-gmp.c
 
 endif
-## end   gnulib module libgmp
+## end   gnulib module libgmp-mpz
 
 ## begin gnulib module limits-h
 ifeq (,$(OMIT_GNULIB_MODULE_limits-h))
@@ -2668,9 +2695,7 @@ endif
 ## begin gnulib module malloc-posix
 ifeq (,$(OMIT_GNULIB_MODULE_malloc-posix))
 
-ifneq (,$(gl_GNULIB_ENABLED_ef455225c00f5049c808c2eda3e76866_CONDITION))
 
-endif
 EXTRA_DIST += malloc.c
 
 EXTRA_libgnu_a_SOURCES += malloc.c
@@ -2899,29 +2924,15 @@ EXTRA_libgnu_a_SOURCES += at-func.c
 endif
 ## end   gnulib module readlinkat
 
-## begin gnulib module realloc-gnu
-ifeq (,$(OMIT_GNULIB_MODULE_realloc-gnu))
-
-ifneq (,$(gl_GNULIB_ENABLED_d3b2383720ee0e541357aa2aac598e2b_CONDITION))
-
-endif
-EXTRA_DIST += realloc.c
-
-EXTRA_libgnu_a_SOURCES += realloc.c
-
-endif
-## end   gnulib module realloc-gnu
-
 ## begin gnulib module realloc-posix
 ifeq (,$(OMIT_GNULIB_MODULE_realloc-posix))
 
 ifneq (,$(gl_GNULIB_ENABLED_61bcaca76b3e6f9ae55d57a1c3193bc4_CONDITION))
+ifneq (,$(GL_COND_OBJ_REALLOC_POSIX_CONDITION))
+libgnu_a_SOURCES += realloc.c
+endif
 
 endif
-EXTRA_DIST += realloc.c
-
-EXTRA_libgnu_a_SOURCES += realloc.c
-
 endif
 ## end   gnulib module realloc-posix
 
@@ -2988,15 +2999,18 @@ signal.h: signal.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H
 	      -e 's|@''NEXT_SIGNAL_H''@|$(NEXT_SIGNAL_H)|g' \
 	      -e 's/@''GNULIB_PTHREAD_SIGMASK''@/$(GL_GNULIB_PTHREAD_SIGMASK)/g' \
 	      -e 's/@''GNULIB_RAISE''@/$(GL_GNULIB_RAISE)/g' \
+	      -e 's/@''GNULIB_SIG2STR''@/$(GL_GNULIB_SIG2STR)/g' \
 	      -e 's/@''GNULIB_SIGNAL_H_SIGPIPE''@/$(GL_GNULIB_SIGNAL_H_SIGPIPE)/g' \
 	      -e 's/@''GNULIB_SIGPROCMASK''@/$(GL_GNULIB_SIGPROCMASK)/g' \
 	      -e 's/@''GNULIB_SIGACTION''@/$(GL_GNULIB_SIGACTION)/g' \
 	      -e 's|@''HAVE_POSIX_SIGNALBLOCKING''@|$(HAVE_POSIX_SIGNALBLOCKING)|g' \
 	      -e 's|@''HAVE_PTHREAD_SIGMASK''@|$(HAVE_PTHREAD_SIGMASK)|g' \
 	      -e 's|@''HAVE_RAISE''@|$(HAVE_RAISE)|g' \
+	      -e 's|@''HAVE_SIG2STR''@|$(HAVE_SIG2STR)|g' \
 	      -e 's|@''HAVE_SIGSET_T''@|$(HAVE_SIGSET_T)|g' \
 	      -e 's|@''HAVE_SIGINFO_T''@|$(HAVE_SIGINFO_T)|g' \
 	      -e 's|@''HAVE_SIGACTION''@|$(HAVE_SIGACTION)|g' \
+	      -e 's|@''HAVE_STR2SIG''@|$(HAVE_STR2SIG)|g' \
 	      -e 's|@''HAVE_STRUCT_SIGACTION_SA_SIGACTION''@|$(HAVE_STRUCT_SIGACTION_SA_SIGACTION)|g' \
 	      -e 's|@''HAVE_TYPE_VOLATILE_SIG_ATOMIC_T''@|$(HAVE_TYPE_VOLATILE_SIG_ATOMIC_T)|g' \
 	      -e 's|@''HAVE_SIGHANDLER_T''@|$(HAVE_SIGHANDLER_T)|g' \
@@ -3158,8 +3172,8 @@ endif
 endif
 ## end   gnulib module stdc_trailing_zeros
 
-## begin gnulib module stdckdint
-ifeq (,$(OMIT_GNULIB_MODULE_stdckdint))
+## begin gnulib module stdckdint-h
+ifeq (,$(OMIT_GNULIB_MODULE_stdckdint-h))
 
 BUILT_SOURCES += $(STDCKDINT_H)
 
@@ -3179,10 +3193,10 @@ MOSTLYCLEANFILES += stdckdint.h stdckdint.h-t
 EXTRA_DIST += intprops-internal.h stdckdint.in.h
 
 endif
-## end   gnulib module stdckdint
+## end   gnulib module stdckdint-h
 
-## begin gnulib module stddef
-ifeq (,$(OMIT_GNULIB_MODULE_stddef))
+## begin gnulib module stddef-h
+ifeq (,$(OMIT_GNULIB_MODULE_stddef-h))
 
 BUILT_SOURCES += $(STDDEF_H)
 
@@ -3200,7 +3214,6 @@ stddef.h: stddef.in.h $(top_builddir)/config.status
 	      -e 's|@''STDDEF_NOT_IDEMPOTENT''@|$(STDDEF_NOT_IDEMPOTENT)|g' \
 	      -e 's|@''REPLACE_NULL''@|$(REPLACE_NULL)|g' \
 	      -e 's|@''HAVE_MAX_ALIGN_T''@|$(HAVE_MAX_ALIGN_T)|g' \
-	      -e 's|@''HAVE_WCHAR_T''@|$(HAVE_WCHAR_T)|g' \
 	      $(srcdir)/stddef.in.h > $@-t
 	$(AM_V_at)mv $@-t $@
 else
@@ -3212,10 +3225,10 @@ MOSTLYCLEANFILES += stddef.h stddef.h-t
 EXTRA_DIST += stddef.in.h
 
 endif
-## end   gnulib module stddef
+## end   gnulib module stddef-h
 
-## begin gnulib module stdint
-ifeq (,$(OMIT_GNULIB_MODULE_stdint))
+## begin gnulib module stdint-h
+ifeq (,$(OMIT_GNULIB_MODULE_stdint-h))
 
 BUILT_SOURCES += $(STDINT_H)
 
@@ -3262,10 +3275,10 @@ MOSTLYCLEANFILES += stdint.h stdint.h-t
 EXTRA_DIST += stdint.in.h
 
 endif
-## end   gnulib module stdint
+## end   gnulib module stdint-h
 
-## begin gnulib module stdio
-ifeq (,$(OMIT_GNULIB_MODULE_stdio))
+## begin gnulib module stdio-h
+ifeq (,$(OMIT_GNULIB_MODULE_stdio-h))
 
 BUILT_SOURCES += stdio.h
 
@@ -3279,6 +3292,7 @@ stdio.h: stdio.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H) 
 	      -e 's|@''PRAGMA_COLUMNS''@|@PRAGMA_COLUMNS@|g' \
 	      -e 's|@''NEXT_STDIO_H''@|$(NEXT_STDIO_H)|g' \
 	      -e 's/@''GNULIB_DPRINTF''@/$(GL_GNULIB_DPRINTF)/g' \
+	      -e 's/@''GNULIB_DZPRINTF''@/$(GL_GNULIB_DZPRINTF)/g' \
 	      -e 's/@''GNULIB_FCLOSE''@/$(GL_GNULIB_FCLOSE)/g' \
 	      -e 's/@''GNULIB_FDOPEN''@/$(GL_GNULIB_FDOPEN)/g' \
 	      -e 's/@''GNULIB_FFLUSH''@/$(GL_GNULIB_FFLUSH)/g' \
@@ -3299,12 +3313,14 @@ stdio.h: stdio.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H) 
 	      -e 's/@''GNULIB_FTELL''@/$(GL_GNULIB_FTELL)/g' \
 	      -e 's/@''GNULIB_FTELLO''@/$(GL_GNULIB_FTELLO)/g' \
 	      -e 's/@''GNULIB_FWRITE''@/$(GL_GNULIB_FWRITE)/g' \
+	      -e 's/@''GNULIB_FZPRINTF''@/$(GL_GNULIB_FZPRINTF)/g' \
 	      -e 's/@''GNULIB_GETC''@/$(GL_GNULIB_GETC)/g' \
 	      -e 's/@''GNULIB_GETCHAR''@/$(GL_GNULIB_GETCHAR)/g' \
 	      -e 's/@''GNULIB_GETDELIM''@/$(GL_GNULIB_GETDELIM)/g' \
 	      -e 's/@''GNULIB_GETLINE''@/$(GL_GNULIB_GETLINE)/g' \
 	      -e 's/@''GNULIB_OBSTACK_PRINTF''@/$(GL_GNULIB_OBSTACK_PRINTF)/g' \
 	      -e 's/@''GNULIB_OBSTACK_PRINTF_POSIX''@/$(GL_GNULIB_OBSTACK_PRINTF_POSIX)/g' \
+	      -e 's/@''GNULIB_OBSTACK_ZPRINTF''@/$(GL_GNULIB_OBSTACK_ZPRINTF)/g' \
 	      -e 's/@''GNULIB_PCLOSE''@/$(GL_GNULIB_PCLOSE)/g' \
 	      -e 's/@''GNULIB_PERROR''@/$(GL_GNULIB_PERROR)/g' \
 	      -e 's/@''GNULIB_POPEN''@/$(GL_GNULIB_POPEN)/g' \
@@ -3318,20 +3334,29 @@ stdio.h: stdio.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H) 
 	      -e 's/@''GNULIB_RENAMEAT''@/$(GL_GNULIB_RENAMEAT)/g' \
 	      -e 's/@''GNULIB_SCANF''@/$(GL_GNULIB_SCANF)/g' \
 	      -e 's/@''GNULIB_SNPRINTF''@/$(GL_GNULIB_SNPRINTF)/g' \
+	      -e 's/@''GNULIB_SNZPRINTF''@/$(GL_GNULIB_SNZPRINTF)/g' \
 	      -e 's/@''GNULIB_SPRINTF_POSIX''@/$(GL_GNULIB_SPRINTF_POSIX)/g' \
 	      -e 's/@''GNULIB_STDIO_H_NONBLOCKING''@/$(GL_GNULIB_STDIO_H_NONBLOCKING)/g' \
 	      -e 's/@''GNULIB_STDIO_H_SIGPIPE''@/$(GL_GNULIB_STDIO_H_SIGPIPE)/g' \
+	      -e 's/@''GNULIB_SZPRINTF''@/$(GL_GNULIB_SZPRINTF)/g' \
 	      -e 's/@''GNULIB_TMPFILE''@/$(GL_GNULIB_TMPFILE)/g' \
 	      -e 's/@''GNULIB_VASPRINTF''@/$(GL_GNULIB_VASPRINTF)/g' \
+	      -e 's/@''GNULIB_VASZPRINTF''@/$(GL_GNULIB_VASZPRINTF)/g' \
 	      -e 's/@''GNULIB_VDPRINTF''@/$(GL_GNULIB_VDPRINTF)/g' \
+	      -e 's/@''GNULIB_VDZPRINTF''@/$(GL_GNULIB_VDZPRINTF)/g' \
 	      -e 's/@''GNULIB_VFPRINTF''@/$(GL_GNULIB_VFPRINTF)/g' \
 	      -e 's/@''GNULIB_VFPRINTF_POSIX''@/$(GL_GNULIB_VFPRINTF_POSIX)/g' \
+	      -e 's/@''GNULIB_VFZPRINTF''@/$(GL_GNULIB_VFZPRINTF)/g' \
 	      -e 's/@''GNULIB_VFSCANF''@/$(GL_GNULIB_VFSCANF)/g' \
 	      -e 's/@''GNULIB_VSCANF''@/$(GL_GNULIB_VSCANF)/g' \
 	      -e 's/@''GNULIB_VPRINTF''@/$(GL_GNULIB_VPRINTF)/g' \
 	      -e 's/@''GNULIB_VPRINTF_POSIX''@/$(GL_GNULIB_VPRINTF_POSIX)/g' \
 	      -e 's/@''GNULIB_VSNPRINTF''@/$(GL_GNULIB_VSNPRINTF)/g' \
+	      -e 's/@''GNULIB_VSNZPRINTF''@/$(GL_GNULIB_VSNZPRINTF)/g' \
 	      -e 's/@''GNULIB_VSPRINTF_POSIX''@/$(GL_GNULIB_VSPRINTF_POSIX)/g' \
+	      -e 's/@''GNULIB_VSZPRINTF''@/$(GL_GNULIB_VSZPRINTF)/g' \
+	      -e 's/@''GNULIB_VZPRINTF''@/$(GL_GNULIB_VZPRINTF)/g' \
+	      -e 's/@''GNULIB_ZPRINTF''@/$(GL_GNULIB_ZPRINTF)/g' \
 	      -e 's/@''GNULIB_MDA_FCLOSEALL''@/$(GL_GNULIB_MDA_FCLOSEALL)/g' \
 	      -e 's/@''GNULIB_MDA_FDOPEN''@/$(GL_GNULIB_MDA_FDOPEN)/g' \
 	      -e 's/@''GNULIB_MDA_FILENO''@/$(GL_GNULIB_MDA_FILENO)/g' \
@@ -3413,15 +3438,14 @@ endif
 EXTRA_DIST += stdio.in.h
 
 endif
-## end   gnulib module stdio
+## end   gnulib module stdio-h
 
-## begin gnulib module stdlib
-ifeq (,$(OMIT_GNULIB_MODULE_stdlib))
+## begin gnulib module stdlib-h
+ifeq (,$(OMIT_GNULIB_MODULE_stdlib-h))
 
 BUILT_SOURCES += stdlib.h
+libgnu_a_SOURCES += stdlib.c
 
-# We need the following in order to create <stdlib.h> when the system
-# doesn't have one that works with the given compiler.
 stdlib.h: stdlib.in.h $(top_builddir)/config.status $(CXXDEFS_H) \
   $(_NORETURN_H) $(ARG_NONNULL_H) $(WARN_ON_USE_H)
 	$(gl_V_at)$(SED_HEADER_STDOUT) \
@@ -3460,13 +3484,13 @@ stdlib.h: stdlib.in.h $(top_builddir)/config.status $(CXXDEFS_H) \
 	      -e 's/@''GNULIB_RAND''@/$(GL_GNULIB_RAND)/g' \
 	      -e 's/@''GNULIB_RANDOM''@/$(GL_GNULIB_RANDOM)/g' \
 	      -e 's/@''GNULIB_RANDOM_R''@/$(GL_GNULIB_RANDOM_R)/g' \
-	      -e 's/@''GNULIB_REALLOC_GNU''@/$(GL_GNULIB_REALLOC_GNU)/g' \
 	      -e 's/@''GNULIB_REALLOC_POSIX''@/$(GL_GNULIB_REALLOC_POSIX)/g' \
 	      -e 's/@''GNULIB_REALLOCARRAY''@/$(GL_GNULIB_REALLOCARRAY)/g' \
 	      -e 's/@''GNULIB_REALPATH''@/$(GL_GNULIB_REALPATH)/g' \
 	      -e 's/@''GNULIB_RPMATCH''@/$(GL_GNULIB_RPMATCH)/g' \
 	      -e 's/@''GNULIB_SECURE_GETENV''@/$(GL_GNULIB_SECURE_GETENV)/g' \
 	      -e 's/@''GNULIB_SETENV''@/$(GL_GNULIB_SETENV)/g' \
+	      -e 's/@''GNULIB_STACK_TRACE''@/$(GL_GNULIB_STACK_TRACE)/g' \
 	      -e 's/@''GNULIB_STRTOD''@/$(GL_GNULIB_STRTOD)/g' \
 	      -e 's/@''GNULIB_STRTOF''@/$(GL_GNULIB_STRTOF)/g' \
 	      -e 's/@''GNULIB_STRTOL''@/$(GL_GNULIB_STRTOL)/g' \
@@ -3561,7 +3585,6 @@ stdlib.h: stdlib.in.h $(top_builddir)/config.status $(CXXDEFS_H) \
 	      -e 's|@''REPLACE_RAND''@|$(REPLACE_RAND)|g' \
 	      -e 's|@''REPLACE_RANDOM''@|$(REPLACE_RANDOM)|g' \
 	      -e 's|@''REPLACE_RANDOM_R''@|$(REPLACE_RANDOM_R)|g' \
-	      -e 's|@''REPLACE_REALLOC_FOR_REALLOC_GNU''@|$(REPLACE_REALLOC_FOR_REALLOC_GNU)|g' \
 	      -e 's|@''REPLACE_REALLOC_FOR_REALLOC_POSIX''@|$(REPLACE_REALLOC_FOR_REALLOC_POSIX)|g' \
 	      -e 's|@''REPLACE_REALLOCARRAY''@|$(REPLACE_REALLOCARRAY)|g' \
 	      -e 's|@''REPLACE_REALPATH''@|$(REPLACE_REALPATH)|g' \
@@ -3576,6 +3599,7 @@ stdlib.h: stdlib.in.h $(top_builddir)/config.status $(CXXDEFS_H) \
 	      -e 's|@''REPLACE_STRTOULL''@|$(REPLACE_STRTOULL)|g' \
 	      -e 's|@''REPLACE_UNSETENV''@|$(REPLACE_UNSETENV)|g' \
 	      -e 's|@''REPLACE_WCTOMB''@|$(REPLACE_WCTOMB)|g' \
+	      -e 's|@''CAN_PRINT_STACK_TRACE''@|$(CAN_PRINT_STACK_TRACE)|g' \
 	      -e '/definitions of _GL_FUNCDECL_RPL/r $(CXXDEFS_H)' \
 	      -e '/definition of _Noreturn/r $(_NORETURN_H)' \
 	      -e '/definition of _GL_ARG_NONNULL/r $(ARG_NONNULL_H)' \
@@ -3588,7 +3612,7 @@ MOSTLYCLEANFILES += stdlib.h stdlib.h-t1 stdlib.h-t2 stdlib.h-t3
 EXTRA_DIST += stdlib.in.h
 
 endif
-## end   gnulib module stdlib
+## end   gnulib module stdlib-h
 
 ## begin gnulib module stpcpy
 ifeq (,$(OMIT_GNULIB_MODULE_stpcpy))
@@ -3600,8 +3624,8 @@ endif
 endif
 ## end   gnulib module stpcpy
 
-## begin gnulib module string
-ifeq (,$(OMIT_GNULIB_MODULE_string))
+## begin gnulib module string-h
+ifeq (,$(OMIT_GNULIB_MODULE_string-h))
 
 BUILT_SOURCES += string.h
 
@@ -3719,7 +3743,7 @@ MOSTLYCLEANFILES += string.h string.h-t1 string.h-t2
 EXTRA_DIST += string.in.h
 
 endif
-## end   gnulib module string
+## end   gnulib module string-h
 
 ## begin gnulib module strnlen
 ifeq (,$(OMIT_GNULIB_MODULE_strnlen))
@@ -3767,8 +3791,8 @@ endif
 endif
 ## end   gnulib module symlink
 
-## begin gnulib module sys_random
-ifeq (,$(OMIT_GNULIB_MODULE_sys_random))
+## begin gnulib module sys_random-h
+ifeq (,$(OMIT_GNULIB_MODULE_sys_random-h))
 
 BUILT_SOURCES += sys/random.h
 
@@ -3797,10 +3821,10 @@ MOSTLYCLEANDIRS += sys
 EXTRA_DIST += sys_random.in.h
 
 endif
-## end   gnulib module sys_random
+## end   gnulib module sys_random-h
 
-## begin gnulib module sys_select
-ifeq (,$(OMIT_GNULIB_MODULE_sys_select))
+## begin gnulib module sys_select-h
+ifeq (,$(OMIT_GNULIB_MODULE_sys_select-h))
 
 BUILT_SOURCES += sys/select.h
 
@@ -3831,10 +3855,10 @@ MOSTLYCLEANDIRS += sys
 EXTRA_DIST += sys_select.in.h
 
 endif
-## end   gnulib module sys_select
+## end   gnulib module sys_select-h
 
-## begin gnulib module sys_stat
-ifeq (,$(OMIT_GNULIB_MODULE_sys_stat))
+## begin gnulib module sys_stat-h
+ifeq (,$(OMIT_GNULIB_MODULE_sys_stat-h))
 
 BUILT_SOURCES += sys/stat.h
 
@@ -3906,10 +3930,10 @@ MOSTLYCLEANDIRS += sys
 EXTRA_DIST += sys_stat.in.h
 
 endif
-## end   gnulib module sys_stat
+## end   gnulib module sys_stat-h
 
-## begin gnulib module sys_time
-ifeq (,$(OMIT_GNULIB_MODULE_sys_time))
+## begin gnulib module sys_time-h
+ifeq (,$(OMIT_GNULIB_MODULE_sys_time-h))
 
 BUILT_SOURCES += sys/time.h
 
@@ -3936,14 +3960,15 @@ sys/time.h: sys_time.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNU
 	      $(srcdir)/sys_time.in.h > $@-t
 	$(AM_V_at)mv $@-t $@
 MOSTLYCLEANFILES += sys/time.h sys/time.h-t
+MOSTLYCLEANDIRS += sys
 
 EXTRA_DIST += sys_time.in.h
 
 endif
-## end   gnulib module sys_time
+## end   gnulib module sys_time-h
 
-## begin gnulib module sys_types
-ifeq (,$(OMIT_GNULIB_MODULE_sys_types))
+## begin gnulib module sys_types-h
+ifeq (,$(OMIT_GNULIB_MODULE_sys_types-h))
 
 BUILT_SOURCES += sys/types.h
 
@@ -3963,11 +3988,12 @@ sys/types.h: sys_types.in.h $(top_builddir)/config.status
 	      $(srcdir)/sys_types.in.h > $@-t
 	$(AM_V_at)mv $@-t $@
 MOSTLYCLEANFILES += sys/types.h sys/types.h-t
+MOSTLYCLEANDIRS += sys
 
 EXTRA_DIST += sys_types.in.h
 
 endif
-## end   gnulib module sys_types
+## end   gnulib module sys_types-h
 
 ## begin gnulib module tempname
 ifeq (,$(OMIT_GNULIB_MODULE_tempname))
@@ -4005,6 +4031,7 @@ time.h: time.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H) $(
 	      -e 's/@''GNULIB_TIMESPEC_GETRES''@/$(GL_GNULIB_TIMESPEC_GETRES)/g' \
 	      -e 's/@''GNULIB_TIME_R''@/$(GL_GNULIB_TIME_R)/g' \
 	      -e 's/@''GNULIB_TIME_RZ''@/$(GL_GNULIB_TIME_RZ)/g' \
+	      -e 's/@''GNULIB_TZNAME''@/$(GL_GNULIB_TZNAME)/g' \
 	      -e 's/@''GNULIB_TZSET''@/$(GL_GNULIB_TZSET)/g' \
 	      -e 's/@''GNULIB_MDA_TZSET''@/$(GL_GNULIB_MDA_TZSET)/g' \
 	      -e 's|@''HAVE_DECL_LOCALTIME_R''@|$(HAVE_DECL_LOCALTIME_R)|g' \
@@ -4014,11 +4041,14 @@ time.h: time.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H) $(
 	      -e 's|@''HAVE_TIMESPEC_GET''@|$(HAVE_TIMESPEC_GET)|g' \
 	      -e 's|@''HAVE_TIMESPEC_GETRES''@|$(HAVE_TIMESPEC_GETRES)|g' \
 	      -e 's|@''HAVE_TIMEZONE_T''@|$(HAVE_TIMEZONE_T)|g' \
+	      -e 's|@''HAVE_TZALLOC''@|$(HAVE_TZALLOC)|g' \
 	      -e 's|@''REPLACE_CTIME''@|$(REPLACE_CTIME)|g' \
 	      -e 's|@''REPLACE_GMTIME''@|$(REPLACE_GMTIME)|g' \
 	      -e 's|@''REPLACE_LOCALTIME''@|$(REPLACE_LOCALTIME)|g' \
 	      -e 's|@''REPLACE_LOCALTIME_R''@|$(REPLACE_LOCALTIME_R)|g' \
+	      -e 's|@''REPLACE_LOCALTIME_RZ''@|$(REPLACE_LOCALTIME_RZ)|g' \
 	      -e 's|@''REPLACE_MKTIME''@|$(REPLACE_MKTIME)|g' \
+	      -e 's|@''REPLACE_MKTIME_Z''@|$(REPLACE_MKTIME_Z)|g' \
 	      -e 's|@''REPLACE_NANOSLEEP''@|$(REPLACE_NANOSLEEP)|g' \
 	      -e 's|@''REPLACE_STRFTIME''@|$(REPLACE_STRFTIME)|g' \
 	      -e 's|@''REPLACE_TIME''@|$(REPLACE_TIME)|g' \
@@ -4113,8 +4143,8 @@ EXTRA_DIST += u64.h
 endif
 ## end   gnulib module u64
 
-## begin gnulib module unistd
-ifeq (,$(OMIT_GNULIB_MODULE_unistd))
+## begin gnulib module unistd-h
+ifeq (,$(OMIT_GNULIB_MODULE_unistd-h))
 
 BUILT_SOURCES += unistd.h
 libgnu_a_SOURCES += unistd.c
@@ -4332,7 +4362,7 @@ MOSTLYCLEANFILES += unistd.h unistd.h-t1 unistd.h-t2 unistd.h-t3 unistd.h-t4
 EXTRA_DIST += unistd.in.h
 
 endif
-## end   gnulib module unistd
+## end   gnulib module unistd-h
 
 ## begin gnulib module unlocked-io-internal
 ifeq (,$(OMIT_GNULIB_MODULE_unlocked-io-internal))
@@ -4397,17 +4427,6 @@ EXTRA_DIST += vla.h
 
 endif
 ## end   gnulib module vla
-
-## begin gnulib module xalloc-oversized
-ifeq (,$(OMIT_GNULIB_MODULE_xalloc-oversized))
-
-ifneq (,$(gl_GNULIB_ENABLED_682e609604ccaac6be382e4ee3a4eaec_CONDITION))
-
-endif
-EXTRA_DIST += xalloc-oversized.h
-
-endif
-## end   gnulib module xalloc-oversized
 
 
 mostlyclean-local: mostlyclean-generic

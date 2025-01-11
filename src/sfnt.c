@@ -1,6 +1,6 @@
 /* TrueType format font support for GNU Emacs.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -383,15 +383,18 @@ sfnt_read_cmap_format_2 (int fd,
 
   for (i = 0; i < 256; ++i)
     {
+      /* Values in sub_header_keys are actually offsets from the end of
+	 that array.  Since the language of the spec is such as to imply
+	 that they must be divisible by eight, divide them by the
+	 same.  */
       sfnt_swap16 (&format2->sub_header_keys[i]);
 
       if (format2->sub_header_keys[i] > nsub)
-	nsub = format2->sub_header_keys[i];
+	nsub = format2->sub_header_keys[i] / 8;
     }
 
-  if (!nsub)
-    /* If there are no subheaders, then things are finished.  */
-    return format2;
+  /* There always exists a subheader at index zero.  */
+  nsub ++;
 
   /* Otherwise, read the rest of the variable length data to the end
      of format2.  */
@@ -1093,10 +1096,10 @@ sfnt_lookup_glyph_2 (sfnt_char character,
   unsigned char *slice;
   uint16_t glyph;
 
-  if (character > 65335)
+  if (character > 65535)
     return 0;
 
-  i = character >> 16;
+  i = character >> 8;
   j = character & 0xff;
   k = format2->sub_header_keys[i] / 8;
 
@@ -1108,9 +1111,11 @@ sfnt_lookup_glyph_2 (sfnt_char character,
 	  && j <= ((int) subheader->first_code
 		   + (int) subheader->entry_count))
 	{
-	  /* id_range_offset is actually the number of bytes past
-	     itself containing the uint16_t ``slice''.  It is possibly
-	     unaligned.  */
+	  /* id_range_offset is actually the number of bytes past itself
+	     containing the uint16_t ``slice''.  Whether this may be
+	     unaligned is not stated in the specification, but I doubt
+	     it, for that would render values meaningless if the array
+	     were byte swapped when read.  */
 	  slice = (unsigned char *) &subheader->id_range_offset;
 	  slice += subheader->id_range_offset;
 	  slice += (j - subheader->first_code) * sizeof (uint16_t);
@@ -1129,9 +1134,9 @@ sfnt_lookup_glyph_2 (sfnt_char character,
 	return 0;
     }
 
-  /* k is 0, so glyph_index_array[i] is the glyph.  */
-  return (i < format2->num_glyphs
-	  ? format2->glyph_index_array[i]
+  /* k is 0, so glyph_index_array[j] is the glyph.  */
+  return (j < format2->num_glyphs
+	  ? format2->glyph_index_array[j]
 	  : 0);
 }
 
@@ -2578,8 +2583,10 @@ sfnt_transform_coordinates (struct sfnt_compound_glyph_component *component,
 
   for (i = 0; i < num_coordinates; ++i)
     {
-      x[i] = m1 * x[i] + m2 * y[i] + m3 * 1;
-      y[i] = m4 * x[i] + m5 * y[i] + m6 * 1;
+      sfnt_fixed xi = m1 * x[i] + m2 * y[i] + m3 * 1;
+      sfnt_fixed yi = m4 * x[i] + m5 * y[i] + m6 * 1;
+      x[i] = xi;
+      y[i] = yi;
     }
 }
 
@@ -9166,7 +9173,7 @@ sfnt_interpret_alignrp (struct sfnt_interpreter *interpreter)
    ZP1.
 
    Move both points along the freedom vector by half the magnitude of
-   the the projection of a vector formed by P1.x - P2.x, P1.y - P2.y,
+   the projection of a vector formed by P1.x - P2.x, P1.y - P2.y,
    upon the projection vector.  */
 
 static void
@@ -12822,8 +12829,10 @@ sfnt_transform_f26dot6 (struct sfnt_compound_glyph_component *component,
 
   for (i = 0; i < num_coordinates; ++i)
     {
-      x[i] = m1 * x[i] + m2 * y[i] + m3 * 1;
-      y[i] = m4 * x[i] + m5 * y[i] + m6 * 1;
+      sfnt_f26dot6 xi = m1 * x[i] + m2 * y[i] + m3 * 1;
+      sfnt_f26dot6 yi = m4 * x[i] + m5 * y[i] + m6 * 1;
+      x[i] = xi;
+      y[i] = yi;
     }
 }
 
@@ -16606,10 +16615,10 @@ sfnt_read_OS_2_table (int fd, struct sfnt_offset_subtable *subtable)
 
   OS_2 = xmalloc (sizeof *OS_2);
 
-  /* Read data into the structure.  */
+  /* Read data up to the end of `panose'.  */
 
-  wanted = SFNT_ENDOF (struct sfnt_OS_2_table, fs_last_char_index,
-		       uint16_t);
+  wanted = SFNT_ENDOF (struct sfnt_OS_2_table, panose,
+		       unsigned char[10]);
   rc = read (fd, OS_2, wanted);
 
   if (rc == -1 || rc != wanted)
@@ -16636,6 +16645,20 @@ sfnt_read_OS_2_table (int fd, struct sfnt_offset_subtable *subtable)
   sfnt_swap16 (&OS_2->y_strikeout_size);
   sfnt_swap16 (&OS_2->y_strikeout_position);
   sfnt_swap16 (&OS_2->s_family_class);
+
+  /* Read fields between ul_unicode_range and fs_last_char_index.  */
+  wanted = (SFNT_ENDOF (struct sfnt_OS_2_table, fs_last_char_index,
+			uint16_t)
+	    - offsetof (struct sfnt_OS_2_table, ul_unicode_range));
+  rc = read (fd, &OS_2->ul_unicode_range, wanted);
+
+  if (rc == -1 || rc != wanted)
+    {
+      xfree (OS_2);
+      return NULL;
+    }
+
+  /* Swap the remainder and return the table.  */
   sfnt_swap32 (&OS_2->ul_unicode_range[0]);
   sfnt_swap32 (&OS_2->ul_unicode_range[1]);
   sfnt_swap32 (&OS_2->ul_unicode_range[2]);

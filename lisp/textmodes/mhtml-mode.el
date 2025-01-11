@@ -1,6 +1,6 @@
 ;;; mhtml-mode.el --- HTML editing mode that handles CSS and JS -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 ;; Keywords: text, hypermedia, comm, languages
 
@@ -86,7 +86,7 @@ code();
   "Regexp matching the prefix of buffer-locals we want to capture.")
 
 (defun mhtml--construct-submode (mode &rest args)
-  "A wrapper for make-mhtml--submode that computes the buffer-local variables."
+  "A wrapper for `make-mhtml--submode' that computes the buffer-local variables."
   (let ((captured-locals nil)
         (crucial-captured-locals nil)
         (submode (apply #'make-mhtml--submode args)))

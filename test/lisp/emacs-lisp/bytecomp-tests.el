@@ -1,6 +1,6 @@
 ;;; bytecomp-tests.el --- Tests for bytecomp.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 ;; Author: Shigeru Fukaya <shigeru.fukaya@gmail.com>
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
@@ -1983,6 +1983,47 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
     (bytecomp--with-warning-test
      (rx "`integerp' is not a valid type")
      (dc 'integerp))
+    ))
+
+(ert-deftest bytecomp-test-defcustom-local ()
+  (cl-flet ((dc (local) `(defcustom mytest nil "doc" :type 'sexp :local ',local :group 'test)))
+    (bytecomp--with-warning-test
+     (rx ":local keyword does not accept 'symbol") (dc 'symbol))
+    (bytecomp--with-warning-test
+     (rx ":local keyword does not accept \"string\"") (dc "string"))
+    (bytecomp--without-warning-test (dc t))
+    (bytecomp--without-warning-test (dc 'permanent))
+    (bytecomp--without-warning-test (dc 'permanent-only))
+    ))
+
+(ert-deftest bytecomp-test-defface-spec ()
+  (cl-flet ((df (spec) `(defface mytest ',spec "doc" :group 'test)))
+    (bytecomp--with-warning-test
+     (rx "Bad face display condition `max-colors'")
+     (df '((((class color grayscale) (max-colors 75) (background light))
+            :foreground "cyan"))))
+    (bytecomp--with-warning-test
+     (rx "Bad face display `defualt'")
+     (df '((defualt :foreground "cyan"))))
+    (bytecomp--with-warning-test
+     (rx "`:inverse' is not a valid face attribute keyword")
+     (df '((t :background "blue" :inverse t))))
+    (bytecomp--with-warning-test
+     (rx "`:inverse' is not a valid face attribute keyword")
+     (df '((t (:background "blue" :inverse t)))))  ; old attr list syntax
+    (bytecomp--with-warning-test
+     (rx "Face attribute `:reverse-video' has been removed;"
+         " use `:inverse-video' instead")
+     (df '((t :background "red" :reverse-video t))))
+    (bytecomp--with-warning-test
+     (rx "Value for face attribute `:inherit' should not be quoted")
+     (df '((t :inherit 'other))))
+    (bytecomp--with-warning-test
+     (rx "Missing face attribute `:extend' value")
+     (df '((t :foundry "abc" :extend))))
+    (bytecomp--with-warning-test
+     (rx "Non-keyword in face attribute list: `\"green\"'")
+     (df '((t :foreground "white" "green"))))
     ))
 
 (ert-deftest bytecomp-function-attributes ()

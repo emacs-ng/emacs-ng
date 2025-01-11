@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2024 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 
 #else
@@ -95,7 +96,6 @@ static struct rlimit nofile_limit;
 #include <flexmember.h>
 #include <nproc.h>
 #include <sig2str.h>
-#include <verify.h>
 
 #endif	/* subprocesses */
 
@@ -275,9 +275,9 @@ static int read_process_output (Lisp_Object, int);
 static void create_pty (Lisp_Object);
 static void exec_sentinel (Lisp_Object, Lisp_Object);
 
-static Lisp_Object
-network_lookup_address_info_1 (Lisp_Object host, const char *service,
-                               struct addrinfo *hints, struct addrinfo **res);
+static Lisp_Object network_lookup_address_info_1 (Lisp_Object, const char *,
+						  struct addrinfo *,
+						  struct addrinfo **);
 
 /* Number of bits set in connect_wait_mask.  */
 static int num_pending_connects;
@@ -922,7 +922,7 @@ make_process (Lisp_Object name)
     p->open_fd[i] = -1;
 
 #ifdef HAVE_GNUTLS
-  verify (GNUTLS_STAGE_EMPTY == 0);
+  static_assert (GNUTLS_STAGE_EMPTY == 0);
   eassert (p->gnutls_initstage == GNUTLS_STAGE_EMPTY);
   eassert (NILP (p->gnutls_boot_parameters));
 #endif
@@ -1913,7 +1913,7 @@ usage: (make-process &rest ARGS)  */)
 
 #ifdef HAVE_GNUTLS
   /* AKA GNUTLS_INITSTAGE(proc).  */
-  verify (GNUTLS_STAGE_EMPTY == 0);
+  static_assert (GNUTLS_STAGE_EMPTY == 0);
   eassert (XPROCESS (proc)->gnutls_initstage == GNUTLS_STAGE_EMPTY);
   eassert (NILP (XPROCESS (proc)->gnutls_cred_type));
 #endif
@@ -2143,7 +2143,7 @@ enum
     EXEC_MONITOR_OUTPUT
   };
 
-verify (PROCESS_OPEN_FDS == EXEC_MONITOR_OUTPUT + 1);
+static_assert (PROCESS_OPEN_FDS == EXEC_MONITOR_OUTPUT + 1);
 
 static void
 create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
@@ -2862,6 +2862,9 @@ static const struct socket_options {
 #ifdef SO_REUSEADDR
     { ":reuseaddr", SOL_SOCKET, SO_REUSEADDR, SOPT_BOOL, OPIX_REUSEADDR },
 #endif
+#ifdef TCP_NODELAY
+    { ":nodelay", IPPROTO_TCP, TCP_NODELAY, SOPT_BOOL, OPIX_MISC },
+#endif
     { 0, 0, 0, SOPT_UNKNOWN, OPIX_NONE }
   };
 
@@ -3540,9 +3543,9 @@ connect_network_socket (Lisp_Object proc, Lisp_Object addrinfos,
 		 structures, but the standards don't guarantee that,
 		 so verify it here.  */
 	      struct sockaddr_in6 sa6;
-	      verify ((offsetof (struct sockaddr_in, sin_port)
-		       == offsetof (struct sockaddr_in6, sin6_port))
-		      && sizeof (sa1.sin_port) == sizeof (sa6.sin6_port));
+	      static_assert ((offsetof (struct sockaddr_in, sin_port)
+			      == offsetof (struct sockaddr_in6, sin6_port))
+			     && sizeof (sa1.sin_port) == sizeof (sa6.sin6_port));
 #endif
 	      DECLARE_POINTER_ALIAS (psa1, struct sockaddr, &sa1);
 	      if (getsockname (s, psa1, &len1) == 0)
@@ -3900,6 +3903,7 @@ The following network options can be specified for this connection:
 :broadcast BOOL    -- Allow send and receive of datagram broadcasts.
 :dontroute BOOL    -- Only send to directly connected hosts.
 :keepalive BOOL    -- Send keep-alive messages on network stream.
+:nodelay BOOL      -- Set TCP_NODELAY on the network socket.
 :linger BOOL or TIMEOUT -- Send queued messages before closing.
 :oobinline BOOL    -- Place out-of-band data in receive data stream.
 :priority INT      -- Set protocol defined priority for sent packets.
@@ -4347,6 +4351,10 @@ network_interface_list (bool full, unsigned short match)
 
       if (full)
         {
+	  /* Sometimes sa_family is only filled in correctly in the
+	     interface address, not the netmask, so copy it across
+	     (Bug#74907).  */
+	  it->ifa_netmask->sa_family = it->ifa_addr->sa_family;
           elt = Fcons (conv_sockaddr_to_lisp (it->ifa_netmask, len), elt);
           /* There is an it->ifa_broadaddr field, but its contents are
              unreliable, so always calculate the broadcast address from
@@ -4471,7 +4479,7 @@ network_interface_info (Lisp_Object ifname)
   CHECK_STRING (ifname);
 
   if (sizeof rq.ifr_name <= SBYTES (ifname))
-    error ("interface name too long");
+    error ("Interface name too long");
   lispstpcpy (rq.ifr_name, ifname);
 
   s = socket (AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -4605,7 +4613,7 @@ network_interface_info (Lisp_Object ifname)
 DEFUN ("network-interface-list", Fnetwork_interface_list,
        Snetwork_interface_list, 0, 2, 0,
        doc: /* Return an alist of all network interfaces and their network address.
-Each element is cons of the form (IFNAME . IP) where IFNAME is a
+Each element is a cons of the form (IFNAME . IP) where IFNAME is a
 string containing the interface name, and IP is the network address in
 internal format; see the description of ADDRESS in
 `make-network-process'.  The interface name is not guaranteed to be
@@ -4656,7 +4664,8 @@ where ADDR is the layer 3 address, BCAST is the layer 3 broadcast address,
 NETMASK is the layer 3 network mask, HWADDR is the layer 2 address, and
 FLAGS is the current flags of the interface.
 
-Data that is unavailable is returned as nil.  */)
+Data that is unavailable is returned as nil.  Only returns IPv4 layer 3
+addresses, for IPv6 use `network-interface-list'.  */)
   (Lisp_Object ifname)
 {
 #if ((defined HAVE_NET_IF_H			       \
@@ -4711,6 +4720,9 @@ network_lookup_address_info_1 (Lisp_Object host, const char *service,
 DEFUN ("network-lookup-address-info", Fnetwork_lookup_address_info,
        Snetwork_lookup_address_info, 1, 3, 0,
        doc: /* Look up Internet Protocol (IP) address info of NAME.
+NAME must be an ASCII-only string.  For looking up internationalized
+hostnames, use `puny-encode-domain' on the string first.
+
 Optional argument FAMILY controls whether to look up IPv4 or IPv6
 addresses.  The default of nil means both, symbol `ipv4' means IPv4
 only, symbol `ipv6' means IPv6 only.
@@ -4729,6 +4741,8 @@ returned from the lookup.  */)
 
   struct addrinfo *res, *lres;
   struct addrinfo hints;
+
+  CHECK_STRING (name);
 
   memset (&hints, 0, sizeof hints);
   if (NILP (family))
@@ -4755,13 +4769,17 @@ returned from the lookup.  */)
     {
       for (lres = res; lres; lres = lres->ai_next)
         {
-#ifndef AF_INET6
-          if (lres->ai_family != AF_INET)
-            continue;
+	  /* Avoid converting non-IP addresses (Bug#74907).  */
+	  if (lres->ai_family == AF_INET
+#ifdef AF_INET6
+	      || lres->ai_family == AF_INET6
 #endif
-          addresses = Fcons (conv_sockaddr_to_lisp (lres->ai_addr,
-                                                    lres->ai_addrlen),
-                             addresses);
+	      )
+	    addresses = Fcons (conv_sockaddr_to_lisp (lres->ai_addr,
+						      lres->ai_addrlen),
+			       addresses);
+	  else
+	    continue;
         }
       addresses = Fnreverse (addresses);
 
@@ -5350,7 +5368,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	struct Lisp_Process *p;
 
 	retry_for_async = false;
-	FOR_EACH_PROCESS(process_list_head, aproc)
+	FOR_EACH_PROCESS (process_list_head, aproc)
 	  {
 	    p = XPROCESS (aproc);
 
@@ -5706,9 +5724,9 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	  /* If wait_proc is somebody else, we have to wait in select
 	     as usual.  Otherwise, clobber the timeout. */
 	  if (tls_nfds > 0
-	      && (!wait_proc ||
-		  (wait_proc->infd >= 0
-		   && FD_ISSET (wait_proc->infd, &tls_available))))
+	      && (!wait_proc
+		  || (wait_proc->infd >= 0
+		      && FD_ISSET (wait_proc->infd, &tls_available))))
 	    timeout = make_timespec (0, 0);
 #endif
 
@@ -5773,8 +5791,8 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 		/* Slow path, merge one by one.  Note: nfds does not need
 		   to be accurate, just positive is enough. */
 		for (channel = 0; channel < FD_SETSIZE; ++channel)
-		  if (FD_ISSET(channel, &tls_available))
-		    FD_SET(channel, &Available);
+		  if (FD_ISSET (channel, &tls_available))
+		    FD_SET (channel, &Available);
 	    }
 #endif
 	}
@@ -6857,7 +6875,7 @@ send_process (Lisp_Object proc, const char *buf, ptrdiff_t len,
 		  pset_status (p, list2 (Qexit, make_fixnum (256)));
 		  p->tick = ++process_tick;
 		  deactivate_process (proc);
-		  error ("process %s no longer connected to pipe; closed it",
+		  error ("Process %s no longer connected to pipe; closed it",
 			 SDATA (p->name));
 		}
 	      else
@@ -8619,6 +8637,14 @@ init_process_emacs (int sockfd)
   int i;
 
   inhibit_sentinels = 0;
+
+#ifdef HAVE_UNEXEC
+  /* Clear child_signal_read_fd and child_signal_write_fd after dumping,
+     lest wait_reading_process_output should select on nonexistent file
+     descriptors which existed in the build process.  */
+  child_signal_read_fd = -1;
+  child_signal_write_fd = -1;
+#endif /* HAVE_UNEXEC */
 
   if (!will_dump_with_unexec_p ())
     {

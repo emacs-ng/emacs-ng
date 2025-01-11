@@ -1,6 +1,6 @@
 ;;; esh-io-tests.el --- esh-io test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -33,12 +33,6 @@
 
 (defvar eshell-test-value-with-fun nil)
 (defun eshell-test-value-with-fun ())
-
-(defun eshell-test-file-string (file)
-  "Return the contents of FILE as a string."
-  (with-temp-buffer
-    (insert-file-contents file)
-    (buffer-string)))
 
 (defun eshell/test-output ()
   "Write some test output separately to stdout and stderr."

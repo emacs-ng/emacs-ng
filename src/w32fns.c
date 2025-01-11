@@ -1,6 +1,6 @@
 /* Graphical user interface functions for the Microsoft Windows API.
 
-Copyright (C) 1989, 1992-2024 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -33,6 +33,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <unistd.h>
 
 #include <c-ctype.h>
+
+#define COBJMACROS /* Ask for C definitions for COM.  */
+#include <shlobj.h>
+#include <oleidl.h>
+#include <objidl.h>
+#include <ole2.h>
 
 #include "lisp.h"
 #include "w32term.h"
@@ -358,6 +364,9 @@ typedef HWND (WINAPI *GetConsoleWindow_Proc) (void);
 extern HANDLE keyboard_handle;
 
 static struct w32_display_info *w32_display_info_for_name (Lisp_Object);
+
+static void my_post_msg (W32Msg *, HWND, UINT, WPARAM, LPARAM);
+static unsigned int w32_get_modifiers (void);
 
 /* Let the user specify a display with a frame.
    nil stands for the selected frame--or, if that is not a w32 frame,
@@ -937,13 +946,13 @@ x_to_w32_color (const char * colorname)
     {
       int len = strlen (colorname);
 
-      if (isdigit (colorname[len - 1]))
+      if (c_isdigit (colorname[len - 1]))
 	{
 	  char *ptr, *approx = alloca (len + 1);
 
 	  strcpy (approx, colorname);
 	  ptr = &approx[len - 1];
-	  while (ptr > approx && isdigit (*ptr))
+	  while (ptr > approx && c_isdigit (*ptr))
 	      *ptr-- = '\0';
 
 	  ret = w32_color_map_lookup (approx);
@@ -2464,6 +2473,214 @@ w32_createhscrollbar (struct frame *f, struct scroll_bar * bar)
   return hwnd;
 }
 
+/* From the DROPFILES struct, extract the filenames and return as a list
+   of strings.  */
+static Lisp_Object
+process_dropfiles (DROPFILES *files)
+{
+  char *start_of_files = (char *) files + files->pFiles;
+#ifndef NTGUI_UNICODE
+  char filename[MAX_UTF8_PATH];
+#endif
+  Lisp_Object lisp_files = Qnil;
+
+#ifdef NTGUI_UNICODE
+  WCHAR *p = (WCHAR *) start_of_files;
+  for (; *p; p += wcslen (p) + 1)
+    {
+      Lisp_Object fn = from_unicode_buffer (p);
+#ifdef CYGWIN
+      fn = Fcygwin_convert_file_name_to_windows (fn, Qt);
+#endif
+      lisp_files = Fcons (fn, lisp_files);
+    }
+#else
+  if (files->fWide)
+    {
+      WCHAR *p = (WCHAR *) start_of_files;
+      for (; *p; p += wcslen (p) + 1)
+	{
+	  filename_from_utf16 (p, filename);
+	  lisp_files = Fcons (DECODE_FILE (build_unibyte_string (filename)),
+			      lisp_files);
+	}
+    }
+  else
+    {
+      char *p = start_of_files;
+      for (; *p; p += strlen (p) + 1)
+	{
+	  filename_from_ansi (p, filename);
+	  lisp_files = Fcons (DECODE_FILE (build_unibyte_string (filename)),
+			      lisp_files);
+	}
+    }
+#endif
+  return lisp_files;
+}
+
+/* This function can be called ONLY between calls to
+   block_input/unblock_input.  It is used in w32_read_socket.  */
+Lisp_Object
+w32_process_dnd_data (int format, void *hGlobal)
+{
+  Lisp_Object result = Qnil;
+  HGLOBAL hg = (HGLOBAL) hGlobal;
+
+  switch (format)
+    {
+    case CF_HDROP:
+      {
+	DROPFILES *files = (DROPFILES *) GlobalLock (hg);
+	if (files)
+	  result = process_dropfiles (files);
+	GlobalUnlock (hg);
+	break;
+      }
+    case CF_UNICODETEXT:
+      {
+	WCHAR *text = (WCHAR *) GlobalLock (hg);
+	result = from_unicode_buffer (text);
+	GlobalUnlock (hg);
+	break;
+      }
+    case CF_TEXT:
+      {
+	char *text = (char *) GlobalLock (hg);
+	result = DECODE_SYSTEM (build_unibyte_string (text));
+	GlobalUnlock (hg);
+	break;
+      }
+    }
+
+  GlobalFree (hg);
+
+  return result;
+}
+
+struct w32_drop_target {
+  /* i_drop_target must be the first member.  */
+  IDropTarget i_drop_target;
+  HWND hwnd;
+  int ref_count;
+};
+
+static HRESULT STDMETHODCALLTYPE
+w32_drop_target_QueryInterface (IDropTarget *t, REFIID ri, void **r)
+{
+  return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE
+w32_drop_target_AddRef (IDropTarget *This)
+{
+  struct w32_drop_target *target = (struct w32_drop_target *) This;
+  return ++target->ref_count;
+}
+
+static ULONG STDMETHODCALLTYPE
+w32_drop_target_Release (IDropTarget *This)
+{
+  struct w32_drop_target *target = (struct w32_drop_target *) This;
+  if (--target->ref_count > 0)
+    return target->ref_count;
+  free (target->i_drop_target.lpVtbl);
+  free (target);
+  return 0;
+}
+
+static void
+w32_handle_drag_movement (IDropTarget *This, POINTL pt)
+{
+  struct w32_drop_target *target = (struct w32_drop_target *)This;
+
+  W32Msg msg = {0};
+  msg.dwModifiers = w32_get_modifiers ();
+  msg.msg.time = GetMessageTime ();
+  msg.msg.pt.x = pt.x;
+  msg.msg.pt.y = pt.y;
+  my_post_msg (&msg, target->hwnd, WM_EMACS_DRAGOVER, 0, 0 );
+}
+
+static HRESULT STDMETHODCALLTYPE
+w32_drop_target_DragEnter (IDropTarget *This, IDataObject *pDataObj,
+			   DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
+{
+  /* Possible 'effect' values are COPY, MOVE, LINK or NONE.  This choice
+     changes the mouse pointer shape to inform the user of what will
+     happen on drop.  We send COPY because our use cases don't modify
+     or link to the original data.  */
+  *pdwEffect = DROPEFFECT_COPY;
+  w32_handle_drag_movement (This, pt);
+  return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE
+w32_drop_target_DragOver (IDropTarget *This, DWORD grfKeyState, POINTL pt,
+			  DWORD *pdwEffect)
+{
+  /* See comment in w32_drop_target_DragEnter.  */
+  *pdwEffect = DROPEFFECT_COPY;
+  w32_handle_drag_movement (This, pt);
+  return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE
+w32_drop_target_DragLeave (IDropTarget *This)
+{
+  return S_OK;
+}
+
+static HGLOBAL w32_try_get_data (IDataObject *pDataObj, int format)
+{
+  FORMATETC formatetc = { format, NULL, DVASPECT_CONTENT, -1,
+			  TYMED_HGLOBAL };
+  STGMEDIUM stgmedium;
+  HRESULT r = IDataObject_GetData (pDataObj, &formatetc, &stgmedium);
+  if (SUCCEEDED (r))
+    {
+      if (stgmedium.tymed == TYMED_HGLOBAL)
+	return stgmedium.hGlobal;
+      ReleaseStgMedium (&stgmedium);
+    }
+  return NULL;
+}
+
+static HRESULT STDMETHODCALLTYPE
+w32_drop_target_Drop (IDropTarget *This, IDataObject *pDataObj,
+		      DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
+{
+  struct w32_drop_target *target = (struct w32_drop_target *)This;
+  *pdwEffect = DROPEFFECT_COPY;
+
+  W32Msg msg = {0};
+  msg.dwModifiers = w32_get_modifiers ();
+  msg.msg.time = GetMessageTime ();
+  msg.msg.pt.x = pt.x;
+  msg.msg.pt.y = pt.y;
+
+  int format = CF_HDROP;
+  HGLOBAL hGlobal = w32_try_get_data (pDataObj, format);
+
+  if (!hGlobal)
+    {
+      format = CF_UNICODETEXT;
+      hGlobal = w32_try_get_data (pDataObj, format);
+    }
+
+  if (!hGlobal)
+    {
+      format = CF_TEXT;
+      hGlobal = w32_try_get_data (pDataObj, format);
+    }
+
+  if (hGlobal)
+      my_post_msg (&msg, target->hwnd, WM_EMACS_DROP, format,
+		   (LPARAM) hGlobal);
+
+  return S_OK;
+}
+
 static void
 w32_createwindow (struct frame *f, int *coords)
 {
@@ -2548,7 +2765,31 @@ w32_createwindow (struct frame *f, int *coords)
       SetWindowLong (hwnd, WND_BACKGROUND_INDEX, FRAME_BACKGROUND_PIXEL (f));
 
       /* Enable drag-n-drop.  */
-      DragAcceptFiles (hwnd, TRUE);
+      struct w32_drop_target *drop_target
+	= malloc (sizeof (struct w32_drop_target));
+
+      if (drop_target != NULL)
+	{
+	  IDropTargetVtbl *vtbl = malloc (sizeof (IDropTargetVtbl));
+	  if (vtbl != NULL)
+	    {
+	      drop_target->hwnd = hwnd;
+	      drop_target->ref_count = 0;
+	      drop_target->i_drop_target.lpVtbl = vtbl;
+	      vtbl->QueryInterface = w32_drop_target_QueryInterface;
+	      vtbl->AddRef = w32_drop_target_AddRef;
+	      vtbl->Release = w32_drop_target_Release;
+	      vtbl->DragEnter = w32_drop_target_DragEnter;
+	      vtbl->DragOver = w32_drop_target_DragOver;
+	      vtbl->DragLeave = w32_drop_target_DragLeave;
+	      vtbl->Drop = w32_drop_target_Drop;
+	      RegisterDragDrop (hwnd, &drop_target->i_drop_target);
+	    }
+	  else
+	    {
+	      free (drop_target);
+	    }
+	}
 
       /* Enable system light/dark theme.  */
       w32_applytheme (hwnd);
@@ -2612,6 +2853,7 @@ my_post_msg (W32Msg * wmsg, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 #ifdef WINDOWSNT
+
 /* The Windows keyboard hook callback.  */
 static LRESULT CALLBACK
 funhook (int code, WPARAM w, LPARAM l)
@@ -2688,8 +2930,8 @@ funhook (int code, WPARAM w, LPARAM l)
 		     can prevent this by setting the
 		     w32-pass-[lr]window-to-system variable to
 		     NIL.  */
-		  if ((hs->vkCode == VK_LWIN && !NILP (Vw32_pass_lwindow_to_system)) ||
-		      (hs->vkCode == VK_RWIN && !NILP (Vw32_pass_rwindow_to_system)))
+		  if ((hs->vkCode == VK_LWIN && !NILP (Vw32_pass_lwindow_to_system))
+		       || (hs->vkCode == VK_RWIN && !NILP (Vw32_pass_rwindow_to_system)))
 		    {
 		      /* Not prevented - Simulate the keypress to the system.  */
 		      memset (inputs, 0, sizeof (inputs));
@@ -3398,6 +3640,8 @@ w32_name_of_message (UINT msg)
       M (WM_EMACS_PAINT),
       M (WM_EMACS_IME_STATUS),
       M (WM_CHAR),
+      M (WM_EMACS_DRAGOVER),
+      M (WM_EMACS_DROP),
 #undef M
       { 0, 0 }
   };
@@ -3464,13 +3708,14 @@ w32_msg_pump (deferred_msg * msg_buf)
 	      /* Produced by complete_deferred_msg; just ignore.  */
 	      break;
 	    case WM_EMACS_CREATEWINDOW:
-	      /* Initialize COM for this window. Even though we don't use it,
-		 some third party shell extensions can cause it to be used in
+	      /* Initialize COM for this window.  Needed for RegisterDragDrop.
+		 Some third party shell extensions can cause it to be used in
 		 system dialogs, which causes a crash if it is not initialized.
 		 This is a known bug in Windows, which was fixed long ago, but
 		 the patch for XP is not publicly available until XP SP3,
 		 and older versions will never be patched.  */
-	      CoInitialize (NULL);
+	      OleInitialize (NULL);
+
 	      w32_createwindow ((struct frame *) msg.wParam,
 				(int *) msg.lParam);
 	      if (!PostThreadMessage (dwMainThreadId, WM_EMACS_DONE, 0, 0))
@@ -3724,7 +3969,7 @@ post_character_message (HWND hwnd, UINT msg,
      message that has no particular effect.  */
   {
     int c = wParam;
-    if (isalpha (c) && wmsg.dwModifiers == ctrl_modifier)
+    if (c_isalpha (c) && wmsg.dwModifiers == ctrl_modifier)
       c = make_ctrl_char (c) & 0377;
     if (c == quit_char
 	|| (wmsg.dwModifiers == 0
@@ -3900,7 +4145,7 @@ deliver_wm_chars (int do_translate, HWND hwnd, UINT msg, UINT wParam,
      most probably, not needed -- and harms a lot).
 
      So, with the usual message pump, the following call to TranslateMessage()
-     is not needed (and is going to be VERY harmful).  With Emacs' message
+     is not needed (and is going to be VERY harmful).  With Emacs's message
      pump, the call is needed.  */
   if (do_translate)
     {
@@ -5105,7 +5350,6 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       return 0;
 
     case WM_MOUSEWHEEL:
-    case WM_DROPFILES:
       wmsg.dwModifiers = w32_get_modifiers ();
       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
       signal_user_input ();
@@ -5596,7 +5840,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       }
 
     case WM_EMACS_DESTROYWINDOW:
-      DragAcceptFiles ((HWND) wParam, FALSE);
+      RevokeDragDrop ((HWND) wParam);
       return DestroyWindow ((HWND) wParam);
 
     case WM_EMACS_HIDE_CARET:
@@ -6150,7 +6394,8 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   if (harfbuzz_available)
     register_font_driver (&harfbuzz_font_driver, f);
 #endif
-  register_font_driver (&uniscribe_font_driver, f);
+  if (uniscribe_available)
+    register_font_driver (&uniscribe_font_driver, f);
   register_font_driver (&w32font_driver, f);
 
   gui_default_parameter (f, parameters, Qfont_backend, Qnil,
@@ -7227,7 +7472,8 @@ w32_create_tip_frame (struct w32_display_info *dpyinfo, Lisp_Object parms)
   if (harfbuzz_available)
     register_font_driver (&harfbuzz_font_driver, f);
 #endif
-  register_font_driver (&uniscribe_font_driver, f);
+  if (uniscribe_available)
+    register_font_driver (&uniscribe_font_driver, f);
   register_font_driver (&w32font_driver, f);
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
@@ -8265,6 +8511,8 @@ DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
 
 
 #ifdef WINDOWSNT
+static int (WINAPI *pfnSHFileOperationW) (LPSHFILEOPSTRUCTW);
+
 /* Moving files to the system recycle bin.
    Used by `move-file-to-trash' instead of the default moving to ~/.Trash  */
 DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
@@ -8275,6 +8523,9 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   Lisp_Object handler;
   Lisp_Object encoded_file;
   Lisp_Object operation;
+
+  /* Required on Windows 9X.  */
+  maybe_load_unicows_dll ();
 
   operation = Qdelete_file;
   if (!NILP (Ffile_directory_p (filename))
@@ -8324,7 +8575,10 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	    | FOF_NOERRORUI | FOF_NO_CONNECTED_ELEMENTS;
 	  file_op_w.fAnyOperationsAborted = FALSE;
 
-	  result = SHFileOperationW (&file_op_w);
+	  /* This is stated to exist on all versions of Windows NT Emacs
+	     supports.  */
+	  eassert (pfnSHFileOperationW);
+	  result = (*pfnSHFileOperationW) (&file_op_w);
 	}
       else
 	{
@@ -8388,6 +8642,10 @@ If optional parameter FRAME is not specified, use selected frame.  */)
 
   return Qnil;
 }
+
+#ifndef CYGWIN
+static BOOL (WINAPI *pfnShellExecuteExW) (LPSHELLEXECUTEINFOW);
+#endif /* !CYGWIN */
 
 DEFUN ("w32-shell-execute", Fw32_shell_execute, Sw32_shell_execute, 2, 4, 0,
        doc: /* Get Windows to perform OPERATION on DOCUMENT.
@@ -8539,6 +8797,9 @@ a ShowWindow flag:
   const int file_url_len = sizeof (file_url_str) - 1;
   int doclen;
 
+  /* Required on Windows 9X.  */
+  maybe_load_unicows_dll ();
+
   if (strncmp (SSDATA (document), file_url_str, file_url_len) == 0)
     {
       /* Passing "file:///" URLs to ShellExecute causes shlwapi.dll to
@@ -8598,7 +8859,7 @@ a ShowWindow flag:
   doc_w = xmalloc (doclen * sizeof (wchar_t));
   pMultiByteToWideChar (CP_UTF8, multiByteToWideCharFlags,
 			SSDATA (document), -1, doc_w, doclen);
-  if (use_unicode)
+  if (use_unicode && pfnShellExecuteExW)
     {
       wchar_t current_dir_w[MAX_PATH];
       SHELLEXECUTEINFOW shexinfo_w;
@@ -8650,7 +8911,7 @@ a ShowWindow flag:
       shexinfo_w.lpDirectory = current_dir_w;
       shexinfo_w.nShow =
 	(FIXNUMP (show_flag) ? XFIXNUM (show_flag) : SW_SHOWDEFAULT);
-      success = ShellExecuteExW (&shexinfo_w);
+      success = (*pfnShellExecuteExW) (&shexinfo_w);
       xfree (doc_w);
     }
   else
@@ -8730,7 +8991,7 @@ lookup_vk_code (char *key)
 	    || (key[0] >= '0' && key[0] <= '9'))
 	  return key[0];
 	if (key[0] >= 'a' && key[0] <= 'z')
-	  return toupper(key[0]);
+	  return c_toupper (key[0]);
       }
     }
 
@@ -9121,6 +9382,7 @@ and width values are in pixels.
   menu_bar.cbSize = sizeof (menu_bar);
   menu_bar.rcBar.right = menu_bar.rcBar.left = 0;
   menu_bar.rcBar.top = menu_bar.rcBar.bottom = 0;
+
   GetMenuBarInfo (FRAME_W32_WINDOW (f), 0xFFFFFFFD, 0, &menu_bar);
   single_menu_bar_height = GetSystemMetrics (SM_CYMENU);
   wrapped_menu_bar_height = GetSystemMetrics (SM_CYMENUSIZE);
@@ -9302,7 +9564,7 @@ w32_frame_list_z_order (struct w32_display_info *dpyinfo, HWND window)
 
 DEFUN ("w32-frame-list-z-order", Fw32_frame_list_z_order,
        Sw32_frame_list_z_order, 0, 1, 0,
-       doc: /* Return list of Emacs' frames, in Z (stacking) order.
+       doc: /* Return list of Emacs's frames, in Z (stacking) order.
 The optional argument DISPLAY specifies which display to ask about.
 DISPLAY should be either a frame or a display name (a string).  If
 omitted or nil, that stands for the selected frame's display.
@@ -9499,7 +9761,7 @@ DEFUN ("file-system-info", Ffile_system_info, Sfile_system_info, 1, 1, 0,
     BOOL result;
 
     /* find the root name of the volume if given */
-    if (isalpha (name[0]) && name[1] == ':')
+    if (c_isalpha (name[0]) && name[1] == ':')
       {
 	rootname[0] = name[0];
 	rootname[1] = name[1];
@@ -10007,6 +10269,8 @@ Internal use only.  */)
 
 #if defined WINDOWSNT && !defined HAVE_DBUS
 
+static BOOL (WINAPI *pfnShell_NotifyIconW) (DWORD, PNOTIFYICONDATAW);
+
 /***********************************************************************
 			  Tray notifications
  ***********************************************************************/
@@ -10273,7 +10537,7 @@ add_tray_notification (struct frame *f, const char *icon, const char *tip,
 	    }
 	}
 
-      if (!Shell_NotifyIconW (NIM_ADD, (PNOTIFYICONDATAW)&nidw))
+      if (!(*pfnShell_NotifyIconW) (NIM_ADD, (PNOTIFYICONDATAW)&nidw))
 	{
 	  /* GetLastError returns meaningless results when
 	     Shell_NotifyIcon fails.  */
@@ -10305,7 +10569,7 @@ delete_tray_notification (struct frame *f, int id)
       nidw.hWnd = FRAME_W32_WINDOW (f);
       nidw.uID = id;
 
-      if (!Shell_NotifyIconW (NIM_DELETE, (PNOTIFYICONDATAW)&nidw))
+      if (!(*pfnShell_NotifyIconW) (NIM_DELETE, (PNOTIFYICONDATAW)&nidw))
 	{
 	  /* GetLastError returns meaningless results when
 	     Shell_NotifyIcon fails.  */
@@ -10372,8 +10636,8 @@ The following parameters are supported:
                     characters long, and will be truncated if it's longer.
 
 Note that versions of Windows before W2K support only `:icon' and `:tip'.
-You can pass the other parameters, but they will be ignored on those
-old systems.
+You can pass the other parameters, but they will be ignored on
+those old systems.
 
 There can be at most one active notification at any given time.  An
 active notification must be removed by calling `w32-notification-close'
@@ -10389,7 +10653,10 @@ usage: (w32-notification-notify &rest PARAMS)  */)
   enum NI_Severity severity;
   unsigned timeout = 0;
 
-  if (nargs == 0)
+  /* Required on Windows 9X.  */
+  maybe_load_unicows_dll ();
+
+  if (nargs == 0 || !pfnShell_NotifyIconW)
     return Qnil;
 
   arg_plist = Flist (nargs, args);
@@ -10448,7 +10715,7 @@ DEFUN ("w32-notification-close",
 {
   struct frame *f = SELECTED_FRAME ();
 
-  if (FIXNUMP (id))
+  if (FIXNUMP (id) && pfnShell_NotifyIconW)
     delete_tray_notification (f, XFIXNUM (id));
 
   return Qnil;
@@ -10559,7 +10826,7 @@ to be converted to forward slashes by the caller.  */)
   else if (EQ (root, QHKCC))
     rootkey = HKEY_CURRENT_CONFIG;
   else if (!NILP (root))
-    error ("unknown root key: %s", SDATA (SYMBOL_NAME (root)));
+    error ("Unknown root key: %s", SDATA (SYMBOL_NAME (root)));
 
   Lisp_Object val = w32_read_registry (rootkey, key, name);
   if (NILP (val) && NILP (root))
@@ -11499,7 +11766,7 @@ globals_of_w32fns (void)
     get_proc_addr (wtsapi32_lib, "WTSRegisterSessionNotification");
   WTSUnRegisterSessionNotification_fn = (WTSUnRegisterSessionNotification_Proc)
     get_proc_addr (wtsapi32_lib, "WTSUnRegisterSessionNotification");
-#endif
+#endif /* WINDOWSNT */
 
   /* Support OS dark mode on Windows 10 version 1809 and higher.
      See `w32_applytheme' which uses appropriate APIs per version of Windows.
@@ -11579,6 +11846,32 @@ Changing the value takes effect only for frames created after the change.  */);
 
   syms_of_w32uniscribe ();
 }
+
+#ifdef WINDOWSNT
+
+/* Initialize pointers to functions whose real implementations exist in
+   UNICOWS.DLL on Windows 9X.  UNICOWS should be a pointer to a loaded
+   handle referencing UNICOWS.DLL, or NULL on Windows NT systems.  */
+
+void
+load_unicows_dll_for_w32fns (HMODULE unicows)
+{
+  if (!unicows)
+    /* The functions following are defined by SHELL32.DLL on Windows
+       NT.  */
+    unicows = GetModuleHandle ("shell32");
+
+  pfnSHFileOperationW
+    = (void *) get_proc_addr (unicows, "SHFileOperationW");
+  pfnShellExecuteExW
+    = (void *) get_proc_addr (unicows, "ShellExecuteExW");
+#ifndef HAVE_DBUS
+  pfnShell_NotifyIconW
+    = (void *) get_proc_addr (unicows, "Shell_NotifyIconW");
+#endif /* !HAVE_DBUS */
+}
+
+#endif /* WINDOWSNT */
 
 #ifdef NTGUI_UNICODE
 

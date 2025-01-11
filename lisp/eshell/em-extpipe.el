@@ -1,6 +1,6 @@
 ;;; em-extpipe.el --- external shell pipelines  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Sean Whitton <spwhitton@spwhitton.name>
 
@@ -217,4 +217,4 @@ as though it were Eshell syntax."
   (error "Unhandled external pipeline in input text"))
 
 (provide 'em-extpipe)
-;;; esh-extpipe.el ends here
+;;; em-extpipe.el ends here

@@ -1,6 +1,6 @@
 /* File IO for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-1988, 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -523,7 +523,7 @@ file_name_directory (Lisp_Object filename)
   else
     {
       dostounix_filename (beg);
-      tem_fn = make_specified_string (beg, -1, p - beg, 0);
+      tem_fn = make_unibyte_string (beg, p - beg);
     }
   SAFE_FREE ();
   return tem_fn;
@@ -3787,8 +3787,9 @@ DEFUN ("unix-sync", Funix_sync, Sunix_sync, 0, 0, "",
 
 DEFUN ("file-newer-than-file-p", Ffile_newer_than_file_p, Sfile_newer_than_file_p, 2, 2, 0,
        doc: /* Return t if file FILE1 is newer than file FILE2.
-If FILE1 does not exist, the answer is nil;
-otherwise, if FILE2 does not exist, the answer is t.  */)
+If FILE1 does not exist, the return value is nil;
+if FILE2 does not exist, the return value is t.
+For existing files, this compares their last-modified times.  */)
   (Lisp_Object file1, Lisp_Object file2)
 {
   struct stat st1, st2;
@@ -3906,7 +3907,7 @@ union read_non_regular
   } s;
   GCALIGNED_UNION_MEMBER
 };
-verify (GCALIGNED (union read_non_regular));
+static_assert (GCALIGNED (union read_non_regular));
 
 static Lisp_Object
 read_non_regular (Lisp_Object state)
@@ -5741,7 +5742,7 @@ DEFUN ("car-less-than-car", Fcar_less_than_car, Scar_less_than_car, 2, 2, 0,
   Lisp_Object ca = Fcar (a), cb = Fcar (b);
   if (FIXNUMP (ca) && FIXNUMP (cb))
     return XFIXNUM (ca) < XFIXNUM (cb) ? Qt : Qnil;
-  return arithcompare (ca, cb, ARITH_LESS);
+  return arithcompare (ca, cb) & Cmp_LT ? Qt : Qnil;
 }
 
 /* Build the complete list of annotations appropriate for writing out
@@ -6316,7 +6317,7 @@ A non-nil CURRENT-ONLY argument means save only current buffer.  */)
 	      continue;
 
 	    enum { growth_factor = 4 };
-	    verify (BUF_BYTES_MAX <= EMACS_INT_MAX / growth_factor);
+	    static_assert (BUF_BYTES_MAX <= EMACS_INT_MAX / growth_factor);
 
 	    set_buffer_internal (b);
 	    if (NILP (Vauto_save_include_big_deletions)

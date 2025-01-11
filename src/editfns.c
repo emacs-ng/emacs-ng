@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -46,7 +46,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 #include <intprops.h>
 #include <stdlib.h>
-#include <verify.h>
 
 #include "composite.h"
 #include "intervals.h"
@@ -1364,8 +1363,8 @@ to unibyte for insertion (see `string-make-unibyte').
 
 When operating on binary data, it may be necessary to preserve the
 original bytes of a unibyte string when inserting it into a multibyte
-buffer; to accomplish this, apply `string-as-multibyte' to the string
-and insert the result.
+buffer; to accomplish this, apply `decode-coding-string' with the
+`no-conversion' coding system to the string and insert the result.
 
 usage: (insert &rest ARGS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
@@ -3408,7 +3407,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
    SPRINTF_BUFSIZE = (sizeof "-." + (LDBL_MAX_10_EXP + 1)
 		      + USEFUL_PRECISION_MAX)
   };
-  verify (USEFUL_PRECISION_MAX > 0);
+  static_assert (USEFUL_PRECISION_MAX > 0);
 
   ptrdiff_t n;		/* The number of the next arg to substitute.  */
   char initial_buffer[1000 + SPRINTF_BUFSIZE];

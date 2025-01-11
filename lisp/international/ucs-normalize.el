@@ -1,6 +1,6 @@
 ;;; ucs-normalize.el --- Unicode normalization NFC/NFD/NFKD/NFKC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Author: Taichi Kawabata <kawabata.taichi@gmail.com>
 ;; Keywords: unicode, normalization
@@ -142,7 +142,8 @@
   (defvar check-range nil)
     (setq check-range
           '((#x00A0 . #x3400) (#xA600 . #xAC00) (#xF900 . #x11100)
-            (#x11100 . #x11A00) (#x1D000 . #x1E100) (#x1EE00 . #x1F300)
+            (#x11100 . #x11A00) (#x16100 . #x16DFF) (#x1CCD0 . #x1CCFF)
+            (#x1D000 . #x1E100) (#x1EE00 . #x1F300)
             (#x1FBF0 . #x1FC00) (#x2F800 . #x2FB00)))
 
   ;; Basic normalization functions

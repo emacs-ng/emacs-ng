@@ -1,6 +1,6 @@
 ;;; menu-bar.el --- define a default menu bar  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1995, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Richard M. Stallman
 ;; Maintainer: emacs-devel@gnu.org
@@ -1359,8 +1359,7 @@ mail status in mode line"))
                   :visible (seq-some #'local-variable-p
                                      '(outline-search-function
                                        outline-regexp outline-level))
-                  :button (:toggle . (and (boundp 'outline-minor-mode)
-                                          outline-minor-mode))))
+                  :button (:toggle . (bound-and-true-p outline-minor-mode))))
 
     (bindings--define-key menu [showhide-tab-line-mode]
       '(menu-item "Window Tab Line" global-tab-line-mode

@@ -1,5 +1,5 @@
 /* ftfont.c -- FreeType font driver.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -174,11 +174,11 @@ get_adstyle_property (FcPattern *p)
   USE_SAFE_ALLOCA;
   tmp = SAFE_ALLOCA (end - str);
   for (i = 0; i < end - str; ++i)
-    tmp[i] = ((end[i] != '?'
-	       && end[i] != '*'
-	       && end[i] != '"'
-	       && end[i] != '-')
-	      ? end[i] : ' ');
+    tmp[i] = ((str[i] != '?'
+	       && str[i] != '*'
+	       && str[i] != '"'
+	       && str[i] != '-')
+	      ? str[i] : ' ');
   adstyle = font_intern_prop (tmp, end - str, 1);
   SAFE_FREE ();
   if (font_style_to_value (FONT_WIDTH_INDEX, adstyle, 0) >= 0)

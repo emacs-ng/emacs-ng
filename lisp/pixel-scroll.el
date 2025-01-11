@@ -1,6 +1,6 @@
 ;;; pixel-scroll.el --- Scroll a line smoothly  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 ;; Author: Tak Kunihiro <tkk@misasa.okayama-u.ac.jp>
 ;; Keywords: mouse
 ;; Package: emacs
@@ -161,22 +161,22 @@ This is only effective if supported by your mouse or touchpad."
 
 (defcustom pixel-scroll-precision-momentum-tick 0.01
   "Number of seconds between each momentum scroll."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-momentum-seconds 1.75
   "The maximum duration in seconds of momentum scrolling."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-momentum-min-velocity 10.0
   "The minimum scrolled pixels per second before momentum scrolling starts."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-initial-velocity-factor (/ 0.0335 4)
   "Factor applied to the initial velocity before momentum scrolling begins."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-large-scroll-height nil
@@ -188,17 +188,17 @@ Nil means to not interpolate such scrolls."
 
 (defcustom pixel-scroll-precision-interpolation-total-time 0.1
   "The total time in seconds to spend interpolating a large scroll."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-interpolation-factor 2.0
   "A factor to apply to the distance of an interpolated scroll."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-interpolation-between-scroll 0.001
   "The number of seconds between each step of an interpolated scroll."
-  :type 'float
+  :type 'number
   :version "29.1")
 
 (defcustom pixel-scroll-precision-interpolate-page nil
@@ -289,7 +289,7 @@ This is and alternative of `scroll-down'.  Scope moves upward."
 (put 'pixel-scroll-down 'scroll-command t)
 
 (defun pixel-bob-at-top-p (amt)
-  "Return non-nil if window-start is at beginning of the current buffer.
+  "Return non-nil if `window-start' is at beginning of the current buffer.
 Window must be vertically scrolled by not more than AMT pixels."
   (and (equal (window-start) (point-min))
        (< (window-vscroll nil t) amt)))
@@ -492,8 +492,8 @@ unseen line just above the scope of current window."
 
 (defun pixel-scroll-down-and-set-window-vscroll (vscroll)
   "Scroll down a line and set VSCROLL in pixels.
-It is important to call `set-window-start' to force the display
-engine use that particular position as the window-start point.
+It is important to call `set-window-start' to force the display engine
+to use that particular position as the `window-start' point.
 Otherwise, redisplay will reset the window's vscroll."
   (set-window-start nil (pixel-point-at-unseen-line) t)
   (set-window-vscroll nil vscroll t))

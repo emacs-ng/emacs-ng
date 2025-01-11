@@ -1,6 +1,6 @@
 /* Minibuffer input and completion.
 
-Copyright (C) 1985-1986, 1993-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-1986, 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -63,7 +63,7 @@ Lisp_Object last_minibuf_string;
 
 static Lisp_Object minibuf_prompt;
 
-/* The frame containinug the most recently opened Minibuffer.  This is
+/* The frame containing the most recently opened minibuffer.  This is
    used only when `minibuffer-follows-selected-frame' is neither nil
    nor t.  */
 
@@ -160,16 +160,15 @@ zip_minibuffer_stacks (Lisp_Object dest_window, Lisp_Object source_window)
       set_window_buffer (dest_window, sw->contents, 0, 0);
       Fset_window_start (dest_window, Fwindow_start (source_window), Qnil);
       Fset_window_point (dest_window, Fwindow_point (source_window));
-      dw->prev_buffers = sw->prev_buffers;
+      wset_prev_buffers (dw, sw->prev_buffers);
       set_window_buffer (source_window, nth_minibuffer (0), 0, 0);
-      sw->prev_buffers = Qnil;
+      wset_prev_buffers (sw, Qnil);
       return;
     }
 
-  if (live_minibuffer_p (dw->contents))
-    call1 (Qpush_window_buffer_onto_prev, dest_window);
-  if (live_minibuffer_p (sw->contents))
-    call1 (Qpush_window_buffer_onto_prev, source_window);
+  call1 (Qrecord_window_buffer, dest_window);
+  call1 (Qrecord_window_buffer, source_window);
+
   acc = merge_c (dw->prev_buffers, sw->prev_buffers, minibuffer_ent_greater);
 
   if (!NILP (acc))
@@ -180,8 +179,9 @@ zip_minibuffer_stacks (Lisp_Object dest_window, Lisp_Object source_window)
       Fset_window_start (dest_window, Fcar (Fcdr (d_ent)), Qnil);
       Fset_window_point (dest_window, Fcar (Fcdr (Fcdr (d_ent))));
     }
-  dw->prev_buffers = acc;
-  sw->prev_buffers = Qnil;
+
+  wset_prev_buffers (dw, acc);
+  wset_prev_buffers (sw, Qnil);
   set_window_buffer (source_window, nth_minibuffer (0), 0, 0);
 }
 
@@ -688,8 +688,8 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
 				    Fframe_first_window (MB_frame), Qnil);
     }
   MB_frame = XWINDOW (XFRAME (selected_frame)->minibuffer_window)->frame;
-  if (live_minibuffer_p (XWINDOW (minibuf_window)->contents))
-    call1 (Qpush_window_buffer_onto_prev, minibuf_window);
+
+  call1 (Qrecord_window_buffer, minibuf_window);
 
   record_unwind_protect_void (minibuffer_unwind);
   if (read_minibuffer_restore_windows)
@@ -913,7 +913,11 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
       XWINDOW (minibuf_window)->cursor.hpos = 0;
       XWINDOW (minibuf_window)->cursor.x = 0;
       XWINDOW (minibuf_window)->must_be_updated_p = true;
-      update_frame (XFRAME (selected_frame), true, true);
+      struct frame *sf = XFRAME (selected_frame);
+      update_frame (sf, true);
+      if (is_tty_frame (sf))
+	combine_updates_for_frame (sf, true);
+
 #ifndef HAVE_NTGUI
       flush_frame (XFRAME (XWINDOW (minibuf_window)->frame));
 #else
@@ -1248,27 +1252,36 @@ static void
 minibuffer_unwind (void)
 {
   struct frame *f;
-  struct window *w;
-  Lisp_Object window;
-  Lisp_Object entry;
 
   if (NILP (exp_MB_frame)) return; /* "Can't happen." */
   f = XFRAME (exp_MB_frame);
-  window = f->minibuffer_window;
-  w = XWINDOW (window);
   if (FRAME_LIVE_P (f))
     {
-      /* minibuf_window = sf->minibuffer_window; */
-      if (!NILP (w->prev_buffers))
+      Lisp_Object window = f->minibuffer_window;
+
+      if (WINDOW_LIVE_P (window))
 	{
-	  entry = Fcar (w->prev_buffers);
-	  w->prev_buffers = Fcdr (w->prev_buffers);
-	  set_window_buffer (window, Fcar (entry), 0, 0);
-	  Fset_window_start (window, Fcar (Fcdr (entry)), Qnil);
-	  Fset_window_point (window, Fcar (Fcdr (Fcdr (entry))));
+	  struct window *w = XWINDOW (window);
+
+	  /* minibuf_window = sf->minibuffer_window; */
+	  if (!NILP (w->prev_buffers))
+	    {
+	      Lisp_Object entry = Fcar (w->prev_buffers);
+
+	      if (BUFFERP (Fcar (entry))
+		  && BUFFER_LIVE_P (XBUFFER (Fcar (entry))))
+		{
+		  wset_prev_buffers (w, Fcdr (w->prev_buffers));
+		  set_window_buffer (window, Fcar (entry), 0, 0);
+		  Fset_window_start (window, Fcar (Fcdr (entry)), Qnil);
+		  Fset_window_point (window, Fcar (Fcdr (Fcdr (entry))));
+		}
+	      else
+		set_window_buffer (window, nth_minibuffer (0), 0, 0);
+	    }
+	  else
+	    set_window_buffer (window, nth_minibuffer (0), 0, 0);
 	}
-      else
-	set_window_buffer (window, nth_minibuffer (0), 0, 0);
     }
 }
 
@@ -1284,6 +1297,11 @@ barf_if_interaction_inhibited (void)
 DEFUN ("read-from-minibuffer", Fread_from_minibuffer,
        Sread_from_minibuffer, 1, 7, 0,
        doc: /* Read a string from the minibuffer, prompting with string PROMPT.
+While in the minibuffer, you can use \\<minibuffer-local-completion-map>\\[minibuffer-complete] and \\[minibuffer-complete-word] to complete your input.
+You can also use \\<minibuffer-local-map>\\[minibuffer-complete-history] to complete using history items in the
+input history HIST, and you can use \\[minibuffer-complete-defaults] to complete using
+the default items in DEFAULT-VALUE.
+
 The optional second arg INITIAL-CONTENTS is an obsolete alternative to
   DEFAULT-VALUE.  It normally should be nil in new code, except when
   HIST is a cons.  It is discussed in more detail below.
@@ -1817,7 +1835,7 @@ or from one of the possible completions.  */)
   return Fsubstring (bestmatch, zero, end);
 }
 
-DEFUN ("all-completions", Fall_completions, Sall_completions, 2, 4, 0,
+DEFUN ("all-completions", Fall_completions, Sall_completions, 2, 3, 0,
        doc: /* Search for partial matches of STRING in COLLECTION.
 
 Test each possible completion specified by COLLECTION
@@ -1850,12 +1868,8 @@ the string key and the associated value.
 
 To be acceptable, a possible completion must also match all the regexps
 in `completion-regexp-list' (unless COLLECTION is a function, in
-which case that function should itself handle `completion-regexp-list').
-
-An obsolete optional fourth argument HIDE-SPACES is still accepted for
-backward compatibility.  If non-nil, strings in COLLECTION that start
-with a space are ignored unless STRING itself starts with a space.  */)
-  (Lisp_Object string, Lisp_Object collection, Lisp_Object predicate, Lisp_Object hide_spaces)
+which case that function should itself handle `completion-regexp-list').  */)
+  (Lisp_Object string, Lisp_Object collection, Lisp_Object predicate)
 {
   Lisp_Object tail, elt, eltstring;
   Lisp_Object allmatches;
@@ -1923,12 +1937,6 @@ with a space are ignored unless STRING itself starts with a space.  */)
 
       if (STRINGP (eltstring)
 	  && SCHARS (string) <= SCHARS (eltstring)
-	  /* If HIDE_SPACES, reject alternatives that start with space
-	     unless the input starts with space.  */
-	  && (NILP (hide_spaces)
-	      || (SBYTES (string) > 0
-		  && SREF (string, 0) == ' ')
-	      || SREF (eltstring, 0) != ' ')
 	  && (tem = Fcompare_strings (eltstring, zero,
 				      make_fixnum (SCHARS (string)),
 				      string, zero,
@@ -2146,7 +2154,7 @@ If FLAG is nil, invoke `try-completion'; if it is t, invoke
     return Ftry_completion (string, Vbuffer_alist, predicate);
   else if (EQ (flag, Qt))
     {
-      Lisp_Object res = Fall_completions (string, Vbuffer_alist, predicate, Qnil);
+      Lisp_Object res = Fall_completions (string, Vbuffer_alist, predicate);
       if (SCHARS (string) > 0)
 	return res;
       else

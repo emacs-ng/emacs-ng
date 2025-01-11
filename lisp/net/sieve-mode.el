@@ -1,6 +1,6 @@
 ;;; sieve-mode.el --- Sieve code editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 
@@ -67,7 +67,7 @@
   "Face used for Sieve Test Commands.")
 
 (defface sieve-tagged-arguments
-  '((t :inherit font-lock-keyword face))
+  '((t :inherit font-lock-keyword-face))
   "Face used for Sieve Tagged Arguments.")
 
 

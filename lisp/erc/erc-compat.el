@@ -1,6 +1,6 @@
 ;;; erc-compat.el --- ERC compatibility code for older Emacsen  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2003, 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2005-2025 Free Software Foundation, Inc.
 
 ;; Author: Alex Schroeder <alex@gnu.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -439,6 +439,18 @@ fallback."
                                            ""))
                                   `(or ,v "")))))
                spec)))))
+
+
+;;;; Misc 31.1
+
+(defun erc-compat--window-no-other-p (window)
+  ;; See bug#73706.
+  (if (fboundp 'window-no-other-p)
+      (window-no-other-p window)
+    (setq window (window-normalize-window window t))
+    (and (not ignore-window-parameters)
+         (window-parameter window 'no-other-window))))
+
 
 (provide 'erc-compat)
 

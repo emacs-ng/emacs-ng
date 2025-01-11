@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989-2024 Free Software Foundation, Inc.
+Copyright (C) 1989-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -19,9 +19,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
+#include <errno.h>
 #include <fcntl.h>
 #include <math.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 /* Include this before including <setjmp.h> to work around bugs with
    older libpng; see Bug#17429.  */
@@ -71,11 +73,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 #if defined USE_CAIRO && defined USE_WEBRENDER
 #undef USE_CAIRO
-#endif
-
-/* Work around GCC bug 54561.  */
-#if GNUC_PREREQ (4, 3, 0)
-# pragma GCC diagnostic ignored "-Wclobbered"
 #endif
 
 #ifdef HAVE_X_WINDOWS
@@ -239,6 +236,9 @@ typedef android_pixmap Pixmap;
 static void image_disable_image (struct frame *, struct image *);
 static void image_edge_detection (struct frame *, struct image *, Lisp_Object,
                                   Lisp_Object);
+
+static double image_compute_scale (struct frame *f, Lisp_Object spec,
+				   struct image *img);
 
 static void init_color_table (void);
 static unsigned long lookup_rgb_color (struct frame *f, int r, int g, int b);
@@ -1363,11 +1363,11 @@ struct image_type
      image type.  Value is true if SPEC is valid.  */
   bool (*valid_p) (Lisp_Object spec);
 
-  /* Load IMG which is used on frame F from information contained in
-     IMG->spec.  Value is true if successful.  */
+  /* Load IMG which is to be used on frame F from information contained
+     in IMG->spec.  Value is true if successful.  */
   bool (*load_img) (struct frame *f, struct image *img);
 
-  /* Free resources of image IMG which is used on frame F.  */
+  /* Free such resources of image IMG as are used on frame F.  */
   void (*free_img) (struct frame *f, struct image *img);
 
 #ifdef WINDOWSNT
@@ -2260,9 +2260,12 @@ search_image_cache (struct frame *f, Lisp_Object spec, EMACS_UINT hash,
      image spec specifies :background.  However, the extra memory
      usage is probably negligible in practice, so we don't bother.  */
 
+  double scale = image_compute_scale (f, spec, NULL);
+
   for (img = c->buckets[i]; img; img = img->next)
     if (img->hash == hash
 	&& !NILP (Fequal (img->spec, spec))
+	&& scale == img->scale
 	&& (ignore_colors || (img->face_foreground == foreground
                               && img->face_background == background
 			      && img->face_font_size == font_size
@@ -2339,22 +2342,20 @@ void
 free_image_cache (struct frame *f)
 {
   struct image_cache *c = FRAME_IMAGE_CACHE (f);
-  if (c)
-    {
-      ptrdiff_t i;
+  ptrdiff_t i;
 
-      /* Cache should not be referenced by any frame when freed.  */
-      eassert (c->refcount == 0);
+  /* This function assumes the caller already verified that the frame's
+     image cache is non-NULL.  */
+  eassert (c);
+  /* Cache should not be referenced by any frame when freed.  */
+  eassert (c->refcount == 0);
 
-      for (i = 0; i < c->used; ++i)
-	free_image (f, c->images[i]);
-      xfree (c->images);
-      xfree (c->buckets);
-      xfree (c);
-      FRAME_IMAGE_CACHE (f) = NULL;
-    }
+  for (i = 0; i < c->used; ++i)
+    free_image (f, c->images[i]);
+  xfree (c->images);
+  xfree (c->buckets);
+  xfree (c);
 }
-
 
 /* Clear image cache of frame F.  FILTER=t means free all images.
    FILTER=nil means clear only images that haven't been
@@ -2707,18 +2708,15 @@ image_get_dimension (struct image *img, Lisp_Object symbol)
   return -1;
 }
 
-/* Compute the desired size of an image with native size WIDTH x HEIGHT,
-   which is to be displayed on F.  Use IMG to deduce the size.  Store
-   the desired size into *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the
-   native size is OK.  */
-
-static void
-compute_image_size (struct frame *f, double width, double height,
-		    struct image *img,
-		    int *d_width, int *d_height)
+/* Calculate the scale of the image.  IMG may be null as it is only
+   required when creating an image, and this function is called from
+   image cache related functions that do not have access to the image
+   structure.  */
+static double
+image_compute_scale (struct frame *f, Lisp_Object spec, struct image *img)
 {
   double scale = 1;
-  Lisp_Object value = image_spec_value (img->spec, QCscale, NULL);
+  Lisp_Object value = image_spec_value (spec, QCscale, NULL);
 
   if (EQ (value, Qdefault))
     {
@@ -2732,7 +2730,9 @@ compute_image_size (struct frame *f, double width, double height,
 	{
 	  /* This is a tag with which callers of `clear_image_cache' can
 	     refer to this image and its likenesses.  */
-	  img->dependencies = Fcons (Qauto, img->dependencies);
+	  if (img)
+	    img->dependencies = Fcons (Qauto, img->dependencies);
+
 	  scale = (FRAME_COLUMN_WIDTH (f) > 10
 		   ? (FRAME_COLUMN_WIDTH (f) / 10.0f) : 1);
 	}
@@ -2755,6 +2755,24 @@ compute_image_size (struct frame *f, double width, double height,
       if (0 <= dval)
 	scale = dval;
     }
+
+  if (img)
+    img->scale = scale;
+
+  return scale;
+}
+
+/* Compute the desired size of an image with native size WIDTH x HEIGHT,
+   which is to be displayed on F.  Use IMG to deduce the size.  Store
+   the desired size into *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the
+   native size is OK.  */
+
+static void
+compute_image_size (struct frame *f, double width, double height,
+		    struct image *img,
+		    int *d_width, int *d_height)
+{
+  double scale = image_compute_scale(f, img->spec, img);
 
   /* If width and/or height is set in the display spec assume we want
      to scale to those values.  If either h or w is unspecified, the
@@ -3095,12 +3113,10 @@ image_set_transform (struct frame *f, struct image *img)
 #endif /* USE_WEBRENDER */
 
 # if defined USE_CAIRO || defined HAVE_XRENDER || defined HAVE_NS || defined HAVE_HAIKU \
-  || defined HAVE_ANDROID
+  || defined HAVE_ANDROID || defined HAVE_NTGUI
   /* We want scale up operations to use a nearest neighbor filter to
      show real pixels instead of munging them, but scale down
-     operations to use a blended filter, to avoid aliasing and the like.
-
-     TODO: implement for Windows.  */
+     operations to use a blended filter, to avoid aliasing and the like.  */
   bool smoothing;
   Lisp_Object s = image_spec_value (img->spec, QCtransform_smoothing, NULL);
   if (NILP (s))
@@ -3111,6 +3127,10 @@ image_set_transform (struct frame *f, struct image *img)
 
 #ifdef HAVE_HAIKU
   img->use_bilinear_filtering = smoothing;
+#endif
+
+#ifdef HAVE_NTGUI
+  img->smoothing = smoothing;
 #endif
 
   /* Perform scale transformation.  */
@@ -3570,8 +3590,9 @@ lookup_image (struct frame *f, Lisp_Object spec, int face_id)
       img->face_font_size = font_size;
       img->face_font_height = face->font->height;
       img->face_font_width = face->font->average_width;
-      img->face_font_family = xmalloc (strlen (font_family) + 1);
-      strcpy (img->face_font_family, font_family);
+      size_t len = strlen (font_family) + 1;
+      img->face_font_family = xmalloc (len);
+      memcpy (img->face_font_family, font_family, len);
       img->load_failed_p = ! img->type->load_img (f, img);
 
       /* If we can't load the image, and we don't have a width and
@@ -3931,7 +3952,7 @@ x_create_x_image_and_pixmap (struct frame *f, int width, int height, int depth,
 static void
 x_destroy_x_image (XImage *ximg)
 {
-  if (ximg)
+  if (ximg->data)
     {
       xfree (ximg->data);
       ximg->data = NULL;
@@ -4202,16 +4223,16 @@ image_destroy_x_image (Emacs_Pix_Container pimg)
   eassert (input_blocked_p ());
   if (pimg)
     {
-#ifdef USE_CAIRO
-#endif	/* USE_CAIRO */
+#if defined USE_CAIRO || defined HAVE_HAIKU || defined HAVE_NS
+      /* On these systems, Emacs_Pix_Containers always point to the same
+	 data as pixmaps in `struct image', and therefore must never be
+	 freed separately.  */
+#endif	/* USE_CAIRO || HAVE_HAIKU || HAVE_NS */
 #ifdef HAVE_NTGUI
       /* Data will be freed by DestroyObject.  */
       pimg->data = NULL;
       xfree (pimg);
 #endif /* HAVE_NTGUI */
-#ifdef HAVE_NS
-      ns_release_object (pimg);
-#endif /* HAVE_NS */
     }
 #endif
 }
@@ -4225,7 +4246,7 @@ static void
 gui_put_x_image (struct frame *f, Emacs_Pix_Container pimg,
                  Emacs_Pixmap pixmap, int width, int height)
 {
-#if defined USE_CAIRO || defined HAVE_HAIKU
+#if defined USE_CAIRO || defined HAVE_HAIKU || defined HAVE_NS
   eassert (pimg == pixmap);
 #elif defined HAVE_X_WINDOWS
   GC gc;
@@ -4237,12 +4258,7 @@ gui_put_x_image (struct frame *f, Emacs_Pix_Container pimg,
   XFreeGC (FRAME_X_DISPLAY (f), gc);
 #elif defined HAVE_ANDROID
   android_put_image (pixmap, pimg);
-#endif
-
-#ifdef HAVE_NS
-  eassert (pimg == pixmap);
-  ns_retain_object (pimg);
-#endif
+#endif /* HAVE_ANDROID */
 }
 
 /* Thin wrapper for image_create_x_image_and_pixmap_1, so that it matches
@@ -5492,7 +5508,7 @@ static const struct image_keyword xpm_format[XPM_LAST] =
 
 #if defined HAVE_X_WINDOWS && !defined USE_CAIRO
 
-/* Define ALLOC_XPM_COLORS if we can use Emacs' own color allocation
+/* Define ALLOC_XPM_COLORS if we can use Emacs's own color allocation
    functions for allocating image colors.  Our own functions handle
    color allocation failures more gracefully than the ones on the XPM
    lib.  */
@@ -5595,15 +5611,13 @@ xpm_color_bucket (char *color_name)
 static struct xpm_cached_color *
 xpm_cache_color (struct frame *f, char *color_name, XColor *color, int bucket)
 {
-  size_t nbytes;
-  struct xpm_cached_color *p;
-
   if (bucket < 0)
     bucket = xpm_color_bucket (color_name);
 
-  nbytes = FLEXSIZEOF (struct xpm_cached_color, name, strlen (color_name) + 1);
-  p = xmalloc (nbytes);
-  strcpy (p->name, color_name);
+  size_t len = strlen (color_name) + 1;
+  size_t nbytes = FLEXSIZEOF (struct xpm_cached_color, name, len);
+  struct xpm_cached_color *p = xmalloc (nbytes);
+  memcpy (p->name, color_name, len);
   p->color = *color;
   p->next = xpm_color_cache[bucket];
   xpm_color_cache[bucket] = p;
@@ -6300,12 +6314,30 @@ static const char xpm_color_key_strings[][4] = {"s", "m", "g4", "g", "c"};
 static int
 xpm_str_to_color_key (const char *s)
 {
-  int i;
-
-  for (i = 0; i < ARRAYELTS (xpm_color_key_strings); i++)
+  for (int i = 0; i < ARRAYELTS (xpm_color_key_strings); i++)
     if (strcmp (xpm_color_key_strings[i], s) == 0)
       return i;
   return -1;
+}
+
+static int
+xpm_str_to_int (char **buf)
+{
+  char *p;
+
+  errno = 0;
+  long result = strtol (*buf, &p, 10);
+  if (errno || p == *buf || result < INT_MIN || result > INT_MAX)
+    return -1;
+
+  /* Error out if we see something like "12x3xyz".  */
+  if (!c_isspace (*p) && *p != '\0')
+    return -1;
+
+  /* Update position to read next integer.  */
+  *buf = p;
+
+  return result;
 }
 
 static bool
@@ -6365,10 +6397,14 @@ xpm_load_image (struct frame *f,
     goto failure;
   memcpy (buffer, beg, len);
   buffer[len] = '\0';
-  if (sscanf (buffer, "%d %d %d %d", &width, &height,
-	      &num_colors, &chars_per_pixel) != 4
-      || width <= 0 || height <= 0
-      || num_colors <= 0 || chars_per_pixel <= 0)
+  char *next_int = buffer;
+  if ((width = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((height = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((num_colors = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((chars_per_pixel = xpm_str_to_int (&next_int)) <= 0)
     goto failure;
 
   if (!check_image_size (f, width, height))
@@ -6556,9 +6592,13 @@ xpm_load_image (struct frame *f,
 
  failure:
   image_error ("Invalid XPM3 file (%s)", img->spec);
-  image_destroy_x_image (ximg);
-  image_destroy_x_image (mask_img);
-  image_clear_image (f, img);
+  if (ximg)
+    {
+      image_destroy_x_image (ximg);
+      if (mask_img)
+	image_destroy_x_image (mask_img);
+      image_clear_image (f, img);
+    }
   return 0;
 
 #undef match
@@ -8248,7 +8288,7 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
   bool transparent_p;
   struct png_memory_storage tbr;  /* Data to be read */
   ptrdiff_t nbytes;
-  Emacs_Pix_Container ximg, mask_img = NULL;
+  Emacs_Pix_Container ximg;
 
   /* Find out what file to load.  */
   specified_file = image_spec_value (img->spec, QCfile, NULL);
@@ -8339,9 +8379,12 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 
   /* Set error jump-back.  We come back here when the PNG library
      detects an error.  */
+
+  struct png_load_context *volatile c_volatile = c;
   if (FAST_SETJMP (PNG_JMPBUF (png_ptr)))
     {
     error:
+      c = c_volatile;
       if (c->png_ptr)
 	png_destroy_read_struct (&c->png_ptr, &c->info_ptr, &c->end_info);
       xfree (c->pixels);
@@ -8350,6 +8393,13 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 	emacs_fclose (c->fp);
       return 0;
     }
+
+#if GCC_LINT && __GNUC__ && !__clang__
+  /* These useless assignments pacify GCC 14.2.1 x86-64
+     <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+  c = c_volatile;
+  fp = c->fp;
+#endif
 
   /* Read image info.  */
   if (!NILP (specified_data))
@@ -8477,6 +8527,7 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 
   /* Create an image and pixmap serving as mask if the PNG image
      contains an alpha channel.  */
+  Emacs_Pix_Container mask_img = NULL;
   if (channels == 4
       && transparent_p
       && !image_create_x_image_and_pixmap (f, img, width, height, 1,
@@ -8972,13 +9023,12 @@ jpeg_load_body (struct frame *f, struct image *img,
 		struct my_jpeg_error_mgr *mgr)
 {
   Lisp_Object specified_file, specified_data;
-  FILE *volatile fp = NULL;
+  FILE *fp = NULL;
   JSAMPARRAY buffer;
   int row_stride, x, y;
-  int width, height;
-  int i, ir, ig, ib;
-  unsigned long *colors;
-  Emacs_Pix_Container ximg = NULL;
+  int width, height, ncomp;
+  int ir, ig, ib;
+  Emacs_Pix_Container volatile ximg_volatile = NULL;
 
   /* Open the JPEG file.  */
   specified_file = image_spec_value (img->spec, QCfile, NULL);
@@ -9013,8 +9063,15 @@ jpeg_load_body (struct frame *f, struct image *img,
      error is detected.  This function will perform a longjmp.  */
   mgr->cinfo.err = jpeg_std_error (&mgr->pub);
   mgr->pub.error_exit = my_error_exit;
+  struct my_jpeg_error_mgr *volatile mgr_volatile = mgr;
+  struct image *volatile img_volatile = img;
+  FILE *volatile fp_volatile = fp;
   if (sys_setjmp (mgr->setjmp_buffer))
     {
+      mgr = mgr_volatile;
+      img = img_volatile;
+      fp = fp_volatile;
+
       switch (mgr->failure_code)
 	{
 	case MY_JPEG_ERROR_EXIT:
@@ -9040,12 +9097,21 @@ jpeg_load_body (struct frame *f, struct image *img,
       jpeg_destroy_decompress (&mgr->cinfo);
 
       /* If we already have an XImage, free that.  */
+      Emacs_Pix_Container ximg = ximg_volatile;
       if (ximg)
 	image_destroy_x_image (ximg);
       /* Free pixmap and colors.  */
       image_clear_image (f, img);
       return 0;
     }
+
+#if GCC_LINT && __GNUC__ && !__clang__
+  /* These useless assignments pacify GCC 14.2.1 x86-64
+     <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+  mgr = mgr_volatile;
+  img = img_volatile;
+  fp = fp_volatile;
+#endif
 
   /* Create the JPEG decompression object.  Let it read from fp.
 	 Read the JPEG image header.  */
@@ -9059,12 +9125,17 @@ jpeg_load_body (struct frame *f, struct image *img,
 
   jpeg_read_header (&mgr->cinfo, 1);
 
-  /* Customize decompression so that color quantization will be used.
-	 Start decompression.  */
-  mgr->cinfo.quantize_colors = 1;
+  /* Start decompression.  */
   jpeg_start_decompress (&mgr->cinfo);
   width = img->width = mgr->cinfo.output_width;
   height = img->height = mgr->cinfo.output_height;
+  ncomp = mgr->cinfo.output_components;
+  if (ncomp > 2)
+    ir = 0, ig = 1, ib = 2;
+  else if (ncomp > 1)
+    ir = 0, ig = 1, ib = 0;
+  else
+    ir = 0, ig = 0, ib = 0;
 
   if (!check_image_size (f, width, height))
     {
@@ -9073,60 +9144,43 @@ jpeg_load_body (struct frame *f, struct image *img,
     }
 
   /* Create X image and pixmap.  */
-  if (!image_create_x_image_and_pixmap (f, img, width, height, 0, &ximg, 0))
+  Emacs_Pix_Container ximg;
+  bool ximg_ok = image_create_x_image_and_pixmap (f, img, width, height, 0,
+						  &ximg, 0);
+  ximg_volatile = ximg;
+  if (!ximg_ok)
     {
       mgr->failure_code = MY_JPEG_CANNOT_CREATE_X;
       sys_longjmp (mgr->setjmp_buffer, 1);
     }
 
-  /* Allocate colors.  When color quantization is used,
-     mgr->cinfo.actual_number_of_colors has been set with the number of
-     colors generated, and mgr->cinfo.colormap is a two-dimensional array
-     of color indices in the range 0..mgr->cinfo.actual_number_of_colors.
-     No more than 255 colors will be generated.  */
-  USE_SAFE_ALLOCA;
-  {
-    if (mgr->cinfo.out_color_components > 2)
-      ir = 0, ig = 1, ib = 2;
-    else if (mgr->cinfo.out_color_components > 1)
-      ir = 0, ig = 1, ib = 0;
-    else
-      ir = 0, ig = 0, ib = 0;
-
-    /* Use the color table mechanism because it handles colors that
-       cannot be allocated nicely.  Such colors will be replaced with
-       a default color, and we don't have to care about which colors
-       can be freed safely, and which can't.  */
-    init_color_table ();
-    SAFE_NALLOCA (colors, 1, mgr->cinfo.actual_number_of_colors);
-
-    for (i = 0; i < mgr->cinfo.actual_number_of_colors; ++i)
-      {
-	/* Multiply RGB values with 255 because X expects RGB values
-	   in the range 0..0xffff.  */
-	int r = mgr->cinfo.colormap[ir][i] << 8;
-	int g = mgr->cinfo.colormap[ig][i] << 8;
-	int b = mgr->cinfo.colormap[ib][i] << 8;
-	colors[i] = lookup_rgb_color (f, r, g, b);
-      }
-
-#ifdef COLOR_TABLE_SUPPORT
-    /* Remember those colors actually allocated.  */
-    img->colors = colors_in_color_table (&img->ncolors);
-    free_color_table ();
-#endif /* COLOR_TABLE_SUPPORT */
-  }
-
-  /* Read pixels.  */
-  row_stride = width * mgr->cinfo.output_components;
+  /* Allocate scanlines buffer and Emacs color table.  */
+  row_stride = width * ncomp;
   buffer = mgr->cinfo.mem->alloc_sarray ((j_common_ptr) &mgr->cinfo,
 					 JPOOL_IMAGE, row_stride, 1);
+  init_color_table ();
+
+  /* Fill the X image from JPEG data.  */
   for (y = 0; y < height; ++y)
     {
       jpeg_read_scanlines (&mgr->cinfo, buffer, 1);
-      for (x = 0; x < mgr->cinfo.output_width; ++x)
-	PUT_PIXEL (ximg, x, y, colors[buffer[0][x]]);
+      for (x = 0; x < width; ++x)
+	{
+	  int off = x * ncomp;
+	  /* Multiply RGB values with 255 because X expects RGB values
+	     in the range 0..0xffff.  */
+	  int r = buffer[0][off + ir] << 8;
+	  int g = buffer[0][off + ig] << 8;
+	  int b = buffer[0][off + ib] << 8;
+	  PUT_PIXEL (ximg, x, y, lookup_rgb_color (f, r, g, b));
+	}
     }
+
+#ifdef COLOR_TABLE_SUPPORT
+  /* Remember those colors actually allocated.  */
+  img->colors = colors_in_color_table (&img->ncolors);
+  free_color_table ();
+#endif /* COLOR_TABLE_SUPPORT */
 
   /* Clean up.  */
   jpeg_finish_decompress (&mgr->cinfo);
@@ -9141,7 +9195,6 @@ jpeg_load_body (struct frame *f, struct image *img,
 
   /* Put ximg into the image.  */
   image_put_x_image (f, img, ximg, 0);
-  SAFE_FREE ();
   return 1;
 }
 
@@ -10925,13 +10978,13 @@ static struct animation_cache *animation_cache = NULL;
 static struct animation_cache *
 imagemagick_create_cache (char *signature)
 {
+  size_t len = strlen (signature) + 1;
   struct animation_cache *cache
-    = xmalloc (FLEXSIZEOF (struct animation_cache, signature,
-			   strlen (signature) + 1));
+    = xmalloc (FLEXSIZEOF (struct animation_cache, signature, len));
   cache->wand = 0;
   cache->index = 0;
   cache->next = 0;
-  strcpy (cache->signature, signature);
+  memcpy (cache->signature, signature, len);
   return cache;
 }
 
@@ -11712,7 +11765,11 @@ DEF_DLL_FN (void, rsvg_handle_get_dimensions,
 DEF_DLL_FN (gboolean, rsvg_handle_set_stylesheet,
 	    (RsvgHandle *, const guint8 *, gsize, GError **));
 #  endif
+#  if LIBRSVG_CHECK_VERSION (2, 59, 0)
+DEF_DLL_FN (GdkPixbuf *, rsvg_handle_get_pixbuf_and_error, (RsvgHandle *, GError **));
+#  else
 DEF_DLL_FN (GdkPixbuf *, rsvg_handle_get_pixbuf, (RsvgHandle *));
+#  endif
 DEF_DLL_FN (int, gdk_pixbuf_get_width, (const GdkPixbuf *));
 DEF_DLL_FN (int, gdk_pixbuf_get_height, (const GdkPixbuf *));
 DEF_DLL_FN (guchar *, gdk_pixbuf_get_pixels, (const GdkPixbuf *));
@@ -11771,8 +11828,11 @@ init_svg_functions (void)
 #if LIBRSVG_CHECK_VERSION (2, 48, 0)
   LOAD_DLL_FN (library, rsvg_handle_set_stylesheet);
 #endif
+#if LIBRSVG_CHECK_VERSION (2, 59, 0)
+  LOAD_DLL_FN (library, rsvg_handle_get_pixbuf_and_error);
+#else
   LOAD_DLL_FN (library, rsvg_handle_get_pixbuf);
-
+#endif
   LOAD_DLL_FN (gdklib, gdk_pixbuf_get_width);
   LOAD_DLL_FN (gdklib, gdk_pixbuf_get_height);
   LOAD_DLL_FN (gdklib, gdk_pixbuf_get_pixels);
@@ -11817,7 +11877,11 @@ init_svg_functions (void)
 #  if LIBRSVG_CHECK_VERSION (2, 48, 0)
 #   undef rsvg_handle_set_stylesheet
 #  endif
-#  undef rsvg_handle_get_pixbuf
+#  if LIBRSVG_CHECK_VERSION (2, 59, 0)
+#   undef rsvg_handle_get_pixbuf_and_error
+#  else
+#   undef rsvg_handle_get_pixbuf
+#  endif
 #  if LIBRSVG_CHECK_VERSION (2, 32, 0)
 #   undef g_file_new_for_path
 #   undef g_memory_input_stream_new_from_data
@@ -11858,7 +11922,11 @@ init_svg_functions (void)
 #  if LIBRSVG_CHECK_VERSION (2, 48, 0)
 #   define rsvg_handle_set_stylesheet fn_rsvg_handle_set_stylesheet
 #  endif
-#  define rsvg_handle_get_pixbuf fn_rsvg_handle_get_pixbuf
+#  if LIBRSVG_CHECK_VERSION (2, 59, 0)
+#   define rsvg_handle_get_pixbuf_and_error fn_rsvg_handle_get_pixbuf_and_error
+#  else
+#   define rsvg_handle_get_pixbuf fn_rsvg_handle_get_pixbuf
+#  endif
 #  if LIBRSVG_CHECK_VERSION (2, 32, 0)
 #   define g_file_new_for_path fn_g_file_new_for_path
 #   define g_memory_input_stream_new_from_data \
@@ -12363,8 +12431,13 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 
   /* We can now get a valid pixel buffer from the svg file, if all
      went ok.  */
+#if LIBRSVG_CHECK_VERSION (2, 59, 0)
+  pixbuf = rsvg_handle_get_pixbuf_and_error (rsvg_handle, &err);
+  if (err) goto rsvg_error;
+#else
   pixbuf = rsvg_handle_get_pixbuf (rsvg_handle);
   if (!pixbuf) goto rsvg_error;
+#endif
   g_object_unref (rsvg_handle);
   xfree (wrapped_contents);
 

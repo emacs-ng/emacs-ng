@@ -1,6 +1,6 @@
 ;;; replace.el --- replace commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2024 Free
+;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2025 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -352,7 +352,7 @@ should a regexp."
        to))
    regexp-flag))
 
-(defun query-replace-read-args (prompt regexp-flag &optional noerror)
+(defun query-replace-read-args (prompt regexp-flag &optional noerror no-highlight)
   (unless noerror
     (barf-if-buffer-read-only))
   (save-mark-and-excursion
@@ -364,7 +364,7 @@ should a regexp."
                       :filter (when (use-region-p)
                                 (replace--region-filter
                                  (funcall region-extract-function 'bounds)))
-                      :highlight query-replace-lazy-highlight
+                      :highlight (and query-replace-lazy-highlight (not no-highlight))
                       :regexp regexp-flag
                       :regexp-function (or replace-regexp-function
                                            delimited-flag
