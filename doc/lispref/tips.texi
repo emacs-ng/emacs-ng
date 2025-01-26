@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1993, 1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1993, 1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Tips
@@ -226,6 +226,10 @@ The macro should receive the name to be
 defined as the first argument.  That will help various tools find the
 definition automatically.  Avoid constructing the names in the macro
 itself, since that would confuse these tools.
+If your macro cannot be written in this style, the macro can still
+help these tools find the defining call by putting the property
+@code{definition-name} or @code{find-function-type-alist} on the name.
+@xref{Finding Definitions}.
 
 @item
 In some other systems there is a convention of choosing variable names
@@ -611,7 +615,7 @@ little space in a running Emacs.
 @item
 Format the documentation string so that it fits in an Emacs window on an
 80-column screen.  It is a good idea for most lines to be no wider than
-60 characters.  The first line should not be wider than 67 characters
+60 characters.  The first line should not be wider than 74 characters,
 or it will look bad in the output of @code{apropos}.
 
 @vindex emacs-lisp-docstring-fill-column
@@ -1057,7 +1061,7 @@ explains these conventions, starting with an example:
 @group
 ;;; foo.el --- Support for the Foo programming language  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2021 Your Name
+;; Copyright (C) 2010-2025 Your Name
 @end group
 
 ;; Author: Your Name <yourname@@example.com>
@@ -1087,11 +1091,11 @@ set more variables in the @samp{-*-} specification, add it after
 @code{lexical-binding}.  If this would make the first line too long, use
 a Local Variables section at the end of the file.
 
-  The copyright notice usually lists your name (if you wrote the
-file).  If you have an employer who claims copyright on your work, you
-might need to list them instead.  Do not say that the copyright holder
-is the Free Software Foundation (or that the file is part of GNU
-Emacs) unless your file has been accepted into the Emacs distribution.
+  The copyright notice usually lists your name (if you wrote the file).
+If you have an employer who claims copyright on your work, you might
+need to list them instead.  Do not say that the copyright holder is the
+Free Software Foundation (or that the file is part of GNU Emacs) unless
+your file has been accepted into the Emacs distribution or GNU ELPA.
 For more information on the form of copyright and license notices, see
 @uref{https://www.gnu.org/licenses/gpl-howto.html, the guide on the GNU
 website}.
@@ -1158,8 +1162,8 @@ the place to write arbitrary keywords that describe their package,
 rather than just the relevant Finder keywords.
 
 @item URL
-@itemx Homepage
-These lines state the website of the library.
+This line states the website of the library.  @samp{Homepage} is a
+deprecated alternative to @samp{URL}.
 
 @item Package-Version
 If @samp{Version} is not suitable for use by the package manager, then

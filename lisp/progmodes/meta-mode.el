@@ -1,6 +1,6 @@
 ;;; meta-mode.el --- major mode for editing Metafont or MetaPost sources -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Ulrik Vieth <vieth@thphy.uni-duesseldorf.de>
 ;; Version: 1.0
@@ -198,7 +198,7 @@
   ;;
   ;; The expected syntax of an item is either "word" or "symbol",
   ;; possibly ending with optional whitespace.  Everything following
-  ;; the item (but belonging to it) is expected to by skipable by
+  ;; the item (but belonging to it) is expected to by skippable by
   ;; `forward-sexp'.  The list of items is expected to be separated
   ;; by commas and terminated by semicolons or equals signs.
   ;;
@@ -535,7 +535,7 @@ If the list was changed, sort the list and remove duplicates first."
 (defun meta-indent-in-string-p ()
   "Tell if the point is in a string."
   (or (nth 3 (syntax-ppss))
-      (eq (get-text-property (point) 'face) font-lock-string-face)))
+      (eq (get-text-property (point) 'face) 'font-lock-string-face)))
 
 (defun meta-indent-looking-at-code (regexp)
   "Same as `looking-at' but checks that the point is not in a string."

@@ -1,6 +1,6 @@
 ;;; erc-scenarios-misc.el --- Misc scenarios for ERC -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -51,7 +51,7 @@
       (with-current-buffer (erc-d-t-wait-for 5 (get-buffer "#chan/foonet"))
         (erc-d-t-search-for 10 "<bob/foonet>")
         (erc-d-t-absent-for 0.1 "<joe")
-        (funcall expect 3 "was created on")))
+        (funcall expect 10 "was created on")))
 
     (ert-info ("#chan@barnet exists")
       (with-current-buffer (erc-d-t-wait-for 5 (get-buffer "#chan/barnet"))

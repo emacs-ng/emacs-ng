@@ -1,6 +1,6 @@
 ;;; prolog.el --- major mode for Prolog (and Mercury) -*- lexical-binding:t -*-
 
-;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2024 Free
+;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2025 Free
 ;; Software Foundation, Inc.
 
 ;; Authors: Emil Åström <emil_astrom(at)hotmail(dot)com>
@@ -1868,9 +1868,9 @@ Argument BOUND is a buffer position limiting searching."
 
   ;; Define Prolog faces
   (defface prolog-redo-face
-    '((((class grayscale)) (:italic t))
+    '((((class grayscale)) (:slant italic))
       (((class color)) (:foreground "darkorchid"))
-      (t (:italic t)))
+      (t (:slant italic)))
     "Prolog mode face for highlighting redo trace lines."
     :group 'prolog-faces)
   (defface prolog-exit-face
@@ -1881,9 +1881,9 @@ Argument BOUND is a buffer position limiting searching."
     "Prolog mode face for highlighting exit trace lines."
     :group 'prolog-faces)
   (defface prolog-exception-face
-    '((((class grayscale)) (:bold t :italic t :underline t))
-      (((class color)) (:bold t :foreground "black" :background "Khaki"))
-      (t (:bold t :italic t :underline t)))
+    '((((class grayscale)) (:weight bold :slant italic :underline t))
+      (((class color)) (:weight bold :foreground "black" :background "Khaki"))
+      (t (:weight bold :slant italic :underline t)))
     "Prolog mode face for highlighting exception trace lines."
     :group 'prolog-faces)
   (defface prolog-warning-face
@@ -1899,9 +1899,9 @@ Argument BOUND is a buffer position limiting searching."
     '((((class color) (background light)) (:foreground "Purple"))
       (((class color) (background dark)) (:foreground "Cyan"))
       (((class grayscale) (background light))
-       :foreground "LightGray" :bold t)
-      (((class grayscale) (background dark)) (:foreground "DimGray" :bold t))
-      (t (:bold t)))
+       :foreground "LightGray" :weight bold)
+      (((class grayscale) (background dark)) (:foreground "DimGray" :weight bold))
+      (t (:weight bold)))
     "Face name to use for compiler warnings."
     :group 'prolog-faces)
   (define-obsolete-face-alias 'prolog-builtin-face
@@ -1922,12 +1922,12 @@ Argument BOUND is a buffer position limiting searching."
         ;; "Native" Prolog patterns
         (head-predicates
          (list (format "^\\(%s\\)\\((\\|[ \t]*:-\\)" prolog-atom-regexp)
-               1 font-lock-function-name-face))
+               1 'font-lock-function-name-face))
                                        ;(list (format "^%s" prolog-atom-regexp)
                                        ;      0 font-lock-function-name-face))
         (head-predicates-1
          (list (format "\\.[ \t]*\\(%s\\)" prolog-atom-regexp)
-               1 font-lock-function-name-face) )
+               1 'font-lock-function-name-face))
         (variables
          '("\\<\\([_A-Z][a-zA-Z0-9_]*\\)"
            1 font-lock-variable-name-face))
@@ -1941,7 +1941,7 @@ Argument BOUND is a buffer position limiting searching."
         (predspecs                      ; module:predicate/cardinality
          (list (format "\\<\\(%s:\\|\\)%s/[0-9]+"
                        prolog-atom-regexp prolog-atom-regexp)
-               0 font-lock-function-name-face 'prepend))
+               0 'font-lock-function-name-face 'prepend))
         (keywords                       ; directives (queries)
          (list
           (if (eq prolog-system 'mercury)

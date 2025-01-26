@@ -1,5 +1,5 @@
 ;;; org-mobile.el --- Code for Asymmetric Sync With a Mobile Device -*- lexical-binding: t; -*-
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -392,7 +392,7 @@ agenda view showing the flagged items."
 	  (org-agenda nil "?"))))))
 
 (defun org-mobile-check-setup ()
-  "Check if org-mobile-directory has been set up."
+  "Check if `org-mobile-directory' has been set up."
   (org-mobile-cleanup-encryption-tempfile)
   (unless (and org-directory
 	       (stringp org-directory)

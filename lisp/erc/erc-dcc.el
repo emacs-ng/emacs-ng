@@ -1,6 +1,6 @@
 ;;; erc-dcc.el --- CTCP DCC module for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 ;; Author: Ben A. Mesander <ben@gnu.ai.mit.edu>
 ;;         Noah Friedman <friedman@prep.ai.mit.edu>
@@ -173,7 +173,7 @@ ARGS is a plist.  Return nil on no match.
 
 The property :nick is treated specially, if it contains a `!' character,
 it is treated as a nick!user@host string, and compared with the :nick property
-value of the individual elements using string-equal.  Otherwise it is
+value of the individual elements using `string-equal'.  Otherwise it is
 compared with `erc-nick-equal-p' which is IRC case-insensitive."
   (let ((list erc-dcc-list)
         result test)

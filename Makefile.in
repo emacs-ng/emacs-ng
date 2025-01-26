@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1992-2024 Free Software Foundation, Inc.
+# Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -375,10 +375,10 @@ COPYDIR = ${srcdir}/etc ${srcdir}/lisp
 COPYDESTS = "$(DESTDIR)${etcdir}" "$(DESTDIR)${lispdir}"
 
 ifeq (${ns_self_contained},no)
-BIN_DESTDIR='$(DESTDIR)${bindir}/'
+BIN_DESTDIR = $(DESTDIR)${bindir}/
 ELN_DESTDIR = $(DESTDIR)${libdir}/emacs/${version}/
 else
-BIN_DESTDIR='${ns_appbindir}/'
+BIN_DESTDIR = ${ns_appbindir}/
 ELN_DESTDIR = ${ns_applibdir}/
 endif
 
@@ -395,7 +395,7 @@ bootstrap-all:
 
 .PHONY: bootstrap-all actual-all advice-on-failure sanity-check
 
-actual-all: ${SUBDIR} info $(gsettings_SCHEMAS:.xml=.valid) src-depending-on-lisp
+actual-all: ${SUBDIR} info $(gsettings_SCHEMAS:.xml=.valid) src-depending-on-lisp blessmail
 
 # ADVICE-ON-FAILURE-BEGIN:all
 # You could try to:
@@ -616,7 +616,7 @@ $(srcdir)/configure: $(srcdir)/configure.ac $(srcdir)/m4/*.m4
 ## don't have to duplicate the list of utilities to install in
 ## this Makefile as well.
 
-install: actual-all install-arch-indep install-etcdoc install-arch-dep install-$(NTDIR) blessmail install-eln install-gsettings-schemas
+install: actual-all install-arch-indep install-etcdoc install-arch-dep install-$(NTDIR) install-eln install-gsettings-schemas
 	@true
 
 ## Ensure that $subdir contains a subdirs.el file.
@@ -929,8 +929,14 @@ install-etc:
 install-eln: lisp
 ifeq ($(HAVE_NATIVE_COMP),yes)
 	umask 022 ; \
-	find native-lisp -type d -exec $(MKDIR_P) "$(ELN_DESTDIR){}" \; ; \
-	find native-lisp -type f -exec ${INSTALL_ELN} "{}" "$(ELN_DESTDIR){}" \;
+	find native-lisp -exec sh -c \
+	  'for f in "$$@"; do \
+	     if test -d "$$f"; then \
+	       $(MKDIR_P) '\''$(ELN_DESTDIR)'\''"$$f" || exit; \
+	     else \
+	       $(INSTALL_ELN) "$$f" '\''$(ELN_DESTDIR)'\''"$$f"; \
+	     fi || exit; \
+	   done' - {} +
 endif
 
 ### Build Emacs and install it, stripping binaries while installing them.
@@ -945,7 +951,7 @@ uninstall: uninstall-$(NTDIR) uninstall-doc uninstall-gsettings-schemas
 	rm -f "$(DESTDIR)$(includedir)/emacs-module.h"
 	$(MAKE) -C lib-src uninstall
 	-unset CDPATH; \
-	for dir in "$(DESTDIR)${lispdir}" "$(DESTDIR)${etcdir}" "$(ELN_DESTDIR)" ; do 	\
+	for dir in "$(DESTDIR)${lispdir}" "$(DESTDIR)${etcdir}" '$(ELN_DESTDIR)' ; do 	\
 	  if [ -d "$${dir}" ]; then			\
 	    case `cd "$${dir}" ; pwd -P` in		\
 	      "`cd ${srcdir} ; pwd -P`"* ) ;;		\
@@ -1325,7 +1331,7 @@ emacslog = build-aux/gitlog-to-emacslog
 # The ChangeLog history files are called ChangeLog.1, ChangeLog.2, ...,
 # ChangeLog.$(CHANGELOG_HISTORY_INDEX_MAX).  $(CHANGELOG_N) stands for
 # the newest (highest-numbered) ChangeLog history file.
-CHANGELOG_HISTORY_INDEX_MAX = 3
+CHANGELOG_HISTORY_INDEX_MAX = 4
 CHANGELOG_N = ChangeLog.$(CHANGELOG_HISTORY_INDEX_MAX)
 
 # Convert git commit log to ChangeLog file.  make-dist uses this.
@@ -1335,7 +1341,7 @@ ChangeLog:
 	  ./$(emacslog) -o $(CHANGELOG) -n $(CHANGELOG_HISTORY_INDEX_MAX)
 
 # Check that we are in a good state for changing history.
-PREFERRED_BRANCH = emacs-28
+PREFERRED_BRANCH = emacs-30
 preferred-branch-is-current:
 	git branch | grep -q '^\* $(PREFERRED_BRANCH)$$'
 unchanged-history-files:

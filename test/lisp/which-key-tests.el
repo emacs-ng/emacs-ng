@@ -1,6 +1,6 @@
 ;;; which-key-tests.el --- Tests for which-key.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021  Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 ;; Author: Justin Burkett <justin@burkett.cc>
 ;; Maintainer: Justin Burkett <justin@burkett.cc>
@@ -53,8 +53,7 @@
              '(("C-a" . "which-key-test--named-map"))))))
 
 (ert-deftest which-key-test--prefix-declaration ()
-  "Test `which-key-declare-prefixes' and
-`which-key-declare-prefixes-for-mode'. See Bug #109."
+  ;; See Bug #109.
   (let* ((major-mode 'test-mode)
          which-key-replacement-alist)
     (which-key-add-key-based-replacements

@@ -1,6 +1,6 @@
 ;;; autorevert-tests.el --- Tests of auto-revert   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -132,12 +132,15 @@ This expects `auto-revert--messages' to be bound by
          (error (message "%s" err) (signal (car err) (cdr err)))))))
 
 (defmacro with-auto-revert-test (&rest body)
-  `(let ((auto-revert-interval-orig auto-revert-interval))
+  `(let ((auto-revert-interval-orig auto-revert-interval)
+         (auto-revert--lockout-interval-orig auto-revert--lockout-interval))
      (unwind-protect
          (progn
            (customize-set-variable 'auto-revert-interval 0.1)
+           (setq auto-revert--lockout-interval 0.05)
            ,@body)
-       (customize-set-variable 'auto-revert-interval auto-revert-interval-orig))))
+       (customize-set-variable 'auto-revert-interval auto-revert-interval-orig)
+       (setq auto-revert--lockout-interval auto-revert--lockout-interval-orig))))
 
 (defun auto-revert-tests--write-file (text file time-delta &optional append)
   (write-region text nil file append 'no-message)
@@ -387,11 +390,17 @@ This expects `auto-revert--messages' to be bound by
                (should auto-revert-mode)
                (should
                 (string-match name (substring-no-properties (buffer-string))))
+               ;; If we don't sleep for a while, this test fails on
+               ;; MS-Windows.
+               (if (eq system-type 'windows-nt)
+                   (sleep-for 0.5))
 
                (ert-with-message-capture auto-revert--messages
                  ;; Delete file.
                  (delete-file tmpfile)
                  (auto-revert--wait-for-revert buf))
+               (if (eq system-type 'windows-nt)
+                   (sleep-for 1))
                ;; Check, that the buffer has been reverted.
                (should-not
                 (string-match name (substring-no-properties (buffer-string))))

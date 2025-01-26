@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Basic
@@ -643,14 +643,11 @@ long, by using Auto Fill mode.  @xref{Filling}.
   Normally, the first character of each continuation line is
 positioned at the beginning of the screen line where it is displayed.
 The minor mode @code{visual-wrap-prefix-mode} and its global
-(@pxref{Minor Modes}) counterpart
-@code{global-visual-wrap-prefix-mode} arranges that continuation lines
-be prefixed by slightly adjusted versions of the fill prefixes
-(@pxref{Fill Prefix}) of their respective logical lines, so that
-indentation characters or the prefixes of source code comments are
-replicated across every continuation line, and the appearance of such
-comments or indentation is not broken.  These prefixes are only shown
-on display, and does not change the buffer text in any way.
+counterpart (@pxref{Minor Modes}) @code{global-visual-wrap-prefix-mode}
+arranges for continuation lines to be indented on display using a fill
+prefix (@pxref{Fill Prefix}) automatically computed from each line's
+surrounding context.  These prefixes are display-only feature, and do
+not change the buffer text in any way.
 
   Sometimes, you may need to edit files containing many long logical
 lines, and it may not be practical to break them all up by adding

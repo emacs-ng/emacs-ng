@@ -1,6 +1,6 @@
 ;;; eshell-tests-helpers.el --- Eshell test suite helpers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -138,6 +138,12 @@ After inserting, call FUNC.  If FUNC is nil, instead call
   "Return the output of the last Eshell command."
   (buffer-substring-no-properties
    (eshell-beginning-of-output) (eshell-end-of-output)))
+
+(defun eshell-test-file-string (file)
+  "Return the contents of FILE as a string."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (buffer-string)))
 
 (defun eshell-match-output (regexp)
   "Test whether the output of the last command matches REGEXP."

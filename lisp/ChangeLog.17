@@ -6706,7 +6706,7 @@
 2014-10-12  Stefan Monnier  <monnier@iro.umontreal.ca>
 
 	* progmodes/bat-mode.el (bat-font-lock-keywords): Fix \\<_ typo
-	(bug#18622).  Reported by Arni Magnusson <arnima@hafro.is>.
+	(bug#18622).  Reported by Arni Magnusson <thisisarni@gmail.com>.
 	* progmodes/prolog.el (prolog-electric--underscore): Same.
 
 2014-10-12  Michael Albinus  <michael.albinus@gmx.de>
@@ -8915,7 +8915,7 @@
 	Return the previous char.
 	(perl-calculate-indent): Use syntax-ppss instead of parse-start
 	and update callers accordingly.  For continuation lines, check the
-	the case of array hashes.
+	case of array hashes.
 	(perl-backward-to-noncomment): Make it non-interactive.
 	(perl-backward-to-start-of-continued-exp): Rewrite.
 
@@ -20214,7 +20214,7 @@
 	(dos-mode-syntax-table): Don't use "w" for symbol chars.
 	(dos-font-lock-keywords): Try to adjust font-lock rules accordingly.
 
-2013-08-07  Arni Magnusson  <arnima@hafro.is>
+2013-08-07  Arni Magnusson  <thisisarni@gmail.com>
 
 	* progmodes/dos.el: New file.
 	* generic-x.el (bat-generic-mode): Redefine as an obsolete alias to
@@ -26294,7 +26294,7 @@ See ChangeLog.16 for earlier changes.
 ;; coding: utf-8
 ;; End:
 
-  Copyright (C) 2011-2024 Free Software Foundation, Inc.
+  Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
   This file is part of GNU Emacs.
 

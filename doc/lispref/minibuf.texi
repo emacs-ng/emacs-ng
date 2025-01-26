@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Minibuffers
@@ -671,6 +671,7 @@ function, this automatic addition is disabled, and you can also set
 this variable to your own function which adds only some candidates, or
 some other values, to the ``future history''.
 
+@cindex @code{history-length} (symbol property)
   Emacs functions that add a new element to a history list can also
 delete old elements if the list gets too long.  The variable
 @code{history-length} specifies the maximum length for most history
@@ -966,20 +967,12 @@ too short).  Both of those begin with the string @samp{foobar}.
 @end smallexample
 @end defun
 
-@c Removed obsolete argument nospace.
 @defun all-completions string collection &optional predicate
 This function returns a list of all possible completions of
 @var{string}.  The arguments to this function
-@c (aside from @var{nospace})
 are the same as those of @code{try-completion}, and it
 uses @code{completion-regexp-list} in the same way that
 @code{try-completion} does.
-
-@ignore
-The optional argument @var{nospace} is obsolete.  If it is
-non-@code{nil}, completions that start with a space are ignored unless
-@var{string} starts with a space.
-@end ignore
 
 If @var{collection} is a function, it is called with three arguments:
 @var{string}, @var{predicate} and @code{t}; then @code{all-completions}
@@ -1897,7 +1890,7 @@ The function to add prefixes and suffixes to completions.
 @end table
 
 @noindent
-See @ref{Programmed Completion}, for a complete list of metadata entries.
+@xref{Programmed Completion}, for a complete list of metadata entries.
 @end defopt
 
 @defvar completion-extra-properties
@@ -1910,8 +1903,8 @@ pairs.  The following properties are supported:
 @item :category
 The value should be a symbol describing what kind of text the
 completion function is trying to complete.  If the symbol matches one
-of the keys in @code{completion-category-overrides}, the usual
-completion behavior is overridden.  @xref{Completion Variables}.
+of the keys in @code{completion-category-overrides} described above,
+the usual completion behavior is overridden.
 
 @item :annotation-function
 The value should be a function to add annotations in the completions
@@ -2562,9 +2555,9 @@ This function uses @code{read-passwd-mode}, a minor mode.  It binds two
 keys in the minbuffer: @kbd{C-u} (@code{delete-minibuffer-contents})
 deletes the password, and @kbd{TAB}
 (@code{read-passwd--toggle-visibility}) toggles the visibility of the
-password.  There is also an additional icon in the mode-line.  Clicking
-on this icon with @key{mouse-1} toggles the visibility of the password
-as well.
+password.  There is also an additional icon in the mode-line's
+@code{global-mode-string}.  Clicking on this icon with @key{mouse-1}
+toggles the visibility of the password as well.
 @end defun
 
 @node Minibuffer Commands

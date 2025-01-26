@@ -1,6 +1,6 @@
 ;;; ses.el --- Simple Emacs Spreadsheet  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 ;; Maintainer: Vincent Belaïche <vincentb1@users.sourceforge.net>
@@ -203,10 +203,7 @@ Used for listing local printers or renamed cells.")
 		[C-S-mouse-3] ses-insert-ses-range-click
                 "\C-h\C-p"    ses-list-local-printers
                 "\C-h\C-n"    ses-list-named-cells
-		"\M-\C-i"     lisp-complete-symbol)) ; redefined
-                                                     ; dynamically in
-                                                     ; editing
-                                                     ; functions
+                "\M-\C-i"     completion-at-point))
 	(newmap (make-sparse-keymap)))
     (set-keymap-parent newmap minibuffer-local-map)
     (while keys
@@ -649,8 +646,8 @@ for safety.  This is a macro to prevent propagate-on-load viruses."
   t)
 
 (defmacro ses-header-row (row)
-  "Load the header row from the spreadsheet file and check it
-for safety.  This is a macro to prevent propagate-on-load viruses."
+  "Load the header row from the spreadsheet file and check it for safety.
+This is a macro to prevent propagate-on-load viruses."
   (or (and (wholenump row) (or (zerop ses--numrows) (< row ses--numrows)))
       (error "Bad header-row"))
   (setq ses--header-row row)
@@ -1443,9 +1440,10 @@ undoable. Return nil when there was no change, and non-nil otherwise."
       (ses-widen)
       (goto-char ses--params-marker)
       (forward-line   (plist-get ses-paramlines-plist 'ses--numlocprn ))
-      (insert (format (plist-get ses-paramfmt-plist 'ses--numlocprn)
-                      ses--numlocprn)
-	      ?\n)
+      (let (print-level print-length)
+	(insert (format (plist-get ses-paramfmt-plist 'ses--numlocprn)
+			ses--numlocprn)
+		?\n))
       t) )))
 
 (defun ses-set-parameter (def value &optional elem)
@@ -1467,7 +1465,7 @@ If ELEM is specified, it is the array subscript within DEF to be set to VALUE."
 	(setq oldval (symbol-value def))
 	(set def value))
       ;; Special undo since it's outside the narrowed buffer.
-      (let (buffer-undo-list)
+      (let (buffer-undo-list print-level print-length)
 	(delete-region (point) (line-end-position))
 	(insert (format fmt (symbol-value def))))
       (push `(apply ses-set-parameter ,def ,oldval ,elem) buffer-undo-list))))
@@ -1478,6 +1476,7 @@ If ELEM is specified, it is the array subscript within DEF to be set to VALUE."
 Newlines in the data are escaped."
   (let* ((inhibit-read-only t)
 	 (print-escape-newlines t)
+	 print-level print-length
 	 rowcol row col cell sym formula printer text)
     (setq ses-start-time (float-time))
     (with-temp-message " "
@@ -2532,7 +2531,7 @@ Return nil if cell formula was unsafe and user declined confirmation."
 	    (row     (car rowcol))
 	    (col     (cdr rowcol))
 	    (formula (ses-cell-formula row col))
-	    initial)
+	    initial print-level print-length)
        (if (eq (car-safe formula) 'ses-safe-formula)
 	   (setq formula (cadr formula)))
        (if (eq (car-safe formula) 'quote)

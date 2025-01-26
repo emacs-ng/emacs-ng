@@ -1,6 +1,6 @@
 ;;; info.el --- Info package for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1992-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help
@@ -223,7 +223,7 @@ These directories are searched after those in `Info-directory-list'."
       "org" "pcl-cvs" "pgg" "rcirc" "reftex" "remember" "sasl" "sc"
       "semantic" "ses" "sieve" "smtpmail" "speedbar" "srecode"
       "todo-mode" "tramp" "transient" "url" "use-package" "vhdl-mode"
-      "vip" "viper" "vtable" "widget" "wisent" "woman") .
+      "viper" "vtable" "widget" "wisent" "woman") .
      "https://www.gnu.org/software/emacs/manual/html_node/%m/%e"))
   "Alist telling `Info-mode' where manuals are accessible online.
 
@@ -667,7 +667,7 @@ in `Info-file-supports-index-cookies-list'."
 	  (goto-char (point-min))
 	  (condition-case ()
 	      (if (and (re-search-forward
-			"makeinfo[ \n]version[ \n]\\([0-9]+.[0-9]+\\)"
+                        "\\(?:makeinfo\\|texi2any\\)[ \n]version[ \n]\\([0-9]+.[0-9]+\\)"
 			(line-beginning-position 4) t)
 		       (not (version< (match-string 1) "4.7")))
 		  (setq found t))
@@ -823,10 +823,10 @@ Select the window used, if it has been made."
 	    ;; If we just created the Info buffer, go to the directory.
 	    (Info-directory))))
 
-    (when-let ((window (display-buffer buffer
-			               (if other-window
-				           '(nil (inhibit-same-window . t))
-			                 '(display-buffer-same-window)))))
+    (when-let* ((window (display-buffer buffer
+			                (if other-window
+				            '(nil (inhibit-same-window . t))
+			                  '(display-buffer-same-window)))))
       (select-window window))))
 
 
@@ -1032,6 +1032,48 @@ If NOERROR, inhibit error messages when we can't find the node."
              Info-history))
   (Info-find-node-2 filename nodename no-going-back strict-case))
 
+(defun Info--record-tag-table (nodename)
+  "If the current Info file has a tag table, record its location for NODENAME.
+
+This creates a tag-table buffer, sets `Info-tag-table-buffer' to
+name that buffer, and records the buffer and the tag table in
+the marker `Info-tag-table-buffer'.  If the Info file has no
+tag table, or if NODENAME is \"*\", the function sets the marker
+to nil to indicate the tag table is not available/relevant.
+
+The function assumes that the Info buffer is widened, and does
+not preserve point."
+  (goto-char (point-max))
+  (forward-line -8)
+  ;; Use string-equal, not equal, to ignore text props.
+  (if (not (or (string-equal nodename "*")
+	       (not
+		(search-forward "\^_\nEnd tag table\n" nil t))))
+      (let (pos)
+	;; We have a tag table.  Find its beginning.
+	;; Is this an indirect file?
+	(search-backward "\nTag table:\n")
+	(setq pos (point))
+	(if (save-excursion
+	      (forward-line 2)
+	      (looking-at "(Indirect)\n"))
+	    ;; It is indirect.  Copy it to another buffer
+	    ;; and record that the tag table is in that buffer.
+	    (let ((buf (current-buffer))
+		  (tagbuf
+		   (or Info-tag-table-buffer
+		       (generate-new-buffer " *info tag table*"))))
+	      (setq Info-tag-table-buffer tagbuf)
+	      (with-current-buffer tagbuf
+		(buffer-disable-undo (current-buffer))
+		(setq case-fold-search t)
+		(erase-buffer)
+		(insert-buffer-substring buf))
+	      (set-marker Info-tag-table-marker
+			  (match-end 0) tagbuf))
+	  (set-marker Info-tag-table-marker pos)))
+    (set-marker Info-tag-table-marker nil)))
+
 ;;;###autoload
 (defun Info-on-current-buffer (&optional nodename)
   "Use Info mode to browse the current Info buffer.
@@ -1048,6 +1090,7 @@ otherwise, that defaults to `Top'."
         (or buffer-file-name
             ;; If called on a non-file buffer, make a fake file name.
             (concat default-directory (buffer-name))))
+  (Info--record-tag-table nodename)
   (Info-find-node-2 nil nodename))
 
 (defun Info-revert-find-node (filename nodename)
@@ -1210,36 +1253,7 @@ is non-nil)."
 		 (Info-file-supports-index-cookies filename))
 
 	    ;; See whether file has a tag table.  Record the location if yes.
-	    (goto-char (point-max))
-	    (forward-line -8)
-	    ;; Use string-equal, not equal, to ignore text props.
-	    (if (not (or (string-equal nodename "*")
-			 (not
-			  (search-forward "\^_\nEnd tag table\n" nil t))))
-		(let (pos)
-		  ;; We have a tag table.  Find its beginning.
-		  ;; Is this an indirect file?
-		  (search-backward "\nTag table:\n")
-		  (setq pos (point))
-		  (if (save-excursion
-			(forward-line 2)
-			(looking-at "(Indirect)\n"))
-		      ;; It is indirect.  Copy it to another buffer
-		      ;; and record that the tag table is in that buffer.
-		      (let ((buf (current-buffer))
-			    (tagbuf
-			     (or Info-tag-table-buffer
-				 (generate-new-buffer " *info tag table*"))))
-			(setq Info-tag-table-buffer tagbuf)
-			(with-current-buffer tagbuf
-			  (buffer-disable-undo (current-buffer))
-			  (setq case-fold-search t)
-			  (erase-buffer)
-			  (insert-buffer-substring buf))
-			(set-marker Info-tag-table-marker
-				    (match-end 0) tagbuf))
-		    (set-marker Info-tag-table-marker pos)))
-	      (set-marker Info-tag-table-marker nil))
+            (Info--record-tag-table nodename)
 	    (setq Info-current-file filename)
 	    )))
 
@@ -1803,12 +1817,10 @@ escaped (\\\",\\\\)."
 	(Info-hide-cookies-node)
 	(run-hooks 'Info-selection-hook)))))
 
-(defvar Info-mode-line-node-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map [mode-line mouse-1] 'Info-mouse-scroll-up)
-    (define-key map [mode-line mouse-3] 'Info-mouse-scroll-down)
-    map)
-  "Keymap to put on the Info node name in the mode line.")
+(defvar-keymap Info-mode-line-node-keymap
+  :doc "Keymap to put on the Info node name in the mode line."
+  "<mode-line> <mouse-1>" #'Info-mouse-scroll-up
+  "<mode-line> <mouse-3>" #'Info-mouse-scroll-down)
 
 (defun Info-set-mode-line ()
   (setq mode-line-buffer-identification
@@ -2006,7 +2018,7 @@ See `completing-read' for a description of arguments and usage."
          (lambda (string pred action)
            (complete-with-action
             action
-            (when-let ((file2 (Info-find-file file1 'noerror t)))
+            (when-let* ((file2 (Info-find-file file1 'noerror t)))
               (Info-build-node-completions file2))
             string pred))
 	 nodename predicate code))))
@@ -4661,7 +4673,7 @@ Advanced commands:
 
 (defvar Info-file-list-for-emacs
   '("ediff" "eudc" "forms" "gnus" "info" ("Info" . "info") ("mh" . "mh-e")
-    "sc" "message" ("dired" . "dired-x") "viper" "vip" "idlwave"
+    "sc" "message" ("dired" . "dired-x") "viper" "idlwave"
     ("c" . "ccmode") ("c++" . "ccmode") ("objc" . "ccmode")
     ("java" . "ccmode") ("idl" . "ccmode") ("pike" . "ccmode")
     ("skeleton" . "autotype") ("auto-insert" . "autotype")
@@ -4819,17 +4831,15 @@ the variable `Info-file-list-for-emacs'."
               "\\`%s' invokes an anonymous command defined with `lambda'"
               (key-description key))))))))
 
-(defvar Info-link-keymap
-  (let ((keymap (make-sparse-keymap)))
-    (define-key keymap [header-line down-mouse-1] 'mouse-drag-header-line)
-    (define-key keymap [header-line mouse-1] 'Info-mouse-follow-link)
-    (define-key keymap [header-line mouse-2] 'Info-mouse-follow-link)
-    (define-key keymap [mouse-2] 'Info-mouse-follow-link)
-    (define-key keymap [follow-link] 'mouse-face)
-    keymap)
-  "Keymap to put on Info links.
+(defvar-keymap Info-link-keymap
+  :doc "Keymap to put on Info links.
 This is used for the \"Next\", \"Prev\", and \"Up\" links in the
-first line or header line, and for breadcrumb links.")
+first line or header line, and for breadcrumb links."
+  "<header-line> <down-mouse-1>" #'mouse-drag-header-line
+  "<header-line> <mouse-1>"      #'Info-mouse-follow-link
+  "<header-line> <mouse-2>"      #'Info-mouse-follow-link
+  "<mouse-2>"                    #'Info-mouse-follow-link
+  "<follow-link>"                'mouse-face)
 
 (defun Info-breadcrumbs ()
   (let ((nodes (Info-toc-nodes Info-current-file))

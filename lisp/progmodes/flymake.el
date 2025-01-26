@@ -1,9 +1,9 @@
 ;;; flymake.el --- A universal on-the-fly syntax checker  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Author: Pavel Kobyakov <pk_at_work@yahoo.com>
-;; Maintainer: João Távora <joaotavora@gmail.com>
+;; Maintainer: Spencer Baugh <sbaugh@janestreet.com>
 ;; Version: 1.3.7
 ;; Keywords: c languages tools
 ;; Package-Requires: ((emacs "26.1") (eldoc "1.14.0") (project "0.7.1"))
@@ -128,6 +128,11 @@
   :link '(custom-manual "(flymake) Top")
   :group 'tools)
 
+(add-to-list 'customize-package-emacs-version-alist
+             '(Flymake ("1.3.4" . "30.1")
+                       ("1.3.5" . "30.1")
+                       ("1.3.6" . "30.1")))
+
 (defcustom flymake-error-bitmap '(flymake-double-exclamation-mark
                                   compilation-error)
   "Bitmap (a symbol) used in the fringe for indicating errors.
@@ -218,7 +223,7 @@ this is used."
                        (face :tag "Face"))))
 
 (defcustom flymake-autoresize-margins t
-  "If non-nil, automatically resize margin-width calling flymake--resize-margins.
+  "If non-nil, automatically resize margin-width calling `flymake--resize-margins'.
 
 Only relevant if `flymake-indicator-type' is set to margins."
   :version "30.1"
@@ -845,7 +850,7 @@ Return to original margin width if ORIG-WIDTH is non-nil."
     (widen)
     (dolist (o (overlays-in (point-min) (point-max)))
       (when (overlay-get o 'flymake--eol-overlay)
-        (if-let ((src-ovs (overlay-get o 'flymake-eol-source-overlays)))
+        (if-let* ((src-ovs (overlay-get o 'flymake-eol-source-overlays)))
             (overlay-put o 'before-string (flymake--eol-overlay-summary src-ovs))
           (delete-overlay o))))))
 
@@ -1231,7 +1236,7 @@ If MESSAGE-PREFIX, echo a message using that prefix."
 (defun flymake--disable-backend (backend &optional explanation)
   "Disable BACKEND because EXPLANATION.
 If it is running also stop it."
-  (flymake-log :warning "Disabling backend %s because %s" backend explanation)
+  (flymake-log :warning "Disabling backend %s because %S" backend explanation)
   (flymake--with-backend-state backend state
     (setf (flymake--state-running state) nil
           (flymake--state-disabled state) explanation
@@ -1256,6 +1261,37 @@ with a report function."
 (defvar-local flymake--recent-changes nil
   "Recent changes collected by `flymake-after-change-function'.")
 (defvar flymake-mode)
+
+(defun flymake--import-foreign-diagnostics ()
+  ;; Other diagnostic sources may already target this buffer's file
+  ;; before we turned on: these sources may be of two types...
+  (let ((source (current-buffer))
+        (bfn buffer-file-name))
+    ;; 1. For `flymake-list-only-diagnostics': here, we do nothing.
+    ;; FIXME: We could remove the corresponding entry from that
+    ;; variable, as we assume that new diagnostics will come in soon
+    ;; via the brand new `flymake-mode' setup.  For simplicity's
+    ;; sake, we have opted to leave the backend for now.
+    nil
+    ;; 2. other buffers where a backend has created "foreign
+    ;; diagnostics" and pointed them here.  We must highlight them in
+    ;; this buffer, i.e. create overlays for them.  Those other
+    ;; buffers and backends are still responsible for them, i.e. the
+    ;; current buffer does not "own" these foreign diags.
+    (dolist (buffer (buffer-list))
+      (with-current-buffer buffer
+        (when flymake-mode
+          (maphash (lambda (_backend state)
+                     (maphash (lambda (file diags)
+                                (when (or (eq file source)
+                                          (string= bfn (expand-file-name file)))
+                                  (with-current-buffer source
+                                    (mapc (lambda (diag)
+                                            (flymake--highlight-line diag
+                                                                     'foreign))
+                                          diags))))
+                              (flymake--state-foreign-diags state)))
+                   flymake--state))))))
 
 (defun flymake-start (&optional deferred force)
   "Start a syntax check for the current buffer.
@@ -1330,7 +1366,8 @@ Interactively, with a prefix arg, FORCE is t."
                                  backend))
                    (t
                     (flymake--run-backend backend backend-args)))
-                  nil))))))))
+                  nil)))
+             (flymake--import-foreign-diagnostics))))))
 
 (defvar flymake-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1391,45 +1428,13 @@ special *Flymake log* buffer."  :group 'flymake :lighter
     ;; AutoResize margins.
     (flymake--resize-margins)
 
-    ;; If Flymake happened to be already ON, we must cleanup
-    ;; existing diagnostic overlays, lest we forget them by blindly
-    ;; reinitializing `flymake--state' in the next line.
-    ;; See https://github.com/joaotavora/eglot/issues/223.
-    (mapc #'flymake--delete-overlay (flymake--really-all-overlays))
-    (setq flymake--state (make-hash-table))
+    ;; We can't just `clrhash' `flymake--state': there may be in
+    ;; in-transit requests from other backends if `flymake-mode' was
+    ;; already active.  I.e. `flymake-mode' function should be as
+    ;; idempotent as possible.  See bug#69809.
+    (unless flymake--state (setq flymake--state (make-hash-table)))
     (setq flymake--recent-changes nil)
-
-    (when flymake-start-on-flymake-mode (flymake-start t))
-
-    ;; Other diagnostic sources may already target this buffer's file
-    ;; before we turned on: these sources may be of two types...
-    (let ((source (current-buffer))
-          (bfn buffer-file-name))
-      ;; 1. For `flymake-list-only-diagnostics': here, we do nothing.
-      ;; FIXME: We could remove the corresponding entry from that
-      ;; variable, as we assume that new diagnostics will come in soon
-      ;; via the brand new `flymake-mode' setup.  For simplicity's
-      ;; sake, we have opted to leave the backend for now.
-      nil
-      ;; 2. other buffers where a backend has created "foreign"
-      ;; diagnostics and pointed them here.  We must highlight them in
-      ;; this buffer, i.e. create overlays for them.  Those other
-      ;; buffers and backends are still responsible for them, i.e. the
-      ;; current buffer does not "own" these foreign diags.
-      (dolist (buffer (buffer-list))
-        (with-current-buffer buffer
-          (when (and flymake-mode flymake--state)
-            (maphash (lambda (_backend state)
-                       (maphash (lambda (file diags)
-                                  (when (or (eq file source)
-                                            (string= bfn (expand-file-name file)))
-                                    (with-current-buffer source
-                                      (mapc (lambda (diag)
-                                              (flymake--highlight-line diag
-                                                                       'foreign))
-                                            diags))))
-                                (flymake--state-foreign-diags state)))
-                     flymake--state))))))
+    (when flymake-start-on-flymake-mode (flymake-start t)))
 
    ;; Turning the mode OFF.
    (t
@@ -1533,7 +1538,7 @@ START and STOP and LEN are as in `after-change-functions'."
 (defun flymake-eldoc-function (report-doc &rest _)
   "Document diagnostics at point.
 Intended for `eldoc-documentation-functions' (which see)."
-  (when-let ((diags (flymake-diagnostics (point))))
+  (when-let* ((diags (flymake-diagnostics (point))))
     (funcall report-doc
              (mapconcat #'flymake-diagnostic-text diags "\n")
              :echo (mapconcat #'flymake-diagnostic-oneliner
@@ -2040,7 +2045,7 @@ some of this variable's contents the diagnostic listings.")
     (cl-loop
      for buf in visited-buffers
      do (with-current-buffer buf
-          (when (and flymake-mode flymake--state)
+          (when flymake-mode
             (maphash
              (lambda (_backend state)
                (maphash

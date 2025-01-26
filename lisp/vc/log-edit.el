@@ -1,6 +1,6 @@
 ;;; log-edit.el --- Major mode for editing CVS commit messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: pcl-cvs cvs commit log vc
@@ -246,7 +246,11 @@ when this variable is set to nil.")
 (defvar log-edit-initial-files nil)
 (defvar log-edit-callback nil)
 (defvar log-edit-diff-function
-  (lambda () (error "Diff functionality has not been setup")))
+  (lambda () (error "Diff functionality has not been set up"))
+  "Function to display an appropriate `diff-mode' buffer for the change.
+Called by the `log-edit-show-diff' command.
+Should not leave the `diff-mode' buffer's window selected; that is, the
+Log Edit buffer's window should be selected when the function returns.")
 (defvar log-edit-listfun nil)
 
 (defvar log-edit-parent-buffer nil)
@@ -890,6 +894,14 @@ different header separator appropriate for `log-edit-mode'."
                     (zerop (forward-line 1))))
         (eobp))))
 
+(defun log-edit--make-header-line (header &optional value)
+  ;; Make \\`C-a' work like it does in other buffers with header names.
+  (concat (propertize (concat header ": ")
+                      'field 'header
+                      'rear-nonsticky t)
+          value
+          "\n"))
+
 (defun log-edit-insert-message-template ()
   "Insert the default VC commit log template with Summary and Author."
   (interactive)
@@ -897,11 +909,8 @@ different header separator appropriate for `log-edit-mode'."
             (log-edit-empty-buffer-p))
     (dolist (header (append '("Summary") (and log-edit-setup-add-author
                                               '("Author"))))
-      ;; Make `C-a' work like in other buffers with header names.
-      (insert (propertize (concat header ": ")
-                          'field 'header
-                          'rear-nonsticky t)
-              "\n"))
+
+      (insert (log-edit--make-header-line header)))
     (insert "\n")
     (message-position-point)))
 
@@ -1315,7 +1324,7 @@ If TOGGLE is non-nil, and the value of HEADER already is VALUE,
 clear it.  Make sure there is an empty line after the headers.
 Return t if toggled on (or TOGGLE is nil), otherwise nil."
   (let ((val t)
-        (line (concat header ": " value "\n")))
+        (line (log-edit--make-header-line header value)))
     (save-excursion
       (save-restriction
         (rfc822-goto-eoh)

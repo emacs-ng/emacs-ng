@@ -1,6 +1,6 @@
 /* NeXT/Open/GNUstep / macOS communication module.      -*- coding: utf-8 -*-
 
-Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2024 Free Software
+Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -577,7 +577,7 @@ ns_init_locale (void)
     }
 
   /* Check if LANG can be used for initializing the locale.  If not,
-     use a default setting.  Note that Emacs' main will undo the
+     use a default setting.  Note that Emacs's main will undo the
      setlocale below, initializing the locale from the
      environment.  */
   if (setlocale (LC_ALL, lang) == NULL)
@@ -1407,7 +1407,7 @@ ns_raise_frame (struct frame *f, BOOL make_key)
   block_input ();
   if (FRAME_VISIBLE_P (f))
     {
-      if (make_key)
+      if (make_key && !f->no_accept_focus)
         [[view window] makeKeyAndOrderFront: NSApp];
       else
         [[view window] orderFront: NSApp];
@@ -1505,7 +1505,7 @@ ns_make_frame_visible (struct frame *f)
       EmacsView *view = (EmacsView *)FRAME_NS_VIEW (f);
       EmacsWindow *window = (EmacsWindow *)[view window];
 
-      SET_FRAME_VISIBLE (f, 1);
+      SET_FRAME_VISIBLE (f, true);
       ns_raise_frame (f, ! FRAME_NO_FOCUS_ON_MAP (f));
 
       /* Making a new frame from a fullscreen frame will make the new frame
@@ -1550,7 +1550,7 @@ ns_make_frame_invisible (struct frame *f)
   check_window_system (f);
   view = FRAME_NS_VIEW (f);
   [[view window] orderOut: NSApp];
-  SET_FRAME_VISIBLE (f, 0);
+  SET_FRAME_VISIBLE (f, false);
   SET_FRAME_ICONIFIED (f, 0);
 }
 
@@ -1983,16 +1983,6 @@ ns_fullscreen_hook (struct frame *f)
 
   if (!FRAME_VISIBLE_P (f))
     return;
-
-   if (! [view fsIsNative] && f->want_fullscreen == FULLSCREEN_BOTH)
-    {
-      /* Old style fs don't initiate correctly if created from
-         init/default-frame alist, so use a timer (not nice...).  */
-      [NSTimer scheduledTimerWithTimeInterval: 0.5 target: view
-                                     selector: @selector (handleFS)
-                                     userInfo: nil repeats: NO];
-      return;
-    }
 
   block_input ();
   [view handleFS];
@@ -2961,24 +2951,28 @@ ns_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
   NSTRACE_MSG ("which:%d cursor:%d overlay:%d width:%d height:%d period:%d",
                p->which, p->cursor_p, p->overlay_p, p->wd, p->h, p->dh);
 
-  /* Work out the rectangle we will need to clear.  */
-  clearRect = NSMakeRect (p->x, p->y, p->wd, p->h);
-
-  if (p->bx >= 0 && !p->overlay_p)
-    clearRect = NSUnionRect (clearRect, NSMakeRect (p->bx, p->by, p->nx, p->ny));
-
-  /* Handle partially visible rows.  */
-  clearRect = NSIntersectionRect (clearRect, rowRect);
-
-  /* The visible portion of imageRect will always be contained within
-     clearRect.  */
-  ns_focus (f, &clearRect, 1);
-  if (! NSIsEmptyRect (clearRect))
+  /* Clear screen unless overlay.  */
+  if (!p->overlay_p)
     {
-      NSTRACE_RECT ("clearRect", clearRect);
+      /* Work out the rectangle we will need to clear.  */
+      clearRect = NSMakeRect (p->x, p->y, p->wd, p->h);
 
-      [[NSColor colorWithUnsignedLong:face->background] set];
-      NSRectFill (clearRect);
+      if (p->bx >= 0)
+        clearRect = NSUnionRect (clearRect, NSMakeRect (p->bx, p->by, p->nx, p->ny));
+
+      /* Handle partially visible rows.  */
+      clearRect = NSIntersectionRect (clearRect, rowRect);
+
+      /* The visible portion of imageRect will always be contained
+	 within clearRect.  */
+      ns_focus (f, &clearRect, 1);
+      if (!NSIsEmptyRect (clearRect))
+        {
+          NSTRACE_RECT ("clearRect", clearRect);
+
+          [[NSColor colorWithUnsignedLong:face->background] set];
+          NSRectFill (clearRect);
+        }
     }
 
   NSBezierPath *bmp = [fringe_bmp objectForKey:[NSNumber numberWithInt:p->which]];
@@ -3026,7 +3020,7 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
      Note that CURSOR_WIDTH is meaningful only for (h)bar cursors.
    -------------------------------------------------------------------------- */
 {
-  NSRect r, s;
+  NSRect r;
   int fx, fy, h, cursor_height;
   struct frame *f = WINDOW_XFRAME (w);
   struct glyph *phys_cursor_glyph;
@@ -3076,6 +3070,12 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
       /* The bar cursor should never be wider than the glyph.  */
       if (cursor_width < w->phys_cursor_width)
         w->phys_cursor_width = cursor_width;
+
+      /* If the character under cursor is R2L, draw the bar cursor
+         on the right of its glyph, rather than on the left.  */
+      cursor_glyph = get_phys_cursor_glyph (w);
+      if ((cursor_glyph->resolved_level & 1) != 0)
+        fx += cursor_glyph->pixel_width - w->phys_cursor_width;
     }
   /* If we have an HBAR, "cursor_width" MAY specify height.  */
   else if (cursor_type == HBAR_CURSOR)
@@ -3126,18 +3126,8 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
       [ctx restoreGraphicsState];
       break;
     case HBAR_CURSOR:
-      NSRectFill (r);
-      [ctx restoreGraphicsState];
-      break;
     case BAR_CURSOR:
-      s = r;
-      /* If the character under cursor is R2L, draw the bar cursor
-         on the right of its glyph, rather than on the left.  */
-      cursor_glyph = get_phys_cursor_glyph (w);
-      if ((cursor_glyph->resolved_level & 1) != 0)
-        s.origin.x += cursor_glyph->pixel_width - s.size.width;
-
-      NSRectFill (s);
+      NSRectFill (r);
       [ctx restoreGraphicsState];
       break;
     }
@@ -5071,7 +5061,7 @@ ns_set_vertical_scroll_bar (struct window *window,
   window_box (window, ANY_AREA, 0, &window_y, 0, &window_height);
   top = window_y;
   height = window_height;
-  width = NS_SCROLL_BAR_WIDTH (f);
+  width = WINDOW_SCROLL_BAR_AREA_WIDTH (window);
   left = WINDOW_SCROLL_BAR_AREA_X (window);
 
   r = NSMakeRect (left, top, width, height);
@@ -5165,7 +5155,7 @@ ns_set_horizontal_scroll_bar (struct window *window,
   window_box (window, ANY_AREA, &window_x, 0, &window_width, 0);
   left = window_x;
   width = window_width;
-  height = NS_SCROLL_BAR_HEIGHT (f);
+  height = WINDOW_SCROLL_BAR_AREA_HEIGHT (window);
   top = WINDOW_SCROLL_BAR_AREA_Y (window);
 
   r = NSMakeRect (left, top, width, height);
@@ -5203,7 +5193,7 @@ ns_set_horizontal_scroll_bar (struct window *window,
      it fills with junk.  */
   if (!NILP (window->vertical_scroll_bar))
     ns_clear_frame_area (f, WINDOW_SCROLL_BAR_AREA_X (window), top,
-                         NS_SCROLL_BAR_HEIGHT (f), height);
+                         WINDOW_SCROLL_BAR_AREA_WIDTH (window), height);
 
   if (update_p)
     [bar setPosition: position portion: portion whole: whole];
@@ -6965,8 +6955,12 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
 
 #ifndef NS_IMPL_GNUSTEP
       if (NS_KEYLOG)
-        fprintf (stderr, "keyDown: code =%x\tfnKey =%x\tflags = %x\tmods = %x\n",
-                 code, fnKeysym, flags, emacs_event->modifiers);
+	fprintf (stderr,
+		 "keyDown: code = %x\tfnKey = %x\tflags = %x\tmods = "
+		 "%x\n",
+		 (unsigned int) code, (unsigned int) fnKeysym,
+		 (unsigned int) flags,
+		 (unsigned int) emacs_event->modifiers);
 #endif
 
       /* If it was a function key or had control-like modifiers, pass
@@ -7036,9 +7030,48 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
   [nsEvArray removeObject: theEvent];
 }
 
+/***********************************************************************
+			   NSTextInputClient
+ ***********************************************************************/
+
+#ifdef NS_IMPL_COCOA
+
+- (void) insertText: (id) string
+   replacementRange: (NSRange) replacementRange
+{
+  if ([string isKindOfClass:[NSAttributedString class]])
+    string = [string string];
+  [self unmarkText];
+  [self insertText:string];
+}
+
+- (void) setMarkedText: (id) string
+	 selectedRange: (NSRange) selectedRange
+      replacementRange: (NSRange) replacementRange
+{
+  [self setMarkedText: string selectedRange: selectedRange];
+}
+
+- (nullable NSAttributedString *)
+  attributedSubstringForProposedRange: (NSRange) range
+			  actualRange: (nullable NSRangePointer) actualRange
+{
+  return nil;
+}
+
+- (NSRect) firstRectForCharacterRange: (NSRange) range
+			  actualRange: (nullable NSRangePointer) actualRange
+{
+  return [self firstRectForCharacterRange: range];
+}
+
+#endif /* NS_IMPL_COCOA */
+
+/***********************************************************************
+			      NSTextInput
+ ***********************************************************************/
 
 /* <NSTextInput> implementation (called through [super interpretKeyEvents:]).  */
-
 
 /* <NSTextInput>: called when done composing;
    NOTE: also called when we delete over working text, followed
@@ -7860,6 +7893,9 @@ ns_in_echo_area (void)
 
   NSTRACE_RETURN_SIZE (frameSize);
 
+  /* Trigger `move-frame-functions' (Bug#74074).  */
+  [self windowDidMove:(NSNotification *)sender];
+
   return frameSize;
 }
 
@@ -7933,10 +7969,12 @@ ns_in_echo_area (void)
     dpyinfo->ns_focus_frame = emacsframe;
 
   ns_frame_rehighlight (emacsframe);
+  [self adjustEmacsFrameRect];
 
   event.kind = FOCUS_IN_EVENT;
   XSETFRAME (event.frame_or_window, emacsframe);
   kbd_buffer_store_event (&event);
+  ns_send_appdefined (-1);  // Kick main loop
 }
 
 
@@ -8038,6 +8076,10 @@ ns_in_echo_area (void)
 #ifdef NS_IMPL_COCOA
   old_title = 0;
   maximizing_resize = NO;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+  /* Restore to default before macOS 14 (bug#72440).  */
+  [self setClipsToBounds: YES];
+#endif
 #endif
 
 #if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
@@ -8322,6 +8364,15 @@ ns_in_echo_area (void)
   [self windowDidEnterFullScreen];
 }
 
+- (void)adjustEmacsFrameRect
+{
+  struct frame *f = emacsframe;
+  NSWindow *frame_window = [FRAME_NS_VIEW (f) window];
+  NSRect r = [frame_window frame];
+  f->left_pos = NSMinX (r) - NS_PARENT_WINDOW_LEFT_POS (f);
+  f->top_pos = NS_PARENT_WINDOW_TOP_POS (f) - NSMaxY (r);
+}
+
 - (void)windowDidEnterFullScreen /* provided for direct calls */
 {
   NSTRACE ("[EmacsView windowDidEnterFullScreen]");
@@ -8351,6 +8402,10 @@ ns_in_echo_area (void)
         }
 #endif
     }
+
+  /* Do what windowDidMove does which isn't called when entering/exiting
+     fullscreen mode.  */
+  [self adjustEmacsFrameRect];
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
@@ -8393,6 +8448,10 @@ ns_in_echo_area (void)
 
   if (next_maximized != -1)
     [[self window] performZoom:self];
+
+  /* Do what windowDidMove does which isn't called when entering/exiting
+     fullscreen mode.  */
+  [self adjustEmacsFrameRect];
 }
 
 - (BOOL)fsIsNative
@@ -8468,6 +8527,11 @@ ns_in_echo_area (void)
   NSColor *col;
 
   NSTRACE ("[EmacsView toggleFullScreen:]");
+
+  /* Reset fs_is_native to value of ns-use-native-full-screen if not
+     fullscreen already */
+  if (fs_state != FULLSCREEN_BOTH)
+    fs_is_native = ns_use_native_fullscreen;
 
   if (fs_is_native)
     {
@@ -9306,7 +9370,10 @@ ns_in_echo_area (void)
 
 - (void)createToolbar: (struct frame *)f
 {
-  if (FRAME_UNDECORATED (f) || !FRAME_EXTERNAL_TOOL_BAR (f) || [self toolbar] != nil)
+  if (FRAME_UNDECORATED (f)
+      || [self styleMask] == NSWindowStyleMaskBorderless
+      || !FRAME_EXTERNAL_TOOL_BAR (f)
+      || [self toolbar] != nil)
     return;
 
   EmacsView *view = (EmacsView *)FRAME_NS_VIEW (f);
@@ -10698,7 +10765,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
       IOReturn lockStatus = IOSurfaceLock (surface, 0, nil);
       if (lockStatus != kIOReturnSuccess)
-        NSLog (@"Failed to lock surface: %x", lockStatus);
+        NSLog (@"Failed to lock surface: %x", (unsigned int)lockStatus);
 
       [self copyContentsTo:surface];
 
@@ -10745,7 +10812,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   IOReturn lockStatus = IOSurfaceUnlock (currentSurface, 0, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to unlock surface: %x", lockStatus);
+    NSLog (@"Failed to unlock surface: %x", (unsigned int)lockStatus);
 }
 
 
@@ -10786,7 +10853,8 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   lockStatus = IOSurfaceLock (source, kIOSurfaceLockReadOnly, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to lock source surface: %x", lockStatus);
+    NSLog (@"Failed to lock source surface: %x",
+	   (unsigned int) lockStatus);
 
   sourceData = IOSurfaceGetBaseAddress (source);
   destinationData = IOSurfaceGetBaseAddress (destination);
@@ -10798,7 +10866,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   lockStatus = IOSurfaceUnlock (source, kIOSurfaceLockReadOnly, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to unlock source surface: %x", lockStatus);
+    NSLog (@"Failed to unlock source surface: %x", (unsigned int)lockStatus);
 }
 
 #undef CACHE_MAX_SIZE

@@ -1,6 +1,6 @@
 ;;; bytecomp.el --- compilation of Lisp code into byte code -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2024 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Jamie Zawinski <jwz@lucid.com>
@@ -2713,7 +2713,7 @@ Call from the source buffer."
       (let ((newdocs (byte-compile--docstring docs kind name)))
         (unless (eq docs newdocs)
           (setq form (byte-compile--list-with-n form 3 newdocs)))))
-    form))
+    (byte-compile-keep-pending form)))
 
 (put 'require 'byte-hunk-handler 'byte-compile-file-form-require)
 (defun byte-compile-file-form-require (form)
@@ -3832,7 +3832,7 @@ This assumes the function has the `important-return-value' property."
 (defun byte-compile-free-vars-warn (arg var &optional assignment)
   "Warn if symbol VAR refers to a free variable.
 VAR must not be lexically bound.
-ARG is a position argument, used by byte-compile-warn-x.
+ARG is a position argument, used by `byte-compile-warn-x'.
 If optional argument ASSIGNMENT is non-nil, this is treated as an
 assignment (i.e. `setq')."
   (unless (or (not (byte-compile-warning-enabled-p 'free-vars var))
@@ -5361,6 +5361,59 @@ FORM is used to provide location, `bytecomp--cus-function' and
       (bytecomp--cus-warn type "`%s' is not a valid type" type))
      )))
 
+(defun bytecomp--check-cus-face-spec (spec)
+  "Check for mistakes in a `defface' SPEC argument."
+  (when (consp spec)
+    (dolist (sp spec)
+      (let ((display (car-safe sp))
+            (atts (cdr-safe sp)))
+        (cond ((listp display)
+               (dolist (condition display)
+                 (unless (memq (car-safe condition)
+                               '(type class background min-colors supports))
+                   (bytecomp--cus-warn
+                    (list sp spec)
+                    "Bad face display condition `%S'" (car condition)))))
+              ((not (memq display '(t default)))
+               (bytecomp--cus-warn
+                (list sp spec) "Bad face display `%S'" display)))
+        (when (and (consp atts) (null (cdr atts)))
+          (setq atts (car atts)))       ; old (DISPLAY ATTS) syntax
+        (while atts
+          (let ((attr (car atts))
+                (val (cadr atts)))
+            (cond
+             ((not (keywordp attr))
+              (bytecomp--cus-warn
+               (list atts sp spec)
+               "Non-keyword in face attribute list: `%S'" attr))
+             ((null (cdr atts))
+              (bytecomp--cus-warn
+               (list atts sp spec) "Missing face attribute `%s' value" attr))
+             ((memq attr '( :inherit :extend
+                            :family :foundry :width :height :weight :slant
+                            :foreground :distant-foreground :background
+                            :underline :overline :strike-through :box
+                            :inverse-video :stipple :font
+                            ;; FIXME: obsolete keywords, warn about them too?
+                            :bold           ; :bold t   = :weight bold
+                            :italic         ; :italic t = :slant italic
+                            ))
+              (when (eq (car-safe val) 'quote)
+                (bytecomp--cus-warn
+                 (list val atts sp spec)
+                 "Value for face attribute `%s' should not be quoted" attr)))
+             ((eq attr :reverse-video)
+              (bytecomp--cus-warn
+               (list atts sp spec)
+               (concat "Face attribute `:reverse-video' has been removed;"
+                       " use `:inverse-video' instead")))
+             (t
+              (bytecomp--cus-warn
+               (list atts sp spec)
+               "`%s' is not a valid face attribute keyword" attr))))
+          (setq atts (cddr atts)))))))
+
 ;; Unified handler for multiple functions with similar arguments:
 ;; (NAME SOMETHING DOC KEYWORD-ARGS...)
 (byte-defop-compiler-1 define-widget           bytecomp--custom-declare)
@@ -5394,6 +5447,13 @@ FORM is used to provide location, `bytecomp--cus-function' and
                         (eq (car-safe type-arg) 'quote))
                 (bytecomp--check-cus-type (cadr type-arg)))))))
 
+      (when (eq fun 'custom-declare-face)
+        (let ((face-arg (nth 2 form)))
+          (when (and (eq (car-safe face-arg) 'quote)
+                     (consp (cdr face-arg))
+                     (null (cddr face-arg)))
+            (bytecomp--check-cus-face-spec (nth 1 face-arg)))))
+
       ;; Check :group
       (when (cond
              ((memq fun '(custom-declare-variable custom-declare-face))
@@ -5407,7 +5467,13 @@ FORM is used to provide location, `bytecomp--cus-function' and
       (when (and name
                  byte-compile-current-file  ; only when compiling a whole file
 		 (eq fun 'custom-declare-group))
-	(setq byte-compile-current-group name))))
+        (setq byte-compile-current-group name))
+
+      ;; Check :local
+      (when-let* ((val (and (eq fun 'custom-declare-variable)
+                            (plist-get keyword-args :local)))
+                  (_ (not (member val '(t 'permanent 'permanent-only)))))
+        (bytecomp--cus-warn form ":local keyword does not accept %S" val))))
 
   (byte-compile-normal-call form))
 
@@ -5488,7 +5554,7 @@ OP and OPERAND are as passed to `byte-compile-out'."
 (defun byte-compile-out (op &optional operand)
   "Push the operation onto `byte-compile-output'.
 OP is an opcode, a symbol.  OPERAND is either nil or a number or
-a one-element list of a lisp form."
+a one-element list of a Lisp form."
   (when (and (consp operand) (null (cdr operand)))
     (setq operand (byte-run-strip-symbol-positions operand)))
   (push (cons op operand) byte-compile-output)
@@ -5983,8 +6049,8 @@ and corresponding effects."
             :buffer :host :service :type :family :local :remote :coding
             :nowait :noquery :stop :filter :filter-multibyte :sentinel
             :log :plist :tls-parameters :server :broadcast :dontroute
-            :keepalive :linger :oobinline :priority :reuseaddr :bindtodevice
-            :use-external-socket)
+            :keepalive :linger :oobinline :priority :reuseaddr :nodelay
+            :bindtodevice :use-external-socket)
           '(:name :service))))
 
 (provide 'byte-compile)

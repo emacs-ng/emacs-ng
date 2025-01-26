@@ -1,5 +1,5 @@
 /* undo handling for GNU Emacs.
-   Copyright (C) 1990, 1993-1994, 2000-2024 Free Software Foundation,
+   Copyright (C) 1990, 1993-1994, 2000-2025 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -358,7 +358,7 @@ truncate_undo_list (struct buffer *b)
       Lisp_Object tem;
 
       /* Normally the function this calls is undo-outer-limit-truncate.  */
-      tem = call1 (Vundo_outer_limit_function, make_int (size_so_far));
+      tem = calln (Vundo_outer_limit_function, make_int (size_so_far));
       if (! NILP (tem))
 	{
 	  /* The function is responsible for making

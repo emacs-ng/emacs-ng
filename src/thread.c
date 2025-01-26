@@ -1,5 +1,5 @@
 /* Threading code.
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -43,7 +43,7 @@ union aligned_thread_state
   struct thread_state s;
   GCALIGNED_UNION_MEMBER
 };
-verify (GCALIGNED (union aligned_thread_state));
+static_assert (GCALIGNED (union aligned_thread_state));
 
 static union aligned_thread_state main_thread
   = {{
@@ -741,7 +741,7 @@ invoke_thread_function (void)
 {
   specpdl_ref count = SPECPDL_INDEX ();
 
-  current_thread->result = Ffuncall (1, &current_thread->function);
+  current_thread->result = calln (current_thread->function);
   return unbind_to (count, Qnil);
 }
 

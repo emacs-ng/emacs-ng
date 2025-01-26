@@ -1,6 +1,6 @@
 ;;; dynamic-setting.el --- Support dynamic changes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Author: Jan Djärv <jan.h.d@swipnet.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -33,7 +33,7 @@
 ;;; Customizable variables
 
 (declare-function font-get-system-font "xsettings.c" ())
-(declare-function reconsider-frame-font "frame.c" ())
+(declare-function reconsider-frame-fonts "frame.c" (frame))
 
 (defvar font-use-system-font)
 

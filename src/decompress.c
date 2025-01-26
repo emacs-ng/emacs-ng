@@ -1,5 +1,5 @@
 /* Interface to zlib.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -26,8 +26,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "composite.h"
 #include "md5.h"
-
-#include <verify.h>
 
 #ifdef WINDOWSNT
 # include <windows.h>

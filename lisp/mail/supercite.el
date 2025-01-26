@@ -1,6 +1,6 @@
 ;;; supercite.el --- minor mode for citing mail and news replies  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 ;; Author: 1993 Barry A. Warsaw <bwarsaw@python.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -236,7 +236,7 @@ See the variable `sc-cite-frame-alist' for details."
   :group 'supercite-frames)
 
 (defcustom sc-cite-region-limit t
-  "This variable controls automatic citation of yanked text.
+  "Size limit for automatic citation of yanked text.
 Valid values are:
 
 non-nil   -- cite the entire region, regardless of its size
@@ -727,7 +727,7 @@ If optional ATTRIBS-P is non-nil, the key/value pair is placed in
 
 ;; mail header nuking
 (defvar sc-mail-last-header-nuked-p nil
-  "True if the last header was nuked.")
+  "Non-nil if the last header was nuked.")
 
 (defun sc-mail-nuke-line ()
   "Nuke the current mail header line."
@@ -1244,9 +1244,7 @@ to the auto-selected attribution string."
 
 
 ;; ======================================================================
-;; filladapt hooks for supercite 3.1. you shouldn't need anything
-;; extra to make gin-mode understand supercited lines.  Even this
-;; stuff might not be entirely necessary...
+;; filladapt hooks for supercite 3.1.
 
 (defun sc-cite-regexp (&optional root-regexp)
   "Return a regexp describing a Supercited line.

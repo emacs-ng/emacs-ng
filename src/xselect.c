@@ -1,5 +1,5 @@
 /* X Selection processing for Emacs.
-   Copyright (C) 1993-1997, 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-1997, 2000-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -396,7 +396,7 @@ x_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 	}
 
       if (!NILP (handler_fn))
-	value = call3 (handler_fn, selection_symbol,
+	value = calln (handler_fn, selection_symbol,
 		       ((local_request
 			 && NILP (Vx_treat_local_requests_remotely))
 			? Qnil

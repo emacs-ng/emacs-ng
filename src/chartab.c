@@ -122,8 +122,6 @@ the char-table has no extra slot.  */)
   else
     {
       CHECK_FIXNAT (n);
-      if (XFIXNUM (n) > 10)
-	args_out_of_range (n, Qnil);
       n_extras = XFIXNUM (n);
     }
 
@@ -667,7 +665,7 @@ optimize_sub_char_table (Lisp_Object table, Lisp_Object test)
       if (optimizable
 	  && (NILP (test) ? NILP (Fequal (this, elt)) /* defaults to `equal'. */
 	      : EQ (test, Qeq) ? !EQ (this, elt)      /* Optimize `eq' case.  */
-	      : NILP (call2 (test, this, elt))))
+	      : NILP (calln (test, this, elt))))
 	optimizable = 0;
     }
 
@@ -808,7 +806,7 @@ map_sub_char_table (void (*c_function) (Lisp_Object, Lisp_Object, Lisp_Object),
 			{
 			  if (decoder)
 			    val = decoder (top, val);
-			  call2 (function, XCAR (range), val);
+			  calln (function, XCAR (range), val);
 			}
 		    }
 		  else
@@ -819,7 +817,7 @@ map_sub_char_table (void (*c_function) (Lisp_Object, Lisp_Object, Lisp_Object),
 			{
 			  if (decoder)
 			    val = decoder (top, val);
-			  call2 (function, range, val);
+			  calln (function, range, val);
 			}
 		    }
 		}
@@ -884,7 +882,7 @@ map_char_table (void (*c_function) (Lisp_Object, Lisp_Object, Lisp_Object),
 	    {
 	      if (decoder)
 		val = decoder (table, val);
-	      call2 (function, XCAR (range), val);
+	      calln (function, XCAR (range), val);
 	    }
 	}
       else
@@ -895,7 +893,7 @@ map_char_table (void (*c_function) (Lisp_Object, Lisp_Object, Lisp_Object),
 	    {
 	      if (decoder)
 		val = decoder (table, val);
-	      call2 (function, range, val);
+	      calln (function, range, val);
 	    }
 	}
     }
@@ -943,7 +941,7 @@ map_sub_char_table_for_charset (void (*c_function) (Lisp_Object, Lisp_Object),
 		if (c_function)
 		  (*c_function) (arg, range);
 		else
-		  call2 (function, range, arg);
+		  calln (function, range, arg);
 	      }
 	    XSETCAR (range, Qnil);
 	  }
@@ -966,7 +964,7 @@ map_sub_char_table_for_charset (void (*c_function) (Lisp_Object, Lisp_Object),
 		if (c_function)
 		  (*c_function) (arg, range);
 		else
-		  call2 (function, range, arg);
+		  calln (function, range, arg);
 		XSETCAR (range, Qnil);
 	      }
 	  }
@@ -1027,7 +1025,7 @@ map_char_table_for_charset (void (*c_function) (Lisp_Object, Lisp_Object),
 	      if (c_function)
 		(*c_function) (arg, range);
 	      else
-		call2 (function, range, arg);
+		calln (function, range, arg);
 	    }
 	  XSETCAR (range, Qnil);
 	}
@@ -1038,7 +1036,7 @@ map_char_table_for_charset (void (*c_function) (Lisp_Object, Lisp_Object),
       if (c_function)
 	(*c_function) (arg, range);
       else
-	call2 (function, range, arg);
+	calln (function, range, arg);
     }
 }
 

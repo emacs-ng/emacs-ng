@@ -1,6 +1,6 @@
 ;;; eldoc.el --- Show function arglist or variable docstring in echo area  -*- lexical-binding:t; -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
@@ -462,7 +462,7 @@ documentation-displaying frontends.  For example, KEY can be:
 
 The additional KEY `:origin' is always added by ElDoc, its VALUE
 being the member of `eldoc-documentation-functions' where
-DOCSTRING originated. `eldoc-display-functions' may use this
+DOCSTRING originated.  `eldoc-display-functions' may use this
 information to organize display of multiple docstrings.
 
 Finally, major modes should modify this hook locally, for

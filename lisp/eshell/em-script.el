@@ -1,6 +1,6 @@
 ;;; em-script.el --- Eshell script files  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -24,6 +24,7 @@
 ;;; Code:
 
 (require 'esh-mode)
+(require 'esh-cmd)
 (require 'esh-io)
 
 ;;;###esh-module-autoload
@@ -67,22 +68,24 @@ This includes when running `eshell-command'."
                           'eshell/source)
                     eshell-interpreter-alist))
   (setq-local eshell-complex-commands
-	(append '("source" ".") eshell-complex-commands))
-  ;; these two variables are changed through usage, but we don't want
-  ;; to ruin it for other modules
-  (let (eshell-inside-quote-regexp
-	eshell-outside-quote-regexp)
-    (and (not (bound-and-true-p eshell-non-interactive-p))
-	 eshell-login-script
-	 (file-readable-p eshell-login-script)
-	 (eshell-do-eval
-	  `(eshell-commands ,(eshell--source-file eshell-login-script))
-          t))
-    (and eshell-rc-script
-	 (file-readable-p eshell-rc-script)
-	 (eshell-do-eval
-	  `(eshell-commands ,(eshell--source-file eshell-rc-script))
-          t))))
+	      (append '("source" ".") eshell-complex-commands))
+  ;; Run our startup scripts once this Eshell session has finished
+  ;; initialization.
+  (add-hook 'eshell-after-initialize-hook #'eshell-run-startup-scripts 90 t))
+
+(defun eshell-run-startup-scripts ()
+  "Run any necessary startup scripts for the current Eshell session."
+  (when (and (not (bound-and-true-p eshell-non-interactive-p))
+             eshell-login-script
+	     (file-readable-p eshell-login-script))
+    (eshell-do-eval
+     `(eshell-commands ,(eshell--source-file eshell-login-script))
+     t))
+  (when (and eshell-rc-script
+	     (file-readable-p eshell-rc-script))
+    (eshell-do-eval
+     `(eshell-commands ,(eshell--source-file eshell-rc-script))
+     t)))
 
 (defun eshell--source-file (file &optional args subcommand-p)
   "Return a Lisp form for executing the Eshell commands in FILE, passing ARGS.
@@ -106,22 +109,30 @@ Comments begin with `#'."
          (eshell--source-file file args subcommand-p)))
 
 ;;;###autoload
-(defun eshell-execute-file (file &optional args destination)
+(defun eshell-execute-file (file &optional args output-target error-target)
   "Execute a series of Eshell commands in FILE, passing ARGS.
-If DESTINATION is t, write the command output to the current buffer.  If
-nil, don't write the output anywhere.  For any other value, output to
-the corresponding Eshell target (see `eshell-get-target').
+If OUTPUT-TARGET is t (interactively, with the prefix argument), write
+the command's standard output to the current buffer at point.  If nil,
+don't write the output anywhere.  For any other value, output to that
+Eshell target (see `eshell-get-target').
+
+ERROR-TARGET is similar to OUTPUT-TARGET, except that it controls where
+to write standard error, and a nil value means to write standard error
+to the same place as standard output.  (To suppress standard error, you
+can write to the Eshell virtual target \"/dev/null\".)
 
 Comments begin with `#'."
+  (interactive (list (read-file-name "Execute file: " nil nil t)
+                     nil (not (not current-prefix-arg))))
   (let ((eshell-non-interactive-p t)
-        (stdout (if (eq destination t) (current-buffer) destination)))
+        (stdout (if (eq output-target t) (current-buffer) output-target))
+        (stderr (if (eq error-target t) (current-buffer) error-target)))
     (with-temp-buffer
       (eshell-mode)
       (eshell-do-eval
-       `(let ((eshell-current-handles
-               (eshell-create-handles ,stdout 'insert))
-              (eshell-current-subjob-p))
-          ,(eshell--source-file file args))
+       `(eshell-with-handles (',stdout 'insert ',stderr 'insert)
+          (let ((eshell-current-subjob-p))
+            ,(eshell--source-file file args)))
        t))))
 
 (cl-defstruct (eshell-princ-target
@@ -166,11 +177,9 @@ top in order to make it into an executable script:
     (with-temp-buffer
       (eshell-mode)
       (eshell-do-eval
-       `(let ((eshell-current-handles
-               (eshell-create-handles "/dev/stdout" 'append
-                                      "/dev/stderr" 'append))
-              (eshell-current-subjob-p))
-          ,(eshell--source-file file args))
+       `(eshell-with-handles ("/dev/stdout" 'append "/dev/stderr" 'append)
+          (let ((eshell-current-subjob-p))
+            ,(eshell--source-file file args)))
        t))))
 
 (defun eshell/source (file &rest args)

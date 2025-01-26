@@ -1,6 +1,6 @@
 ;;; data-tests.el --- tests for src/data.c  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -218,6 +218,16 @@ comparing the subr with a much slower Lisp implementation."
          unless (eql cnt rcnt)
          do (error "FAILED testcase %S %3S %3S %3S"
                    pos lf cnt rcnt)))))
+
+(ert-deftest binding-test-makunbound-built-in ()
+  "Verify that attempts to `makunbound' built-in symbols are rejected."
+  (should-error (makunbound 'initial-window-system))
+  (let ((initial-window-system 'x))
+    (should-error (makunbound 'initial-window-system)))
+  (should-error
+   (makunbound (make-local-variable 'initial-window-system)))
+  (let ((initial-window-system 'x))
+    (should-error (makunbound 'initial-window-system))))
 
 (defconst bool-vector-test-vectors
 '(""
@@ -873,6 +883,5 @@ comparing the subr with a much slower Lisp implementation."
             (cond
              ((eq subtype 'function) (cl-functionp val))
              (t (should-not (cl-typep val subtype))))))))))
-
 
 ;;; data-tests.el ends here

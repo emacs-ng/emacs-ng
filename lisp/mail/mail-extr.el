@@ -1,6 +1,6 @@
 ;;; mail-extr.el --- extract full name and address from email header  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1991-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
 ;; Author: Joe Wells <jbw@cs.bu.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -618,7 +618,7 @@ Unless NO-REPLACE is true, at each of the positions in LIST-SYMBOL
  which lie outside of the range, one character at that position is
  replaced with a SPC."
   (or (memq no-replace '(t nil))
-      (error "no-replace must be t or nil, evaluable at macroexpand-time"))
+      (error "`no-replace' must be t or nil, evaluable at macroexpand-time"))
   `(let ((temp ,list-symbol)
 	   ch)
        (while temp

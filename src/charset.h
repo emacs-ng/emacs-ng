@@ -1,5 +1,5 @@
 /* Header for charset handler.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -467,7 +467,7 @@ extern bool charset_map_loaded;
 #define ISO_MAX_FINAL 0x80	/* only 0x30..0xFF are used */
 
 /* Mapping table from ISO2022's charset (specified by DIMENSION,
-   CHARS, and FINAL_CHAR) to Emacs' charset ID.  Should be accessed by
+   CHARS, and FINAL_CHAR) to Emacs's charset ID.  Should be accessed by
    macro ISO_CHARSET_TABLE (DIMENSION, CHARS, FINAL_CHAR).  */
 extern int iso_charset_table[ISO_MAX_DIMENSION][ISO_MAX_CHARS][ISO_MAX_FINAL];
 

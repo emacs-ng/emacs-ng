@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1374,6 +1374,7 @@ DEFUN ("x-display-mm-width", Fx_display_mm_width, Sx_display_mm_width,
   error ("Android cross-compilation stub called!");
   return Qnil;
 #else
+  check_android_display_info (terminal);
   return make_fixnum (android_get_mm_width ());
 #endif
 }
@@ -1386,6 +1387,7 @@ DEFUN ("x-display-mm-height", Fx_display_mm_height, Sx_display_mm_height,
   error ("Android cross-compilation stub called!");
   return Qnil;
 #else
+  check_android_display_info (terminal);
   return make_fixnum (android_get_mm_height ());
 #endif
 }
@@ -1469,6 +1471,7 @@ Internal use only, use `display-monitor-attributes-list' instead.  */)
 #else
   struct MonitorInfo monitor;
 
+  check_android_display_info (terminal);
   memset (&monitor, 0, sizeof monitor);
   monitor.geom.width = android_get_screen_width ();
   monitor.geom.height = android_get_screen_height ();
@@ -1737,7 +1740,7 @@ android_frame_list_z_order (struct android_display_info *dpyinfo,
 
 DEFUN ("android-frame-list-z-order", Fandroid_frame_list_z_order,
        Sandroid_frame_list_z_order, 0, 1, 0,
-       doc: /* Return list of Emacs' frames, in Z (stacking) order.
+       doc: /* Return list of Emacs's frames, in Z (stacking) order.
 The optional argument TERMINAL specifies which display to ask about.
 TERMINAL should be either a frame or a display name (a string).  If
 omitted or nil, that stands for the selected frame's display.  Return
@@ -2124,7 +2127,7 @@ android_create_tip_frame (struct android_display_info *dpyinfo,
   {
     Lisp_Object bg = Fframe_parameter (frame, Qbackground_color);
 
-    call2 (Qface_set_after_frame_default, frame, Qnil);
+    calln (Qface_set_after_frame_default, frame, Qnil);
 
     if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
       {
@@ -2163,7 +2166,7 @@ android_hide_tip (bool delete)
 {
   if (!NILP (tip_timer))
     {
-      call1 (Qcancel_timer, tip_timer);
+      calln (Qcancel_timer, tip_timer);
       tip_timer = Qnil;
     }
 
@@ -2347,7 +2350,7 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 	  tip_f = XFRAME (tip_frame);
 	  if (!NILP (tip_timer))
 	    {
-	      call1 (Qcancel_timer, tip_timer);
+	      calln (Qcancel_timer, tip_timer);
 	      tip_timer = Qnil;
 	    }
 
@@ -2386,11 +2389,11 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 		    }
 		  else
 		    tip_last_parms
-		      = call2 (Qassq_delete_all, parm, tip_last_parms);
+		      = calln (Qassq_delete_all, parm, tip_last_parms);
 		}
 	      else
 		tip_last_parms
-		  = call2 (Qassq_delete_all, parm, tip_last_parms);
+		  = calln (Qassq_delete_all, parm, tip_last_parms);
 	    }
 
 	  /* Now check if every parameter in what is left of
@@ -2564,8 +2567,7 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 
  start_timer:
   /* Let the tip disappear after timeout seconds.  */
-  tip_timer = call3 (Qrun_at_time, timeout, Qnil,
-		     Qx_hide_tip);
+  tip_timer = calln (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 #endif
@@ -3216,14 +3218,14 @@ for more details about these values.  */)
   if (android_query_battery (&state))
     return Qnil;
 
-  return listn (8, make_int (state.capacity),
-		make_fixnum (state.charge_counter),
-		make_int (state.current_average),
-		make_int (state.current_now),
-		make_fixnum (state.status),
-		make_int (state.remaining),
-		make_fixnum (state.plugged),
-		make_fixnum (state.temperature));
+  return list (make_int (state.capacity),
+	       make_fixnum (state.charge_counter),
+	       make_int (state.current_average),
+	       make_int (state.current_now),
+	       make_fixnum (state.status),
+	       make_int (state.remaining),
+	       make_fixnum (state.plugged),
+	       make_fixnum (state.temperature));
 }
 
 
@@ -3270,6 +3272,11 @@ External storage on Android encompasses the `/sdcard' and
 absent these permissions.  */)
   (void)
 {
+  /* Implement a rather undependable fallback when no GUI is
+     available.  */
+  if (!android_init_gui)
+    return Ffile_accessible_directory_p (build_string ("/sdcard"));
+
   return android_external_storage_available_p () ? Qt : Qnil;
 }
 
@@ -3284,6 +3291,9 @@ Use `android-external-storage-available-p' (which see) to verify
 whether Emacs has actually received such access permissions.  */)
   (void)
 {
+  if (!android_init_gui)
+    return Qnil;
+
   android_request_storage_access ();
   return Qnil;
 }

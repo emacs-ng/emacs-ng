@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Modes
@@ -183,6 +183,7 @@ adds @code{my-text-hook-function} to the hook called @code{text-mode-hook}.
 If @var{function} is already present in @var{hook} (comparing using
 @code{equal}), then @code{add-hook} does not add it a second time.
 
+@cindex @code{permanent-local-hook} (symbol property)
 If @var{function} has a non-@code{nil} property
 @code{permanent-local-hook}, then @code{kill-all-local-variables} (or
 changing major modes) won't delete it from the hook variable's local
@@ -565,6 +566,8 @@ If something special should be done if the user switches a buffer from
 this mode to any other major mode, this mode can set up a buffer-local
 value for @code{change-major-mode-hook} (@pxref{Creating Buffer-Local}).
 
+@cindex @code{mode-class} (symbol property)
+@cindex @code{special} modes
 @item
 If this mode is appropriate only for specially-prepared text produced by
 the mode itself (rather than by the user typing at the keyboard or by an
@@ -572,8 +575,6 @@ external file), then the major mode command symbol should have a
 property named @code{mode-class} with value @code{special}, put on as
 follows:
 
-@kindex mode-class @r{(property)}
-@cindex @code{special} modes
 @example
 (put 'funny-mode 'mode-class 'special)
 @end example
@@ -2227,8 +2228,9 @@ construct.)
 @item (:eval @var{form})
 A list whose first element is the symbol @code{:eval} says to evaluate
 @var{form}, and use the result as a string to display.  Make sure this
-evaluation cannot load any files, as doing so could cause infinite
-recursion.
+evaluation neither loads any files nor calls functions like
+@code{posn-at-point} or @code{window-in-direction}, which themselves
+evaluate the mode line, as doing so could cause infinite recursion.
 
 @item (:propertize @var{elt} @var{props}@dots{})
 A list whose first element is the symbol @code{:propertize} says to
@@ -2259,7 +2261,7 @@ space filled on the right if its width is less than @var{width}.  When
 @minus{}@var{width} columns if its width exceeds @minus{}@var{width}.
 
 For example, the usual way to show what percentage of a buffer is above
-the top of the window is to use a list like this: @code{(-3 "%p")}.
+the top of the window is to use a list like this: @w{@code{(-3 "%p")}}.
 @end table
 
 @node Mode Line Top
@@ -2607,7 +2609,7 @@ The value of @code{global-mode-string} (which is part of
 
 @item %o
 The degree of @dfn{travel} of the window through (the visible portion
-of) the buffer, i.e. the size of the text above the top of the window
+of) the buffer, i.e.@: the size of the text above the top of the window
 expressed as a percentage of all the text outside the window, or
 @samp{Top}, @samp{Bottom} or @samp{All}.
 
@@ -3106,6 +3108,16 @@ instead.
 
 @code{treesit-major-mode-setup} (@pxref{Tree-sitter Major Modes})
 automatically sets up Imenu if this variable is non-@code{nil}.
+@end defvar
+
+@defvar treesit-aggregated-simple-imenu-settings
+This variable allows major modes to configure Imenu for multiple
+languages.  Its value is an alist mapping language symbols to Imenu
+settings of the form described above for the value of
+@code{treesit-simple-imenu-settings}.
+
+If this variable is non-@code{nil}, it overrides
+@code{treesit-simple-imenu-settings} for setting up Imenu.
 @end defvar
 
 @node Outline Minor Mode
@@ -3657,7 +3669,7 @@ This condition matches any element of Font Lock keywords that
 references the symbol.  This is usually a face, but can be any symbol
 referenced by an element of the @code{font-lock-keywords} list.  The
 symbol can contain wildcards: @code{*} matches any string in the
-symbol'ss name, @code{?} matches a single character, and
+symbol's name, @code{?} matches a single character, and
 @code{[@var{char-set}]}, where @var{char-set} is a string of one or
 more characters, matches a single character from the set.
 
@@ -3903,10 +3915,6 @@ faces specifically for Font Lock to use to highlight text.  These
 @dfn{Font Lock faces} are listed below.  They can also be used by major
 modes for syntactic highlighting outside of Font Lock mode (@pxref{Major
 Mode Conventions}).
-
-  Each of these symbols is both a face name, and a variable whose
-default value is the symbol itself.  Thus, the default value of
-@code{font-lock-comment-face} is @code{font-lock-comment-face}.
 
   The faces are listed with descriptions of their typical usage, and in
 order of greater to lesser prominence.  If a mode's syntactic
@@ -4381,6 +4389,8 @@ Other keywords are optional:
 @item @tab @code{append} @tab Append the new face to existing ones
 @item @tab @code{prepend} @tab Prepend the new face to existing ones
 @item @tab @code{keep} @tab Fill-in regions without an existing face
+@item @code{:reversed} @tab @code{t}
+@tab Enable @var{query} when @var{feature} is not in the feature list.
 @item @code{:default-language} @tab @var{language}
 @tab Every @var{query} after this keyword will use @var{language}
 by default.
@@ -4411,10 +4421,11 @@ ignored.
 @end defun
 
 @c FIXME: Cross-ref treesit-font-lock-level to user manual.
+@vindex treesit-font-lock-level
 @defvar treesit-font-lock-feature-list
 This is a list of lists of feature symbols.  Each element of the list
 is a list that represents a decoration level.
-@code{treesit-font-lock-level} controls which levels are
+The @code{treesit-font-lock-level} user option controls which levels are
 activated.
 
 Each element of the list is a list of the form @w{@code{(@var{feature}
@@ -4459,10 +4470,23 @@ For this variable to take effect, a Lisp program should call
 @code{treesit-font-lock-recompute-features}).
 @end defvar
 
+@findex treesit-font-lock-setting-query
+@findex treesit-font-lock-setting-feature
+@findex treesit-font-lock-setting-enable
+@findex treesit-font-lock-setting-override
+@findex treesit-font-lock-setting-reversed
 @defvar treesit-font-lock-settings
-A list of settings for tree-sitter based font lock.  The exact format
-of each setting is considered internal.  One should always use
+A list of settings for tree-sitter based font lock.  The exact format of
+each individual setting is considered internal.  One should always use
 @code{treesit-font-lock-rules} to set this variable.
+
+Even though the setting object is opaque, Emacs provides accessors for
+the setting's query, feature, enable flag and override flag:
+@code{treesit-font-lock-setting-query},
+@code{treesit-font-lock-setting-feature},
+@code{treesit-font-lock-setting-enable},
+@code{treesit-font-lock-setting-override},
+@code{treesit-font-lock-setting-reversed}.
 
 @c Because the format is internal, we don't document them here.  Though
 @c we do have it explained in the docstring.  We also expose the fact
@@ -4530,7 +4554,7 @@ and a few other such modes) has been made more generic over the years,
 so if your language seems somewhat similar to one of those languages,
 you might try to use that engine.  @c FIXME: documentation?
 Another one is SMIE which takes an approach in the spirit
-of Lisp sexps and adapts it to non-Lisp languages. Yet another one is
+of Lisp sexps and adapts it to non-Lisp languages.  Yet another one is
 to rely on a full-blown parser, for example, the tree-sitter library.
 
 @menu
@@ -5231,11 +5255,14 @@ more complex indentation engines.
 @cindex indentation rules, for parser-based indentation
 
 @defvar treesit-simple-indent-rules
-This local variable stores indentation rules for every language.  It
-is an alist with elements of the form @w{@code{(@var{language}
-. @var{rules})}}, where @var{language} is a language symbol, and
-@var{rules} is a list with elements of the form
-@w{@code{(@var{matcher} @var{anchor} @var{offset})}}.
+This local variable stores indentation rules for every language.  It is
+an list of elements of the form @w{@code{(@var{language}
+@var{rule}@dots{})}}, where @var{language} is a language symbol, and each
+@var{rule} is either a list with elements of the form
+@w{@code{(@var{matcher} @var{anchor} @var{offset})}}, or a function.
+
+Here's the description of the list variant, followed by the function
+variant.
 
 First, Emacs passes the smallest tree-sitter node at the beginning of
 the current line to @var{matcher}; if it returns non-@code{nil}, this
@@ -5265,6 +5292,14 @@ and @var{anchor} should return a buffer position.
 or a function that returns an integer.  If it is a function, it is
 passed @var{node}, @var{parent}, and @var{bol}, like matchers and
 anchors.
+
+If @var{rule}is a function, it is useful for the complex cases where a
+rule needs to consider the matching rule and the anchor together.  The
+@var{rule} function is passed the same argument as @var{matcher}:
+@var{node}, @var{parent}, and @var{bol}.  If it matches, @var{rule}
+should return a cons @w{@code{(@var{anchor-pos} . @var{offset})}}, where
+@var{anchor-pos} is a buffer position, and @var{offset} is the indent
+offset.  If @var{rule} doesn't match, it should return @code{nil}.
 @end defvar
 
 @defvar treesit-simple-indent-presets

@@ -1,6 +1,6 @@
 ;;; find-func.el --- find the definition of the Emacs Lisp function near point  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Jens Petersen <petersen@kurims.kyoto-u.ac.jp>
 ;; Keywords: emacs-lisp, functions, variables
@@ -26,7 +26,7 @@
 ;; The funniest thing about this is that I can't imagine why a package
 ;; so obviously useful as this hasn't been written before!!
 ;; ;;; find-func
-;; (find-function-setup-keys)
+;; (find-function-mode 1)
 ;;
 ;; or just:
 ;;
@@ -123,15 +123,6 @@ should insert the feature name."
   :group 'xref
   :version "25.1")
 
-(defcustom find-ert-deftest-regexp
-  "(ert-deftest +'%s"
-  "The regexp used to search for an ert-deftest definition.
-Note it must contain a `%s' at the place where `format'
-should insert the feature name."
-  :type 'regexp
-  :group 'xref
-  :version "29.1")
-
 (defun find-function--defface (symbol)
   (catch 'found
     (while (re-search-forward (format find-face-regexp symbol) nil t)
@@ -145,14 +136,17 @@ should insert the feature name."
     (defvar . find-variable-regexp)
     (defface . find-function--defface)
     (feature . find-feature-regexp)
-    (defalias . find-alias-regexp)
-    (ert-deftest . find-ert-deftest-regexp))
+    (defalias . find-alias-regexp))
   "Alist mapping definition types into regexp variables.
 Each regexp variable's value should actually be a format string
 to be used to substitute the desired symbol name into the regexp.
 Instead of regexp variable, types can be mapped to functions as well,
 in which case the function is called with one argument (the object
-we're looking for) and it should search for it.")
+we're looking for) and it should search for it.
+
+Symbols can have their own version of this alist on
+the property `find-function-type-alist'.
+See the function `find-function-update-type-alist'.")
 (put 'find-function-regexp-alist 'risky-local-variable t)
 
 (define-obsolete-variable-alias 'find-function-source-path
@@ -327,6 +321,8 @@ customizing the candidate completions."
       (switch-to-buffer (find-file-noselect (find-library-name library)))
     (run-hooks 'find-function-after-hook)))
 
+(defvar find-function--read-history-library nil)
+
 ;;;###autoload
 (defun read-library-name ()
   "Read and return a library name, defaulting to the one near point.
@@ -355,12 +351,14 @@ if non-nil)."
           (when (and def (not (test-completion def table)))
             (setq def nil))
           (completing-read (format-prompt "Library name" def)
-                           table nil nil nil nil def))
+                           table nil nil nil
+                           'find-function--read-history-library def))
       (let ((files (read-library-name--find-files dirs suffixes)))
         (when (and def (not (member def files)))
           (setq def nil))
         (completing-read (format-prompt "Library name" def)
-                         files nil t nil nil def)))))
+                         files nil t nil
+                         'find-function--read-history-library def)))))
 
 (defun read-library-name--find-files (dirs suffixes)
   "Return a list of all files in DIRS that match SUFFIXES."
@@ -400,9 +398,12 @@ See `find-library' for more details."
 Visit the library in a buffer, and return a cons cell (BUFFER . POSITION),
 or just (BUFFER . nil) if the definition can't be found in the file.
 
-If TYPE is nil, look for a function definition.
-Otherwise, TYPE specifies the kind of definition,
-and it is interpreted via `find-function-regexp-alist'.
+If TYPE is nil, look for a function definition,
+otherwise, TYPE specifies the kind of definition.
+TYPE is looked up in SYMBOL's property `find-function-type-alist'
+(which can be maintained with `find-function-update-type-alist')
+or the variable `find-function-regexp-alist'.
+
 The search is done in the source for library LIBRARY."
   (if (null library)
       (error "Don't know where `%s' is defined" symbol))
@@ -419,7 +420,10 @@ The search is done in the source for library LIBRARY."
     (when (string-match "\\.emacs\\(.el\\)\\'" library)
       (setq library (substring library 0 (match-beginning 1))))
     (let* ((filename (find-library-name library))
-	   (regexp-symbol (cdr (assq type find-function-regexp-alist))))
+	   (regexp-symbol
+            (or (and (symbolp symbol)
+                     (alist-get type (get symbol 'find-function-type-alist)))
+                (alist-get type find-function-regexp-alist))))
       (with-current-buffer (find-file-noselect filename)
 	(let ((regexp (if (functionp regexp-symbol) regexp-symbol
                         (format (symbol-value regexp-symbol)
@@ -460,6 +464,13 @@ The search is done in the source for library LIBRARY."
                 (cons (current-buffer)
                       (find-function--search-by-expanding-macros
                        (current-buffer) symbol type))))))))))
+
+;;;###autoload
+(defun find-function-update-type-alist (symbol type variable)
+  "Update SYMBOL property `find-function-type-alist' with (TYPE . VARIABLE).
+Property `find-function-type-alist' is a symbol-specific version
+of variable `find-function-regexp-alist' and has the same format."
+  (setf (alist-get type (get symbol 'find-function-type-alist)) variable))
 
 (defun find-function--try-macroexpand (form)
   "Try to macroexpand FORM in full or partially.
@@ -579,6 +590,10 @@ is non-nil, signal an error instead."
   (let ((func-lib (find-function-library function lisp-only t)))
     (find-function-search-for-symbol (car func-lib) nil (cdr func-lib))))
 
+(defvar find-function--read-history-function nil)
+(defvar find-function--read-history-variable nil)
+(defvar find-function--read-history-face nil)
+
 (defun find-function-read (&optional type)
   "Read and return an interned symbol, defaulting to the one near point.
 
@@ -601,7 +616,9 @@ otherwise uses `variable-at-point'."
     (list (intern (completing-read
                    (format-prompt "Find %s" symb prompt-type)
                    obarray predicate
-                   'lambda nil nil (and symb (symbol-name symb)))))))
+                   'lambda nil
+                   (intern (format "find-function--read-history-%s" prompt-type))
+                   (and symb (symbol-name symb)))))))
 
 (defun find-function-do-it (symbol type switch-fn)
   "Find Emacs Lisp SYMBOL in a buffer and display it.
@@ -800,20 +817,35 @@ See `find-function-on-key'."
       (find-variable-other-window symb))))
 
 ;;;###autoload
+(define-minor-mode find-function-mode
+  "Enable some key bindings for the `find-function' family of functions."
+  :group 'find-function :version "31.1" :global t :lighter nil
+  ;; For compatibility with the historical behavior of the old
+  ;; `find-function-setup-keys', define our bindings at the precedence
+  ;; level of the global map.
+  :keymap nil
+  (pcase-dolist (`(,map ,key ,cmd)
+                 `((,ctl-x-map   "F" find-function)
+                   (,ctl-x-4-map "F" find-function-other-window)
+                   (,ctl-x-5-map "F" find-function-other-frame)
+                   (,ctl-x-map   "K" find-function-on-key)
+                   (,ctl-x-4-map "K" find-function-on-key-other-window)
+                   (,ctl-x-5-map "K" find-function-on-key-other-frame)
+                   (,ctl-x-map   "V" find-variable)
+                   (,ctl-x-4-map "V" find-variable-other-window)
+                   (,ctl-x-5-map "V" find-variable-other-frame)
+                   (,ctl-x-map   "L" find-library)
+                   (,ctl-x-4-map "L" find-library-other-window)
+                   (,ctl-x-5-map "L" find-library-other-frame)))
+    (if find-function-mode
+        (keymap-set map key cmd)
+      (keymap-unset map key t))))
+
+;;;###autoload
 (defun find-function-setup-keys ()
-  "Define some key bindings for the `find-function' family of functions."
-  (define-key ctl-x-map "F" 'find-function)
-  (define-key ctl-x-4-map "F" 'find-function-other-window)
-  (define-key ctl-x-5-map "F" 'find-function-other-frame)
-  (define-key ctl-x-map "K" 'find-function-on-key)
-  (define-key ctl-x-4-map "K" 'find-function-on-key-other-window)
-  (define-key ctl-x-5-map "K" 'find-function-on-key-other-frame)
-  (define-key ctl-x-map "V" 'find-variable)
-  (define-key ctl-x-4-map "V" 'find-variable-other-window)
-  (define-key ctl-x-5-map "V" 'find-variable-other-frame)
-  (define-key ctl-x-map "L" 'find-library)
-  (define-key ctl-x-4-map "L" 'find-library-other-window)
-  (define-key ctl-x-5-map "L" 'find-library-other-frame))
+  "Turn on `find-function-mode', which see."
+  (find-function-mode 1))
+(make-obsolete 'find-function-setup-keys 'find-function-mode "31.1")
 
 (provide 'find-func)
 

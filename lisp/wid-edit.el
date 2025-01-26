@@ -1,6 +1,6 @@
 ;; wid-edit.el --- Functions for creating and using widgets -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 1996-1997, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 1999-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -56,7 +56,6 @@
 
 ;;; Code:
 (require 'cl-lib)
-(eval-when-compile (require 'subr-x)) 	; when-let
 
 ;; The `string' widget completion uses this.
 (declare-function ispell-get-word "ispell"
@@ -417,6 +416,9 @@ the :notify function can't know the new value.")
       ;; character (so we don't do this for the character widget),
       ;; or if the size of the editable field isn't specified.
       (let ((overlay (make-overlay (1- to) to nil t nil)))
+        ;; Save it so that we can easily delete it in
+        ;; `widget-field-value-delete'.  (Bug#75646)
+        (widget-put widget :field-end-overlay overlay)
 	(overlay-put overlay 'field 'boundary)
         ;; We need the real field for tabbing.
 	(overlay-put overlay 'real-field widget)
@@ -460,17 +462,20 @@ the :notify function can't know the new value.")
   "Specify button for WIDGET between FROM and TO."
   (let ((overlay (make-overlay from to nil t nil))
 	(follow-link (widget-get widget :follow-link))
-	(help-echo (widget-get widget :help-echo)))
+	(help-echo (widget-get widget :help-echo))
+	(face (unless (widget-get widget :suppress-face)
+		(widget-apply widget :button-face-get))))
     (widget-put widget :button-overlay overlay)
     (when (functionp help-echo)
       (setq help-echo 'widget-mouse-help))
-    (overlay-put overlay 'before-string #(" " 0 1 (invisible t)))
+    (overlay-put overlay 'before-string
+                 (propertize " " 'invisible t 'face face))
     (overlay-put overlay 'button widget)
     (overlay-put overlay 'keymap (widget-get widget :keymap))
     (overlay-put overlay 'evaporate t)
     ;; We want to avoid the face with image buttons.
-    (unless (widget-get widget :suppress-face)
-      (overlay-put overlay 'face (widget-apply widget :button-face-get))
+    (when face
+      (overlay-put overlay 'face face)
       (overlay-put overlay 'mouse-face
 		   ;; Make new list structure for the mouse-face value
 		   ;; so that different widgets will have
@@ -1042,8 +1047,8 @@ button end points."
 
 (defun widget-text (widget)
   "Get the text representation of the widget."
-  (when-let ((from (widget-get widget :from))
-             (to (widget-get widget :to)))
+  (when-let* ((from (widget-get widget :from))
+              (to (widget-get widget :to)))
     (when (eq (marker-buffer from) (marker-buffer to)) ; is this check necessary?
       (buffer-substring-no-properties from to))))
 
@@ -1336,7 +1341,10 @@ nothing is shown in the echo area."
     (let ((new (widget-tabable-at)))
       (while (and (eq (widget-tabable-at) new) (not (bobp)))
 	(backward-char)))
-    (unless (bobp) (forward-char)))
+    ;; If the widget is at BOB, point is already at the widget's
+    ;; starting position; otherwise, advance point to put it at the
+    ;; start of the widget (cf. bug#69943 and bug#72995).
+    (unless (and (widget-tabable-at) (bobp)) (forward-char)))
   (unless suppress-echo
     (widget-echo-help (point)))
   (run-hooks 'widget-move-hook))
@@ -2218,11 +2226,16 @@ the earlier input."
     (set-marker-insertion-type (car overlay) t)))
 
 (defun widget-field-value-delete (widget)
-  "Remove the widget from the list of active editing fields."
+  "Remove the field WIDGET from the list of active editing fields.
+
+Delete its overlays as well."
   (setq widget-field-list (delq widget widget-field-list))
   (setq widget-field-new (delq widget widget-field-new))
   ;; These are nil if the :format string doesn't contain `%v'.
   (let ((overlay (widget-get widget :field-overlay)))
+    (when (overlayp overlay)
+      (delete-overlay overlay)))
+  (let ((overlay (widget-get widget :field-end-overlay)))
     (when (overlayp overlay)
       (delete-overlay overlay))))
 
@@ -2547,9 +2560,9 @@ If the item is checked, CHOSEN is a cons whose cdr is the value."
 			     (widget-create-child-value
 			      widget type (cdr chosen)))
 			    (t
-			     (widget-create-child-value
-			      widget type (car (cdr chosen)))
-                             (widget-specify-selected child)))))
+                             (widget-specify-selected child)
+                             (widget-create-child-value
+                              widget type (car (cdr chosen)))))))
 	       (t
 		(error "Unknown escape `%c'" escape)))))
      ;; Update properties.
@@ -2936,7 +2949,7 @@ Otherwise, the new widget is the default child of WIDGET.
 The new widget gets inserted at the position of the BEFORE child."
   (save-excursion
     (let ((children (widget-get widget :children))
-          (last-deleted (when-let ((lst (widget-get widget :last-deleted)))
+          (last-deleted (when-let* ((lst (widget-get widget :last-deleted)))
                           (prog1
                               (pop lst)
                             (widget-put widget :last-deleted lst)))))
@@ -3888,6 +3901,30 @@ or a list with the default value of each component of the list WIDGET."
   (and (consp value)
        (widget-group-match widget
 			   (widget-apply widget :value-to-internal value))))
+
+(defun widget-single-or-list-to-internal (widget val)
+  (if (listp val) val
+    (cons val (make-list (1- (length (widget-get widget :args))) nil))))
+
+(define-widget 'single-or-list 'group
+  "Either a single value (`nlistp') or a list of values (`listp').
+
+If the initial value is `nlistp', the first child widget gets
+that value and the other children get nil.
+
+If the first child's value is `nlistp' and the other children are
+nil, then `widget-value' just returns the first child's value."
+  ;; The internal value is always a list; only :value-to-internal and
+  ;; :match ever get called with the external value, which might be
+  ;; `nlistp'.
+  :value-to-external (lambda (_ val)
+                       (if (and (nlistp (car val))
+                                (cl-every #'null (cdr val)))
+                           (car val) val))
+  :value-to-internal #'widget-single-or-list-to-internal
+  :match (lambda (widget val)
+           (widget-group-match widget (widget-single-or-list-to-internal widget val))))
+
 
 ;;; The `lazy' Widget.
 ;;

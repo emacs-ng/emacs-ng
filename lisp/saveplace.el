@@ -1,6 +1,6 @@
 ;;; saveplace.el --- automatically save place in files  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -151,7 +151,7 @@ different hosts.
 Changing this option requires rewriting `save-place-alist' with
 corresponding file name format, therefore setting this option
 just using `setq' may cause out-of-sync problems.  You should use
-either `setopt' or M-x customize-variable to set this option."
+either `setopt' or \\[customize-variable] to set this option."
   :type 'boolean
   :set (lambda (sym val)
          (set-default sym val)
@@ -416,22 +416,22 @@ It runs the hook `save-place-after-find-file-hook'."
   "Position point in a Dired buffer according to its saved place.
 This is run via `dired-initial-position-hook', which see."
   (or save-place-loaded (save-place-load-alist-from-file))
-  (when-let ((directory (and (derived-mode-p 'dired-mode)
-                             (boundp 'dired-subdir-alist)
-			     dired-subdir-alist
-			     (dired-current-directory)))
-             (item (expand-file-name (if (consp directory)
-					 (car directory)
-				       directory)))
-	     (cell (assoc (if save-place-abbreviate-file-names
-                              (abbreviate-file-name item) item)
-		          save-place-alist)))
+  (when-let* ((directory (and (derived-mode-p 'dired-mode)
+                              (boundp 'dired-subdir-alist)
+			      dired-subdir-alist
+			      (dired-current-directory)))
+              (item (expand-file-name (if (consp directory)
+					  (car directory)
+				        directory)))
+	      (cell (assoc (if save-place-abbreviate-file-names
+                               (abbreviate-file-name item) item)
+		           save-place-alist)))
     (or revert-buffer-in-progress-p
         (cond
 	 ((integerp (cdr cell))
 	  (goto-char (cdr cell)))
 	 ((listp (cdr cell))
-          (when-let ((elt (assq 'dired-filename (cdr cell))))
+          (when-let* ((elt (assq 'dired-filename (cdr cell))))
             (dired-goto-file (expand-file-name (cdr elt)))))))
     ;; and make sure it will be saved again for later
     (setq save-place-mode t)))

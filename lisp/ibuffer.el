@@ -1,6 +1,6 @@
 ;;; ibuffer.el --- operate on buffers like dired  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Colin Walters <walters@verbum.org>
 ;; Maintainer: John Paul Wallington <jpw@gnu.org>
@@ -186,6 +186,12 @@ recreate it for the change to take effect."
 		(sexp :tag "Test Form")
                 face)))
 
+(defcustom ibuffer-human-readable-size nil
+  "Show buffer sizes in human-readable format.
+Use the function `file-size-human-readable' for formatting."
+  :type 'boolean
+  :version "31.1")
+
 (defcustom ibuffer-use-other-window nil
   "If non-nil, display Ibuffer in another window by default."
   :type 'boolean)
@@ -304,8 +310,10 @@ in completion lists of the `ibuffer-jump-to-buffer' command."
   :type 'boolean)
 
 (defcustom ibuffer-use-header-line t
-  "If non-nil, display a header line containing current filters."
-  :type 'boolean)
+  "If non-nil, display a header line.
+If the variable's value is t, the header line displays the current
+filters.  For the value `title', display the column titles."
+  :type '(choice boolean (const :tag "Column titles" :value title)))
 
 (defcustom ibuffer-default-directory nil
   "The default directory to use for a new Ibuffer buffer.
@@ -775,6 +783,9 @@ directory, like `default-directory'."
 (defvar-keymap ibuffer-mode-header-map
   "<mouse-1>"      #'ibuffer-do-sort-by-major-mode)
 
+(defvar-keymap ibuffer-recency-header-map
+  "<mouse-1>"      #'ibuffer-do-sort-by-recency)
+
 (defvar-keymap ibuffer-mode-filter-group-map
   "<mouse-1>"      #'ibuffer-mouse-toggle-mark
   "<mouse-2>"      #'ibuffer-mouse-toggle-filter-group
@@ -832,7 +843,7 @@ width and the longest string in LIST."
       (let ((pt (save-excursion
 		  (mouse-set-point event)
 		  (point))))
-        (if-let ((it (get-text-property (point) 'ibuffer-filter-group-name)))
+        (if-let* ((it (get-text-property (point) 'ibuffer-filter-group-name)))
 	    (ibuffer-toggle-marks it)
 	  (goto-char pt)
 	  (let ((mark (ibuffer-current-mark)))
@@ -1263,7 +1274,7 @@ become unmarked.
 If point is on a group name, then this function operates on that
 group."
   (interactive)
-  (when-let ((it (get-text-property (point) 'ibuffer-filter-group-name)))
+  (when-let* ((it (get-text-property (point) 'ibuffer-filter-group-name)))
     (setq group it))
   (let ((count
 	 (ibuffer-map-lines
@@ -1336,7 +1347,7 @@ If point is on a group name, this function operates on that group."
   (when (and movement (< movement 0))
     (setq arg (- arg)))
   (ibuffer-forward-line 0)
-  (if-let ((it (get-text-property (point) 'ibuffer-filter-group-name)))
+  (if-let* ((it (get-text-property (point) 'ibuffer-filter-group-name)))
       (progn
 	(require 'ibuf-ext)
 	(ibuffer-mark-on-buffer #'identity mark it))
@@ -1540,7 +1551,7 @@ If point is on a group name, this function operates on that group."
 		    ;; `ibuffer-inline-columns' alist and insert it
 		    ;; into our generated code.  Otherwise, we just
 		    ;; generate a call to the column function.
-                    (if-let ((it (assq sym ibuffer-inline-columns)))
+                    (if-let* ((it (assq sym ibuffer-inline-columns)))
 			(nth 1 it)
 		      `(or (,sym buffer mark) "")))
 		   ;; You're not expected to understand this.  Hell, I
@@ -1711,15 +1722,27 @@ If point is on a group name, this function operates on that group."
   (:inline t
    :header-mouse-map ibuffer-size-header-map
    :summarizer
-   (lambda (column-strings)
-     (let ((total 0))
-       (dolist (string column-strings)
-	 (setq total
-	       ;; like, ewww ...
-	       (+ (float (string-to-number string))
-		  total)))
-       (format "%.0f" total))))
-  (format "%s" (buffer-size)))
+   (lambda (strings)
+     (let ((total
+            (cl-loop
+             for s in strings
+             for i = (text-property-not-all 0 (length s) 'ibuffer-size nil s)
+             if i sum (get-text-property i 'ibuffer-size s))))
+       (if ibuffer-human-readable-size
+           (file-size-human-readable total)
+         (number-to-string total)))))
+  (let ((size (buffer-size)))
+    (propertize (if ibuffer-human-readable-size
+                    (file-size-human-readable size)
+                  (number-to-string size))
+                'ibuffer-size size)))
+
+(define-ibuffer-column recency
+  (:inline t :summarizer ignore :header-mouse-map ibuffer-recency-header-map)
+  (if-let* ((time (buffer-local-value 'buffer-display-time buffer)))
+      (format "%s ago" (seconds-to-string
+                        (float-time (time-since time)) t t))
+    "never"))
 
 (define-ibuffer-column mode
   (:inline t
@@ -1737,7 +1760,7 @@ If point is on a group name, this function operates on that group."
        (cond ((zerop total) "No processes")
 	     ((= 1 total) "1 process")
 	     (t (format "%d processes" total))))))
-  (if-let ((it (get-buffer-process buffer)))
+  (if-let* ((it (get-buffer-process buffer)))
       (format "(%s %s)" it (process-status it))
     ""))
 
@@ -1872,8 +1895,8 @@ the buffer object itself and the current mark symbol."
 	    (let ((result
 		   (if (buffer-live-p (ibuffer-current-buffer))
 		       (when (or (null group)
-                                 (when-let ((it (get-text-property
-                                                 (point) 'ibuffer-filter-group)))
+                                 (when-let* ((it (get-text-property
+                                                  (point) 'ibuffer-filter-group)))
                                    (equal group it)))
 			 (save-excursion
 			   (funcall function
@@ -2027,59 +2050,90 @@ the value of point at the beginning of the line for that buffer."
   (ibuffer-update-format)
   (ibuffer-redisplay t))
 
+(defun ibuffer--format-title (element &optional header-line)
+  (if (stringp element)
+      element
+    (pcase-let ((`(,sym ,min ,_max ,align) element))
+      ;; Ignore negative MIN, since the titles are left-aligned.
+      (when (cl-minusp min)
+	(setq min (- min)))
+      (let* ((name (or (get sym 'ibuffer-column-name)
+		       (error "Unknown column %s in ibuffer-formats" sym)))
+	     (len (length name))
+	     (hmap (get sym 'header-mouse-map))
+	     (strname (if (< len min)
+			  (ibuffer-format-column name
+						 (- min len)
+						 align)
+			name)))
+	(when hmap
+	  (setq
+	   strname
+	   (propertize strname 'mouse-face 'highlight 'keymap
+                       (if header-line
+                           (define-keymap "<header-line>" hmap)
+                         hmap))))
+	strname))))
+
+(defun ibuffer--format-summary (element)
+  (if (stringp element)
+      (make-string (length element) ?\s)
+    (pcase-let ((`(,sym ,min ,_max ,align) element))
+      ;; Ignore negative MIN, since the summaries are left-aligned.
+      (when (cl-minusp min)
+        (setq min (- min)))
+      (let* ((summary
+              (if (get sym 'ibuffer-column-summarizer)
+                  (funcall (get sym 'ibuffer-column-summarizer)
+                           (get sym 'ibuffer-column-summary))
+                (make-string
+                 (length (get sym 'ibuffer-column-name))
+                 ?\s)))
+             (len (length summary)))
+        (if (< len min)
+            (ibuffer-format-column summary
+                                   (- min len)
+                                   align)
+          summary)))))
+
 (defun ibuffer-update-title-and-summary (format)
   (ibuffer-assert-ibuffer-mode)
   ;; Don't do funky font-lock stuff here
   (let ((inhibit-modification-hooks t))
-    (if (get-text-property (point-min) 'ibuffer-title)
-	(delete-region (point-min)
-		       (next-single-property-change
-			(point-min) 'ibuffer-title)))
-    (goto-char (point-min))
-    (add-text-properties
-     (point)
-     (progn
-       (let ((opos (point)))
-	 ;; Insert the title names.
-	 (dolist (element format)
-	   (insert
-	    (if (stringp element)
-		element
-	      (pcase-let ((`(,sym ,min ,_max ,align) element))
-		;; Ignore a negative min when we're inserting the title
-		(when (cl-minusp min)
-		  (setq min (- min)))
-		(let* ((name (or (get sym 'ibuffer-column-name)
-				 (error "Unknown column %s in ibuffer-formats" sym)))
-		       (len (length name))
-		       (hmap (get sym 'header-mouse-map))
-		       (strname (if (< len min)
-				    (ibuffer-format-column name
-							   (- min len)
-							   align)
-				  name)))
-		  (when hmap
-		    (setq
-		     strname
-		     (propertize strname 'mouse-face 'highlight 'keymap hmap)))
-		  strname)))))
-	 (add-text-properties opos (point) '(ibuffer-title-header t))
-	 (insert "\n")
-	 ;; Add the underlines
-	 (let ((str (save-excursion
-		      (forward-line -1)
-		      (beginning-of-line)
-		      (buffer-substring (point) (line-end-position)))))
-	   (apply #'insert (mapcar
-			    (lambda (c)
-			      (if (not (or (eq c ?\s)
-					   (eq c ?\n)))
-				  ?-
-				?\s))
-			    str)))
-	 (insert "\n"))
-       (point))
-     `(ibuffer-title t font-lock-face ,ibuffer-title-face))
+    ;; Insert the title names.
+    (if (eq ibuffer-use-header-line 'title)
+        (setq header-line-format
+              `("" header-line-indent
+                ,(propertize " " 'display
+                             '(space :align-to header-line-indent-width))
+                ,@(mapcar (lambda (e) (ibuffer--format-title e t)) format)))
+      (if (get-text-property (point-min) 'ibuffer-title)
+	  (delete-region (point-min)
+		         (next-single-property-change
+			  (point-min) 'ibuffer-title)))
+      (goto-char (point-min))
+      (add-text-properties
+       (point)
+       (progn
+         (let ((opos (point)))
+           (apply #'insert (mapcar #'ibuffer--format-title format))
+	   (add-text-properties opos (point) '(ibuffer-title-header t))
+	   (insert "\n")
+	   ;; Add the underlines
+	   (let ((str (save-excursion
+		        (forward-line -1)
+		        (beginning-of-line)
+		        (buffer-substring (point) (line-end-position)))))
+	     (apply #'insert (mapcar
+			      (lambda (c)
+			        (if (not (or (eq c ?\s)
+					     (eq c ?\n)))
+				    ?-
+				  ?\s))
+			      str)))
+	   (insert "\n"))
+         (point))
+       `(ibuffer-title t font-lock-face ,ibuffer-title-face)))
     ;; Now, insert the summary columns.
     (goto-char (point-max))
     (if (get-text-property (1- (point-max)) 'ibuffer-summary)
@@ -2091,27 +2145,7 @@ the value of point at the beginning of the line for that buffer."
 	 (point)
 	 (progn
 	   (insert "\n")
-	   (dolist (element format)
-	     (insert
-	      (if (stringp element)
-		  (make-string (length element) ?\s)
-		(pcase-let ((`(,sym ,min ,_max ,align) element))
-                  ;; Ignore a negative min when we're inserting the title.
-                  (when (cl-minusp min)
-                    (setq min (- min)))
-                  (let* ((summary
-                          (if (get sym 'ibuffer-column-summarizer)
-                              (funcall (get sym 'ibuffer-column-summarizer)
-                                       (get sym 'ibuffer-column-summary))
-                            (make-string
-                             (length (get sym 'ibuffer-column-name))
-                             ?\s)))
-                         (len (length summary)))
-                    (if (< len min)
-                        (ibuffer-format-column summary
-                                               (- min len)
-                                               align)
-                      summary))))))
+           (apply #'insert (mapcar #'ibuffer--format-summary format))
 	   (point))
 	 '(ibuffer-summary t)))))
 
@@ -2176,10 +2210,11 @@ If optional arg SILENT is non-nil, do not display progress messages."
   ;; I tried to update this automatically from the mode-line-process format,
   ;; but changing nil-ness of header-line-format while computing
   ;; mode-line-format is asking a bit too much it seems.  --Stef
-  (setq header-line-format
-        (and ibuffer-use-header-line
-             ibuffer-filtering-qualifiers
-             ibuffer-header-line-format)))
+  (unless (eq ibuffer-use-header-line 'title)
+    (setq header-line-format
+          (and ibuffer-use-header-line
+               ibuffer-filtering-qualifiers
+               ibuffer-header-line-format))))
 
 (defun ibuffer-sort-bufferlist (bmarklist)
   (unless ibuffer-sorting-functions-alist
@@ -2374,7 +2409,8 @@ In Ibuffer, you can conveniently perform many operations on the
 currently open buffers, in addition to filtering your view to a
 particular subset of them, and sorting by various criteria.
 
-Operations on marked buffers:
+Operations on marked buffers (see \"Marking commands\" below
+ for how to mark buffers):
 \\<ibuffer-mode-map>
   \\[ibuffer-do-save] - Save the marked buffers.
   \\[ibuffer-do-view] - View the marked buffers in the selected frame.

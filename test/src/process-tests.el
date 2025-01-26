@@ -1,6 +1,6 @@
 ;;; process-tests.el --- Testing the process facilities -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -462,7 +462,9 @@ See Bug#30460."
         (ipv6-addrs
          '("fe80::1" "e301::203:1" "e301:203::1"
            "e301:0203::1" "::1" "::0"
-           "0343:1:2::3" "343:001:2::3")))
+           "0343:1:2::3" "343:001:2::3"))
+        (invalid-values
+         '(1 a 1.0)))
     (dolist (a ipv4-invalid-addrs)
       (should-not (network-lookup-address-info a nil 'numeric))
       (should-not (network-lookup-address-info a 'ipv4 'numeric)))
@@ -471,6 +473,8 @@ See Bug#30460."
     (dolist (a ipv4-addrs)
       (should (network-lookup-address-info a nil 'numeric))
       (should (network-lookup-address-info a 'ipv4 'numeric)))
+    (dolist (a invalid-values)
+      (should-error (network-lookup-address-info a)))
     (when (ipv6-is-available)
       (dolist (a ipv4-addrs)
         (should-not (network-lookup-address-info a 'ipv6 'numeric)))
@@ -514,6 +518,17 @@ See Bug#30460."
   (should (eq nil (network-lookup-address-info "emacs.invalid")))))
 
 ;; End of tests requiring DNS
+
+(ert-deftest process-tests-check-bug-74907 ()
+  "Check that the result of `network-interface-list' is well-formed.
+(Bug#74907)"
+  (dolist (info (network-interface-list t))
+    (should (stringp (car info)))
+    (should (length= info 4))
+    (should (cl-every #'vectorp (cdr info)))
+    (let ((alen (length (cadr info))))
+      (should (memq alen '(5 9)))       ; Address info also has a port number
+      (should (cl-every (lambda (elt) (length= elt alen)) (cdr info))))))
 
 (defmacro process-tests--ignore-EMFILE (&rest body)
   "Evaluate BODY, ignoring EMFILE errors."
@@ -942,8 +957,8 @@ COMMAND must be a list returned by
 (defun process-tests--emacs-command ()
   "Return a command to reinvoke the current Emacs instance.
 Return nil if that doesn't appear to be possible."
-  (when-let ((binary (process-tests--emacs-binary))
-             (dump (process-tests--dump-file)))
+  (when-let* ((binary (process-tests--emacs-binary))
+              (dump (process-tests--dump-file)))
     (cons binary
           (unless (eq dump :not-needed)
             (list (concat "--dump-file="
@@ -958,18 +973,18 @@ Return nil if that can't be determined."
        (stringp invocation-directory)
        (not (file-remote-p invocation-directory))
        (file-name-absolute-p invocation-directory)
-       (when-let ((file (process-tests--usable-file-for-reinvoke
-                         (expand-file-name invocation-name
-                                           invocation-directory))))
+       (when-let* ((file (process-tests--usable-file-for-reinvoke
+                          (expand-file-name invocation-name
+                                            invocation-directory))))
          (and (file-executable-p file) file))))
 
 (defun process-tests--dump-file ()
   "Return the filename of the dump file used to start Emacs.
 Return nil if that can't be determined.  Return `:not-needed' if
 Emacs wasn't started with a dump file."
-  (if-let ((stats (and (fboundp 'pdumper-stats) (pdumper-stats))))
-      (when-let ((file (process-tests--usable-file-for-reinvoke
-                        (cdr (assq 'dump-file-name stats)))))
+  (if-let* ((stats (and (fboundp 'pdumper-stats) (pdumper-stats))))
+      (when-let* ((file (process-tests--usable-file-for-reinvoke
+                         (cdr (assq 'dump-file-name stats)))))
         (and (file-readable-p file) file))
     :not-needed))
 

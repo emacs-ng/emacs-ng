@@ -1,6 +1,6 @@
 /* This file implements an efficient interval data-structure.
 
-Copyright (C) 2017-2024 Free Software Foundation, Inc.
+Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -64,7 +64,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
    ==== FIXME: bug#58342 some important operations remain slow ===
 
-   The amortized costs of Emacs' previous-overlay-change and
+   The amortized costs of Emacs's previous-overlay-change and
    next-overlay-change functions are O(N) with this data structure.
    The root problem is that we only have an order for the BEG field,
    but not the END.  The previous/next overlay change operations need
@@ -378,9 +378,9 @@ itree_inherit_offset (uintmax_t otick, struct itree_node *node)
 	node->right->offset += node->offset;
       node->offset = 0;
     }
-  /* The only thing that matters about `otick` is whether it's equal to
+  /* The only thing that matters about 'otick' is whether it's equal to
      that of the tree.  We could also "blindly" inherit from parent->otick,
-     but we need to tree's `otick` anyway for when there's no parent.  */
+     but we need to tree's 'otick' anyway for when there's no parent.  */
   if (node->parent == NULL || node->parent->otick == otick)
     node->otick = otick;
 }
@@ -513,7 +513,7 @@ itree_size (struct itree_tree *tree)
 
 static void
 itree_rotate_left (struct itree_tree *tree,
-			   struct itree_node *node)
+		   struct itree_node *node)
 {
   eassert (node->right != NULL);
 
@@ -556,7 +556,7 @@ itree_rotate_left (struct itree_tree *tree,
 
 static void
 itree_rotate_right (struct itree_tree *tree,
-			    struct itree_node *node)
+		    struct itree_node *node)
 {
   eassert (tree && node && node->left != NULL);
 
@@ -595,7 +595,7 @@ itree_rotate_right (struct itree_tree *tree,
 
 static void
 itree_insert_fix (struct itree_tree *tree,
-			  struct itree_node *node)
+		  struct itree_node *node)
 {
   eassert (tree->root->red == false);
 
@@ -683,7 +683,7 @@ itree_insert_node (struct itree_tree *tree, struct itree_node *node)
   struct itree_node *parent = NULL;
   struct itree_node *child = tree->root;
   uintmax_t otick = tree->otick;
-  /* It's the responsibility of the caller to set `otick` on the node,
+  /* It's the responsibility of the caller to set 'otick' on the node,
      to "confirm" that the begin/end fields are up to date.  */
   eassert (node->otick == otick);
 
@@ -801,8 +801,8 @@ itree_subtree_min (uintmax_t otick, struct itree_node *node)
 
 static void
 itree_remove_fix (struct itree_tree *tree,
-			  struct itree_node *node,
-			  struct itree_node *parent)
+		  struct itree_node *node,
+		  struct itree_node *parent)
 {
   if (parent == NULL)
     eassert (node == tree->root);
@@ -913,12 +913,12 @@ itree_total_offset (struct itree_node *node)
    link the tree root.
 
    Warning: DEST is left unmodified.  SOURCE's child links are
-   unchanged.  Caller is responsible for recalculation of `limit`.
-   Requires both nodes to be using the same effective `offset`.  */
+   unchanged.  Caller is responsible for recalculation of 'limit'.
+   Requires both nodes to be using the same effective 'offset'.  */
 static void
 itree_replace_child (struct itree_tree *tree,
-			     struct itree_node *source,
-			     struct itree_node *dest)
+		     struct itree_node *source,
+		     struct itree_node *dest)
 {
   eassert (tree && dest != NULL);
   eassert (source == NULL
@@ -939,12 +939,12 @@ itree_replace_child (struct itree_tree *tree,
    parent, left and right in surrounding nodes to point to SOURCE.
 
    Warning: DEST is left unmodified.  Caller is responsible for
-   recalculation of `limit`.  Requires both nodes to be using the same
-   effective `offset`. */
+   recalculation of 'limit'.  Requires both nodes to be using the same
+   effective 'offset'. */
 static void
 itree_transplant (struct itree_tree *tree,
-			  struct itree_node *source,
-			  struct itree_node *dest)
+		  struct itree_node *source,
+		  struct itree_node *dest)
 {
   itree_replace_child (tree, source, dest);
   source->left = dest->left;
@@ -964,38 +964,38 @@ itree_remove (struct itree_tree *tree, struct itree_node *node)
   eassert (itree_contains (tree, node));
   eassert (check_tree (tree, true)); /* FIXME: Too expensive.  */
 
-  /* Find `splice`, the leaf node to splice out of the tree.  When
-     `node` has at most one child this is `node` itself.  Otherwise,
-     it is the in order successor of `node`.  */
+  /* Find 'splice', the leaf node to splice out of the tree.  When
+     'node' has at most one child this is 'node' itself.  Otherwise,
+     it is the in order successor of 'node'.  */
   itree_inherit_offset (tree->otick, node);
   struct itree_node *splice
     = (node->left == NULL || node->right == NULL)
 	? node
 	: itree_subtree_min (tree->otick, node->right);
 
-  /* Find `subtree`, the only child of `splice` (may be NULL).  Note:
-     `subtree` will not be modified other than changing its parent to
-     `splice`.  */
+  /* Find 'subtree', the only child of 'splice' (may be NULL).  Note:
+     'subtree' will not be modified other than changing its parent to
+     'splice'.  */
   eassert (splice->left == NULL || splice->right == NULL);
   struct itree_node *subtree
     = (splice->left != NULL) ? splice->left : splice->right;
 
-  /* Save a pointer to the parent of where `subtree` will eventually
-     be in `subtree_parent`.  */
+  /* Save a pointer to the parent of where 'subtree' will eventually
+     be in 'subtree_parent'.  */
   struct itree_node *subtree_parent
     = (splice->parent != node) ? splice->parent : splice;
 
-  /* If `splice` is black removing it may violate Red-Black
+  /* If 'splice' is black removing it may violate Red-Black
      invariants, so note this for later.  */
 
-  /* Replace `splice` with `subtree` under subtree's parent.  If
-     `splice` is black, this creates a red-red violation, so remember
+  /* Replace 'splice' with 'subtree' under subtree's parent.  If
+     'splice' is black, this creates a red-red violation, so remember
      this now as the field can be overwritten when splice is
      transplanted below.  */
   itree_replace_child (tree, subtree, splice);
   bool removed_black = !splice->red;
 
-  /* Replace `node` with `splice` in the tree and propagate limit
+  /* Replace 'node' with 'splice' in the tree and propagate limit
      upwards, if necessary.  Note: Limit propagation can stabilize at
      any point, so we must call from bottom to top for every node that
      has a new child.  */
@@ -1054,8 +1054,8 @@ itree_insert_gap (struct itree_tree *tree,
 
   /* Nodes with front_advance starting at pos may mess up the tree
      order, so we need to remove them first.  This doesn't apply for
-     `before_markers` since in that case, all positions move identically
-     regardless of `front_advance` or `rear_advance`.  */
+     'before_markers' since in that case, all positions move identically
+     regardless of 'front_advance' or 'rear_advance'.  */
   struct itree_stack *saved = itree_stack_create (0);
   struct itree_node *node = NULL;
   if (!before_markers)
@@ -1208,7 +1208,7 @@ itree_node_intersects (const struct itree_node *node,
 
    Note that this should return all the nodes that we need to traverse
    in order to traverse the nodes selected by the current narrowing (i.e.
-   `ITER->begin..ITER->end`) so it will also return some nodes which aren't in
+   'ITER->begin..ITER->end') so it will also return some nodes which aren't in
    that narrowing simply because they may have children which are.
 
    The code itself is very unsatisfactory because the code of each one
@@ -1221,8 +1221,8 @@ itree_iter_next_in_subtree (struct itree_node *node,
                             struct itree_iterator *iter)
 {
   /* FIXME: Like in the previous version of the iterator, we
-     prune based on `limit` only when moving to a left child,
-     but `limit` can also get smaller when moving to a right child
+     prune based on 'limit' only when moving to a left child,
+     but 'limit' can also get smaller when moving to a right child
      It's actually fairly common, so maybe it would be worthwhile
      to prune a bit more aggressively here.  */
   struct itree_node *next;
@@ -1304,7 +1304,7 @@ itree_iter_next_in_subtree (struct itree_node *node,
                   return next;
                 }
             }
-          }
+	}
       return NULL;
 
     case ITREE_POST_ORDER:
@@ -1387,10 +1387,10 @@ itree_iterator_start (struct itree_iterator *iter,
   iter->end = end;
   iter->otick = tree->otick;
   iter->order = order;
-  /* Beware: the `node` field always holds "the next" node to consider.
+  /* Beware: the 'node' field always holds "the next" node to consider.
      so it's always "one node ahead" of what the iterator loop sees.
      In most respects this makes no difference, but we depend on this
-     detail in `delete_all_overlays` where this allows us to modify
+     detail in 'delete_all_overlays' where this allows us to modify
      the current node knowing that the iterator will not need it to
      find the next.  */
   iter->node = itree_iterator_first_node (tree, iter);

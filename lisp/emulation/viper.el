@@ -3,7 +3,7 @@
 ;;		 and a venomous VI PERil.
 ;;		 Viper Is also a Package for Emacs Rebels.
 
-;; Copyright (C) 1994-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Keywords: emulations
@@ -486,7 +486,7 @@ unless it is coming up in a wrong Viper state."
   "List specifying how to modify the various major modes to enable some Viperisms.
 The list has the structure: ((mode viper-state keymap) (mode viper-state
 keymap) ...).  If `mode' is on the list, the `keymap' will be made active (on
-the minor-mode-map-alist) in the specified viper state.
+the `minor-mode-map-alist') in the specified viper state.
 If you change this list, have to restart Emacs for the change to take effect.
 However, if you did the change through the customization widget, then Emacs
 needs to be restarted only if you deleted a triple mode-state-keymap from the

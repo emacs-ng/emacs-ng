@@ -1,6 +1,6 @@
 ;;; frame.el --- multi-frame management independent of window systems  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2000-2024 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -114,6 +114,74 @@ appended when the minibuffer frame is created."
 		       (symbol :tag "Parameter")
 		       (sexp :tag "Value")))
   :group 'frames)
+
+(defun frame-deletable-p (&optional frame)
+  "Return non-nil if specified FRAME can be safely deleted.
+FRAME must be a live frame and defaults to the selected frame.
+
+FRAME cannot be safely deleted in the following cases:
+
+- FRAME is the only visible or iconified frame.
+
+- FRAME hosts the active minibuffer window that does not follow the
+  selected frame.
+
+- All other visible or iconified frames are either child frames or have
+  a non-nil `delete-before' parameter.
+
+- FRAME or one of its descendants hosts the minibuffer window of a frame
+  that is not a descendant of FRAME.
+
+This covers most cases where `delete-frame' might fail when called from
+top-level.  It does not catch some special cases like, for example,
+deleting a frame during a drag-and-drop operation.  In any such case, it
+will be better to wrap the `delete-frame' call in a `condition-case'
+form."
+  (setq frame (window-normalize-frame frame))
+  (let ((active-minibuffer-window (active-minibuffer-window))
+	deletable)
+    (catch 'deletable
+      (when (and active-minibuffer-window
+		 (eq (window-frame active-minibuffer-window) frame)
+		 (not (eq (default-toplevel-value
+			   'minibuffer-follows-selected-frame)
+			  t)))
+	(setq deletable nil)
+	(throw 'deletable nil))
+
+      (let ((frames (delq frame (frame-list))))
+	(dolist (other frames)
+	  ;; A suitable "other" frame must be either visible or
+	  ;; iconified.  Child frames and frames with a non-nil
+	  ;; 'delete-before' parameter do not qualify as other frame -
+	  ;; either of these will depend on a "suitable" frame found in
+	  ;; this loop.
+	  (unless (or (frame-parent other)
+		      (frame-parameter other 'delete-before)
+		      (not (frame-visible-p other)))
+	    (setq deletable t))
+
+	  ;; Some frame not descending from FRAME may use the minibuffer
+	  ;; window of FRAME or the minibuffer window of a frame
+	  ;; descending from FRAME.
+	  (when (let* ((minibuffer-window (minibuffer-window other))
+		       (minibuffer-frame
+			(and minibuffer-window
+			     (window-frame minibuffer-window))))
+		  (and minibuffer-frame
+		       ;; If the other frame is a descendant of
+		       ;; FRAME, it will be deleted together with
+		       ;; FRAME ...
+		       (not (frame-ancestor-p frame other))
+		       ;; ... but otherwise the other frame must
+		       ;; neither use FRAME nor any descendant of
+		       ;; it as minibuffer frame.
+		       (or (eq minibuffer-frame frame)
+			   (frame-ancestor-p frame minibuffer-frame))))
+	    (setq deletable nil)
+	    (throw 'deletable nil))))
+
+      deletable)))
 
 (defun handle-delete-frame (event)
   "Handle delete-frame events from the X server."
@@ -794,7 +862,11 @@ When called from Lisp, returns the new frame."
 
 (defun clone-frame (&optional frame no-windows)
   "Make a new frame with the same parameters and windows as FRAME.
-With a prefix arg NO-WINDOWS, don't clone the window configuration.
+If NO-WINDOWS is non-nil (interactively, the prefix argument), don't
+clone the configuration of FRAME's windows.
+If FRAME is a graphical frame and `frame-resize-pixelwise' is non-nil,
+clone FRAME's pixel size.  Otherwise, use the number of FRAME's columns
+and lines for the clone.
 
 FRAME defaults to the selected frame.  The frame is created on the
 same terminal as FRAME.  If the terminal is a text-only terminal then
@@ -807,10 +879,17 @@ also select the new frame."
           (seq-remove (lambda (elem)
                         (memq (car elem) frame-internal-parameters))
                       (frame-parameters frame)))
-         (new-frame (make-frame)))
+         new-frame)
+    (when (and frame-resize-pixelwise
+               (display-graphic-p frame))
+      (push (cons 'width (cons 'text-pixels (frame-text-width frame)))
+            default-frame-alist)
+      (push (cons 'height (cons 'text-pixels (frame-text-height frame)))
+            default-frame-alist))
+    (setq new-frame (make-frame))
     (when windows
       (window-state-put windows (frame-root-window new-frame) 'safe))
-    (unless (display-graphic-p)
+    (unless (display-graphic-p frame)
       (select-frame new-frame))
     new-frame))
 
@@ -1655,6 +1734,7 @@ live frame and defaults to the selected one."
 (declare-function haiku-frame-geometry "haikufns.c" (&optional frame))
 (declare-function android-frame-geometry "androidfns.c" (&optional frame))
 (declare-function winit-frame-geometry "wrfns.c" (&optional frame))
+(declare-function tty-frame-geometry "term.c" (&optional frame))
 
 (defun frame-geometry (&optional frame)
   "Return geometric attributes of FRAME.
@@ -1713,24 +1793,7 @@ and width values are in pixels.
      ((eq frame-type 'winit)
       (winit-frame-geometry frame))
      (t
-      (list
-       '(outer-position 0 . 0)
-       (cons 'outer-size (cons (frame-width frame) (frame-height frame)))
-       '(external-border-size 0 . 0)
-       '(outer-border-width . 0)
-       '(title-bar-size 0 . 0)
-       '(menu-bar-external . nil)
-       (let ((menu-bar-lines (frame-parameter frame 'menu-bar-lines)))
-	 (cons 'menu-bar-size
-	       (if menu-bar-lines
-		   (cons (frame-width frame) 1)
-		 1 0)))
-       '(tool-bar-external . nil)
-       '(tool-bar-position . nil)
-       '(tool-bar-size 0 . 0)
-       '(tab-bar-size 0 . 0)
-       (cons 'internal-border-width
-	     (frame-parameter frame 'internal-border-width)))))))
+      (tty-frame-geometry frame)))))
 
 (defun frame--size-history (&optional frame)
   "Print history of resize operations for FRAME.
@@ -1840,6 +1903,7 @@ of frames like calls to map a frame or change its visibility."
 (declare-function haiku-frame-edges "haikufns.c" (&optional frame type))
 (declare-function android-frame-edges "androidfns.c" (&optional frame type))
 (declare-function winit-frame-edges "wrfns.c" (&optional frame type))
+(declare-function tty-frame-edges "term.c" (&optional frame type))
 
 (defun frame-edges (&optional frame type)
   "Return coordinates of FRAME's edges.
@@ -1872,7 +1936,7 @@ FRAME."
      ((eq frame-type 'winit)
       (winit-frame-edges frame type))
      (t
-      (list 0 0 (frame-width frame) (frame-height frame))))))
+      (tty-frame-edges frame type)))))
 
 (declare-function w32-mouse-absolute-pixel-position "w32fns.c")
 (declare-function x-mouse-absolute-pixel-position "xfns.c")
@@ -2032,9 +2096,10 @@ workarea attribute."
 (declare-function haiku-frame-list-z-order "haikufns.c" (&optional display))
 (declare-function android-frame-list-z-order "androidfns.c" (&optional display))
 (declare-function winit-frame-list-z-order "wrfns.c" (&optional display))
+(declare-function tty-frame-list-z-order "term.c" (&optional display))
 
 (defun frame-list-z-order (&optional display)
-  "Return list of Emacs' frames, in Z (stacking) order.
+  "Return list of Emacs's frames, in Z (stacking) order.
 The optional argument DISPLAY specifies which display to poll.
 DISPLAY should be either a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
@@ -2061,7 +2126,9 @@ Return nil if DISPLAY contains no Emacs frame."
      ((eq frame-type 'android)
       (android-frame-list-z-order display))
      ((eq frame-type 'winit)
-      (winit-frame-list-z-order display)))))
+      (winit-frame-list-z-order display))
+     (t
+      (tty-frame-list-z-order display)))))
 
 (declare-function x-frame-restack "xfns.c" (frame1 frame2 &optional above))
 (declare-function w32-frame-restack "w32fns.c" (frame1 frame2 &optional above))
@@ -2071,6 +2138,7 @@ Return nil if DISPLAY contains no Emacs frame."
 (declare-function android-frame-restack "androidfns.c" (frame1 frame2
                                                                &optional above))
 (declare-function winit-frame-restack "wrfns.c" (frame1 frame2 &optional above))
+(declare-function tty-frame-restack "term.c" (frame1 frame2 &optional above))
 
 (defun frame-restack (frame1 frame2 &optional above)
   "Restack FRAME1 below FRAME2.
@@ -2108,7 +2176,9 @@ Some window managers may refuse to restack windows."
          ((eq frame-type 'android)
           (android-frame-restack frame1 frame2 above))
          ((eq frame-type 'winit)
-          (winit-frame-restack frame1 frame2 above))))
+          (winit-frame-restack frame1 frame2 above))
+         (t
+          (tty-frame-restack frame1 frame2 above))))
     (error "Cannot restack frames")))
 
 (defun frame-size-changed-p (&optional frame)
@@ -2261,6 +2331,7 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
       1))))
 
 (declare-function x-display-pixel-height "xfns.c" (&optional terminal))
+(declare-function tty-display-pixel-height "term.c" (&optional terminal))
 
 (defun display-pixel-height (&optional display)
   "Return the height of DISPLAY's screen in pixels.
@@ -2278,9 +2349,10 @@ with DISPLAY.  To get information for each physical monitor, use
      ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-pixel-height display))
      (t
-      (frame-height (if (framep display) display (selected-frame)))))))
+      (tty-display-pixel-height display)))))
 
 (declare-function x-display-pixel-width "xfns.c" (&optional terminal))
+(declare-function tty-display-pixel-width "term.c" (&optional terminal))
 
 (defun display-pixel-width (&optional display)
   "Return the width of DISPLAY's screen in pixels.
@@ -2298,7 +2370,7 @@ with DISPLAY.  To get information for each physical monitor, use
      ((memq frame-type '(x w32 ns haiku pgtk android winit))
       (x-display-pixel-width display))
      (t
-      (frame-width (if (framep display) display (selected-frame)))))))
+      (tty-display-pixel-width display)))))
 
 (defcustom display-mm-dimensions-alist nil
   "Alist for specifying screen dimensions in millimeters.

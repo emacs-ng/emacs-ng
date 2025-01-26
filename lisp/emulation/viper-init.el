@@ -1,6 +1,6 @@
 ;;; viper-init.el --- some common definitions for Viper  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -698,8 +698,8 @@ If nil, the cursor will move backwards without deleting anything."
   "List of file and buffer names to consider related to the current buffer.
 Related buffers can be cycled through via :R and :P commands."
   :type 'boolean
+  :local 'permanent-only
   :group 'viper-misc)
-(put 'viper-related-files-and-buffers-ring 'permanent-local t)
 
 ;; Used to find out if we are done with searching the current buffer.
 (defvar-local viper-local-search-start-marker nil)

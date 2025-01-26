@@ -1,6 +1,6 @@
 /* Timsort for sequences.
 
-Copyright (C) 2022-2024 Free Software Foundation, Inc.
+Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -198,7 +198,7 @@ typedef struct merge_state
 static bool
 order_pred_lisp (merge_state *ms, Lisp_Object a, Lisp_Object b)
 {
-  return !NILP (call2 (ms->predicate, a, b));
+  return !NILP (calln (ms->predicate, a, b));
 }
 
 static bool
@@ -1113,7 +1113,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
 	{
 	  /* Fill with valid Lisp values in case a GC occurs before all
 	     keys have been computed.  */
-	  verify (NIL_IS_ZERO);
+	  static_assert (NIL_IS_ZERO);
 	  keys = allocated_keys = xzalloc (length * word_size);
 	}
 
@@ -1127,7 +1127,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
      (any call to keyfunc might trigger a GC).  */
   if (!NILP (keyfunc))
     for (ptrdiff_t i = 0; i < length; i++)
-      keys[i] = call1 (keyfunc, seq[i]);
+      keys[i] = calln (keyfunc, seq[i]);
 
   /* FIXME: This is where we would check the keys for interesting
      properties for more optimized comparison (such as all being fixnums

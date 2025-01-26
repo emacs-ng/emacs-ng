@@ -1,6 +1,6 @@
 ;;; ob-sql.el --- Babel Functions for SQL            -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Maintainer: Daniel Kraus <daniel@kraus.my>
@@ -208,7 +208,7 @@ Pass nil to omit that arg."
   "Convert FILE to OS standard file name.
 If in Cygwin environment, uses Cygwin specific function to
 convert the file name.  In a Windows-NT environment, do nothing.
-Otherwise, use Emacs' standard conversion function."
+Otherwise, use Emacs's standard conversion function."
   (cond ((fboundp 'cygwin-convert-file-name-to-windows)
 	 (format "%S" (cygwin-convert-file-name-to-windows file)))
 	((string= "windows-nt" system-type) file)

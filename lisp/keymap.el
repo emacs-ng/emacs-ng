@@ -1,6 +1,6 @@
 ;;; keymap.el --- Keymap functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -327,21 +327,29 @@ KEYS should be a string consisting of one or more key strokes,
 with a single space character separating one key stroke from another.
 
 Each key stroke is either a single character, or the name of an
-event, surrounded by angle brackets <like-this>.  In addition, any
-key stroke may be preceded by one or more modifier keys.  Finally,
-a limited number of characters have a special shorthand syntax.
+event, surrounded by angle brackets <like-this>.  An event may be
+pushing a key, clicking on a menu item, pressing a mouse button, etc.
+In addition, any key stroke may be preceded by one or more modifier
+keys.  Finally, a limited number of characters have a special shorthand
+syntax.
 
 Here are some example of valid key sequences.
 
   \"f\"           (the key `f')
+  \"<f6>\"        (the function key named \"F6\")
+  \"<mouse-1>\"   (the mouse button named \"mouse-1\", commonly referred to as
+                 the left button)
   \"S o m\"       (a three-key sequence of the keys `S', `o' and `m')
   \"C-c o\"       (a two-key sequence: the key `c' with the control modifier
                  followed by the key `o')
-  \"H-<left>\"    (the function key named \"left\" with the hyper modifier)
+  \"H-<left>\"    (the cursor control key named \"left\" with the hyper modifier)
+  \"RET\"         (the \"return\" key, also available as \"C-m\")
+  \"<return>\"    (the \"<return>\" function key, which can be bound separately
+                 from \"RET\" on some systems)
   \"M-RET\"       (the \"return\" key with a meta modifier)
   \"C-M-<space>\" (the \"space\" key with both the control and meta modifiers)
 
-These are the characters that have special shorthand syntax:
+These characters have special shorthand syntax:
 NUL, RET, TAB, LFD, ESC, SPC, DEL.
 
 Modifiers have to be specified in this order:
@@ -392,9 +400,16 @@ This function creates a `keyboard-translate-table' if necessary
 and then modifies one entry in it.
 
 Both FROM and TO should be specified by strings that satisfy `key-valid-p'.
-If TO is nil, remove any existing translation for FROM."
+If TO is nil, remove any existing translation for FROM.
+
+Interactively, prompt for FROM and TO with `read-char'."
   (declare (compiler-macro
             (lambda (form) (keymap--compile-check from to) form)))
+  ;; Using `key-description' is a necessary evil here, so that the
+  ;; values can be passed to keymap-* functions, even though those
+  ;; functions immediately undo it with `key-parse'.
+  (interactive `(,(key-description `[,(read-char "From: ")])
+                 ,(key-description `[,(read-char "To: ")])))
   (keymap--check from)
   (when to
     (keymap--check to))
@@ -416,6 +431,56 @@ If TO is nil, remove any existing translation for FROM."
     (aset keyboard-translate-table
           (aref from-key 0)
           (and to (aref to-key 0)))))
+
+(defun key-translate-select ()
+  "Prompt for a current keyboard translation pair with `completing-read'.
+
+Each pair is formatted as \"FROM -> TO\".
+
+Return the \"FROM\" as a key string."
+  (let* ((formatted-trans-alist nil)
+         ;; Alignment helpers
+         (pad 0)
+         (key-code-func
+          (lambda (kc trans)
+            (let* ((desc (key-description `[,kc]))
+                   (len (length desc)))
+              (when (> len pad)
+                (setq pad len))
+              (push
+               `(,desc . ,(key-description `[,trans]))
+               formatted-trans-alist))))
+         (format-func
+          (lambda (pair) ;; (key . value)
+            (format
+             "%s -> %s"
+             (string-pad (key-description `[,(car pair)]) pad)
+             (key-description `[,(cdr pair)])))))
+    ;; Set `pad' and `formatted-trans-alist'
+    (map-char-table
+     (lambda (chr trans)
+       (if (characterp chr)
+           (funcall key-code-func chr trans)
+         (require 'range)
+         (declare-function range-map "range" (func range))
+         (range-map
+          (lambda (kc) (funcall key-code-func kc trans))
+          chr)))
+     keyboard-translate-table)
+    (car
+     (split-string
+      (completing-read
+       "Key Translation: "
+       (mapcar format-func formatted-trans-alist)
+       nil t)))))
+
+(defun key-translate-remove (from)
+  "Remove translation of FROM from `keyboard-translate-table'.
+
+FROM must satisfy `key-valid-p'.  If FROM has no entry in
+`keyboard-translate-table', this has no effect."
+  (interactive (list (key-translate-select)))
+  (key-translate from nil))
 
 (defun keymap-lookup (keymap key &optional accept-default no-remap position)
   "Return the binding for command KEY in KEYMAP.
@@ -471,7 +536,7 @@ If optional argument ACCEPT-DEFAULT is non-nil, recognize default
 bindings; see the description of `keymap-lookup' for more details
 about this."
   (declare (compiler-macro (lambda (form) (keymap--compile-check keys) form)))
-  (when-let ((map (current-local-map)))
+  (when-let* ((map (current-local-map)))
     (keymap-lookup map keys accept-default)))
 
 (defun keymap-global-lookup (keys &optional accept-default message)
@@ -630,6 +695,7 @@ value can also be a property list with properties `:enter',
 `:exit' and `:hints', for example:
 
      :repeat (:enter (commands ...) :exit (commands ...)
+              :continue (commands ...)
               :hints ((command . \"hint\") ...))
 
 `:enter' specifies the list of additional commands that only
@@ -644,6 +710,10 @@ list is empty, no commands in the map exit `repeat-mode'.
 Specifying a list of commands is useful when those commands exist
 in this specific map, but should not have the `repeat-map' symbol
 property.
+
+`:continue' specifies the list of commands that should not
+enter `repeat-mode'.  These command should only continue the
+already activated repeating sequence.
 
 `:hints' is a list of cons pairs where car is a command and
 cdr is a string that is displayed alongside of the repeatable key
@@ -683,6 +753,10 @@ in the echo area.
             def)
         (dolist (def (plist-get repeat :enter))
           (push `(put ',def 'repeat-map ',variable-name) props))
+        (dolist (def (plist-get repeat :continue))
+          (push `(put ',def 'repeat-continue
+                      (cons ',variable-name (get ',def 'repeat-continue)))
+                props))
         (while defs
           (pop defs)
           (setq def (pop defs))

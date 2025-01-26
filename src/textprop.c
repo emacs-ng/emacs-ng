@@ -1,5 +1,5 @@
 /* Interface code for dealing with text properties.
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2167,7 +2167,7 @@ call_mod_hooks (Lisp_Object list, Lisp_Object start, Lisp_Object end)
 {
   while (!NILP (list))
     {
-      call2 (Fcar (list), start, end);
+      calln (Fcar (list), start, end);
       list = Fcdr (list);
     }
 }

@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1997, 1999--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1997, 1999--2025 Free Software Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node International
 @chapter International Character Set Support
@@ -516,8 +516,9 @@ do the highlighting in the buffer showing the possible characters,
 rather than in the echo area.
 
   To enter characters according to the @dfn{p@=iny@=in} transliteration
-method instead, use the @code{chinese-sisheng} input method.  This is
-a composition based method, where e.g. @kbd{pi1} results in @samp{p@=i}.
+method instead, use the @code{chinese-sisheng} input method.  This is a
+composition based method, where, for example, @kbd{pi1} results in
+@samp{p@=i}.
 
   In Japanese input methods, first you input a whole word using
 phonetic spelling; then, after the word is in the buffer, Emacs
@@ -832,7 +833,7 @@ format, which Emacs doesn't support directly.})
 @item @dots{}-mac
 Assume the file uses carriage return to separate lines, and do the
 appropriate conversion.  (This was the convention used in Classic Mac
-OS.)
+OS, but is now rare outside of legacy software.)
 @end table
 
   These variant coding systems are omitted from the
@@ -1657,6 +1658,16 @@ used.  Some examples are:
                   'han (font-spec :registry "big5")
                   nil 'prepend)
 
+@cindex emoji font
+;; Use "Noto Color Emoji" for the emoji script (this is the default).
+(set-fontset-font "fontset-default" 'emoji
+                  '("Noto Color Emoji" . "iso10646-1")
+                  nil 'prepend)
+
+;; Display the "heart" character using a color font.
+(set-fontset-font "fontset-default"
+                  #x2764 "Noto Color Emoji")
+
 ;; Use MyPrivateFont for the Unicode private use area.
 (set-fontset-font "fontset-default"  '(#xe000 . #xf8ff)
                   "MyPrivateFont")
@@ -1671,6 +1682,7 @@ used.  Some examples are:
                   nil 'append)
 @end example
 
+@vindex use-default-font-for-symbols
 When modifying the fontset for the @code{symbol} script, the value of
 @code{use-default-font-for-symbols} will affect whether the fontset is
 actually used.

@@ -10,7 +10,7 @@
 This manual documents Htmlfontify, a source code -> crosslinked +
 formatted + syntax colorized html transformer.
 
-Copyright @copyright{} 2002--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2002--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -141,7 +141,7 @@ and hyperlinks as appropriate.
 (htmlfontify-run-etags @var{srcdir})
 @end lisp
 
-Load the etags cache for @var{srcdir}.  See @ref{hfy-load-tags-cache}.
+Load the etags cache for @var{srcdir}.  @xref{hfy-load-tags-cache}.
 
 @item htmlfontify-copy-and-link-dir
 @findex htmlfontify-copy-and-link-dir
@@ -751,7 +751,7 @@ should do this.
 (hfy-face-to-css @var{fn})
 @end lisp
 
-Take @var{fn}, a font or @code{defface} specification (c.f.
+Take @var{fn}, a font or @code{defface} specification (cf.
 @code{face-attr-construct}) and return a CSS style specification.
 
 See also: @ref{hfy-face-to-style}
@@ -828,7 +828,7 @@ If @var{class} is @code{nil}, then you just get whatever
 @code{face-attr-construct} returns; i.e., the current specification in
 effect for @var{face}.
 
-See @ref{hfy-display-class} for details of valid values for @var{class}.
+@xref{hfy-display-class}, for details of valid values for @var{class}.
 
 @item hfy-face-at
 @findex hfy-face-at
@@ -1069,7 +1069,7 @@ Each tag hash entry then contains entries of the form:
 
 i.e., an alist mapping (relative) file paths to line and character offsets.
 
-See @ref{hfy-load-tags-cache}.
+@xref{hfy-load-tags-cache}.
 
 @item hfy-tags-rmap
 @vindex hfy-tags-rmap
@@ -1167,7 +1167,7 @@ An assoc of @code{(point . @var{face-symbol})} or
 . end)} elements, in descending order of point value (i.e., from the
 file's end to its beginning).  The map is in reverse order because
 inserting a @samp{<style>} tag (or any other string) at @var{point}
-invalidates the map for all entries with a greater value of point. By
+invalidates the map for all entries with a greater value of point.  By
 traversing the map from greatest to least @var{point}, we still
 invalidate the map as we go, but only those points we have already
 dealt with (and therefore no longer care about) will be invalid at any

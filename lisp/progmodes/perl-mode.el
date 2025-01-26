@@ -1,6 +1,6 @@
 ;;; perl-mode.el --- Perl code editing commands for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990, 1994, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1990, 1994, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: William F. Mann
 ;; Maintainer: emacs-devel@gnu.org
@@ -100,15 +100,13 @@
   "Abbrev table in use in `perl-mode' buffers.")
 (define-abbrev-table 'perl-mode-abbrev-table ())
 
-(defvar perl-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\e\C-a" 'perl-beginning-of-function)
-    (define-key map "\e\C-e" 'perl-end-of-function)
-    (define-key map "\e\C-h" 'perl-mark-function)
-    (define-key map "\e\C-q" 'perl-indent-exp)
-    (define-key map "\177" 'backward-delete-char-untabify)
-    map)
-  "Keymap used in Perl mode.")
+(defvar-keymap perl-mode-map
+  :doc "Keymap used in Perl mode."
+  "C-M-a" #'perl-beginning-of-function
+  "C-M-e" #'perl-end-of-function
+  "C-M-h" #'perl-mark-function
+  "C-M-q" #'perl-indent-exp
+  "DEL"   #'backward-delete-char-untabify)
 
 (defvar perl-mode-syntax-table
   (let ((st (make-syntax-table (standard-syntax-table))))
@@ -963,8 +961,8 @@ changed by, or (parse-state) if line starts in a quoted string."
   (save-excursion
     (skip-chars-backward " \t\n")
     (beginning-of-line)
-    (when-let ((comm (and (looking-at "^\\.$")
-                          (nth 8 (syntax-ppss)))))
+    (when-let* ((comm (and (looking-at "^\\.$")
+                           (nth 8 (syntax-ppss)))))
       (goto-char comm)
       (beginning-of-line)
       (looking-at perl--format-regexp))))
@@ -1128,16 +1126,9 @@ Returns (parse-state) if line starts inside a string."
             ;; Move back over whitespace before the openbrace.
             ;; If openbrace is not first nonwhite thing on the line,
             ;; add the perl-brace-imaginary-offset.
-            (progn (skip-chars-backward " \t")
-                   (if (bolp) 0 perl-brace-imaginary-offset))
-            ;; If the openbrace is preceded by a parenthesized exp,
-            ;; move to the beginning of that;
-            ;; possibly a different line
-            (progn
-              (if (eq (preceding-char) ?\))
-                  (forward-sexp -1))
-              ;; Get initial indentation of the line we are on.
-              (current-indentation)))))))))
+            (save-excursion (skip-chars-backward " \t")
+                            (if (bolp) 0 perl-brace-imaginary-offset))
+            (perl-indent-new-calculate 'virtual))))))))
 
 (defun perl-backward-to-noncomment ()
   "Move point backward to after the first non-white-space, skipping comments."

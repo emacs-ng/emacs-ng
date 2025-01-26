@@ -1,6 +1,6 @@
 ;;; erc-scenarios-common.el --- Common helpers for ERC scenarios -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -150,7 +150,7 @@
       (timer-list (copy-sequence timer-list))
       (timer-idle-list (copy-sequence timer-idle-list))
       (erc-auth-source-parameters-join-function nil)
-      (erc--fill-wrap-scrolltobottom-exempt-p t)
+      (erc-fill--wrap-scrolltobottom-exempt-p t)
       (erc-autojoin-channels-alist nil)
       (erc-server-auto-reconnect nil)
       (erc-after-connect nil)
@@ -185,8 +185,8 @@ Dialog resource directories are located by expanding the variable
 
          (ert-info ("Restore autojoin, etc., kill ERC buffers")
            (dolist (buf (buffer-list))
-             (when-let ((erc-d-u--process-buffer)
-                        (proc (get-buffer-process buf)))
+             (when-let* ((erc-d-u--process-buffer)
+                         (proc (get-buffer-process buf)))
                (delete-process proc)))
 
            (erc-scenarios-common--remove-silence)

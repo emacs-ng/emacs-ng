@@ -1,6 +1,6 @@
 ;;; kmacro.el --- enhanced keyboard macros -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard convenience
@@ -22,7 +22,7 @@
 
 ;;; Commentary:
 
-;; The kmacro package provides the user interface to Emacs' basic
+;; The kmacro package provides the user interface to Emacs's basic
 ;; keyboard macro functionality.  With kmacro, two function keys are
 ;; dedicated to keyboard macros, by default F3 and F4.
 
@@ -1576,7 +1576,7 @@ To customize possible responses, change the \"bindings\" in
                                       ,(format "%d" cnt)
                                       ,fmt
                                       ,(format fmt cnt)
-                                      ,(format-kbd-macro (kmacro--keys km))])))
+                                      ,(format-kbd-macro (kmacro--keys km) 1)])))
                                (kmacro-menu--kmacros))
               kmacro-menu--deletion-flags nil
               kmacro-menu--marks nil)

@@ -1,5 +1,5 @@
 /* Substitute for <sys/select.h>.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -165,12 +165,18 @@
 
 #if @HAVE_WINSOCK2_H@
 
+/* Define type 'suseconds_t'.  */
+# if !GNULIB_defined_suseconds_t
+typedef int suseconds_t;
+#  define GNULIB_defined_suseconds_t 1
+# endif
+
 # if !GNULIB_defined_rpl_fd_isset
 
 /* Re-define FD_ISSET to avoid a WSA call while we are not using
    network sockets.  */
 static int
-rpl_fd_isset (SOCKET fd, fd_set * set)
+rpl_fd_isset (SOCKET fd, const fd_set * set)
 {
   u_int i;
   if (set == NULL)
@@ -282,7 +288,7 @@ rpl_fd_isset (SOCKET fd, fd_set * set)
 #  endif
 _GL_FUNCDECL_RPL (pselect, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
-                   struct timespec const *restrict, const sigset_t *restrict));
+                   struct timespec const *restrict, const sigset_t *restrict), );
 _GL_CXXALIAS_RPL (pselect, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
                    struct timespec const *restrict, const sigset_t *restrict));
@@ -290,7 +296,7 @@ _GL_CXXALIAS_RPL (pselect, int,
 #  if !@HAVE_PSELECT@
 _GL_FUNCDECL_SYS (pselect, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
-                   struct timespec const *restrict, const sigset_t *restrict));
+                   struct timespec const *restrict, const sigset_t *restrict), );
 #  endif
 /* Need to cast, because on AIX 7, the second, third, fourth argument may be
                         void *restrict,   void *restrict,   void *restrict.  */
@@ -319,7 +325,7 @@ _GL_WARN_ON_USE (pselect, "pselect is not portable - "
 #  endif
 _GL_FUNCDECL_RPL (select, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
-                   struct timeval *restrict));
+                   struct timeval *restrict), );
 _GL_CXXALIAS_RPL (select, int,
                   (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
                    timeval *restrict));
@@ -332,8 +338,10 @@ _GL_CXXALIAS_SYS (select, int,
 _GL_CXXALIASWARN (select);
 # endif
 #elif @HAVE_WINSOCK2_H@
-# undef select
-# define select select_used_without_requesting_gnulib_module_select
+# if !GNULIB_SELECT
+#  undef select
+#  define select select_used_without_requesting_gnulib_module_select
+# endif
 #elif defined GNULIB_POSIXCHECK
 # undef select
 # if HAVE_RAW_DECL_SELECT

@@ -1,11 +1,11 @@
 ;;; modus-themes.el --- Elegant, highly legible and customizable themes -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2024  Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
 ;; Maintainer: Protesilaos Stavrou <info@protesilaos.com>
 ;; URL: https://github.com/protesilaos/modus-themes
-;; Version: 4.4.0
+;; Version: 4.6.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: faces, theme, accessibility
 
@@ -287,10 +287,14 @@ set this variable to a nil value."
   "Alias of `modus-themes-items'.")
 
 (defconst modus-themes-items
-  '( modus-operandi modus-vivendi
-     modus-operandi-tinted modus-vivendi-tinted
-     modus-operandi-deuteranopia modus-vivendi-deuteranopia
-     modus-operandi-tritanopia modus-vivendi-tritanopia)
+  '( modus-operandi
+     modus-operandi-tinted
+     modus-operandi-deuteranopia
+     modus-operandi-tritanopia
+     modus-vivendi
+     modus-vivendi-tinted
+     modus-vivendi-deuteranopia
+     modus-vivendi-tritanopia)
   "Symbols of the Modus themes.")
 
 (defcustom modus-themes-to-toggle '(modus-operandi modus-vivendi)
@@ -308,18 +312,19 @@ the same as using the command `modus-themes-select'."
   :type `(choice
           (const :tag "No toggle" nil)
           (list :tag "Pick two themes to toggle between"
-                (choice :tag "Theme one of two"
-                        ,@(mapcar (lambda (theme)
-                                    (list 'const theme))
-                                  modus-themes-items))
-                (choice :tag "Theme two of two"
-                        ,@(mapcar (lambda (theme)
-                                    (list 'const theme))
-                                  modus-themes-items))))
+                (choice :tag "Theme one of two" ,@(mapcar (lambda (theme) (list 'const theme)) modus-themes-items))
+                (choice :tag "Theme two of two" ,@(mapcar (lambda (theme) (list 'const theme)) modus-themes-items))))
   :package-version '(modus-themes . "4.0.0")
   :version "30.1"
-  :set #'modus-themes--set-option
-  :initialize #'custom-initialize-default
+  :group 'modus-themes)
+
+(defcustom modus-themes-to-rotate modus-themes-items
+  "List of Modus themes to rotate among, per `modus-themes-rotate'."
+  :type `(repeat
+          (choice :tag "A theme among the `modus-themes-items'"
+                  ,@(mapcar (lambda (theme) (list 'const theme)) modus-themes-items)))
+  :package-version '(modus-themes . "4.6.0")
+  :version "31.1"
   :group 'modus-themes)
 
 (defvaralias 'modus-themes-post-load-hook 'modus-themes-after-load-theme-hook)
@@ -330,8 +335,6 @@ This is used by the command `modus-themes-toggle'."
   :type 'hook
   :package-version '(modus-themes . "4.0.0")
   :version "30.1"
-  :set #'modus-themes--set-option
-  :initialize #'custom-initialize-default
   :group 'modus-themes)
 
 (defvaralias 'modus-themes-slanted-constructs 'modus-themes-italic-constructs)
@@ -640,6 +643,20 @@ In user configuration files the form may look like this:
   :set #'modus-themes--set-option
   :initialize #'custom-initialize-default
   :link '(info-link "(modus-themes) Command prompts"))
+
+
+(defcustom modus-themes-common-palette-user nil
+  "Common user-defined colors to extend all the themes' palettes.
+This is meant to extend the palette of the active Modus theme with
+custom named colors and/or semantic palette mappings.  Those may then be
+used in combination with palette overrides (see
+`modus-themes-common-palette-overrides')."
+  :group 'modus-themes
+  :package-version '(modus-themes . "4.5.0")
+  :type '(repeat (list symbol (choice symbol string)))
+  :set #'modus-themes--set-option
+  :initialize #'custom-initialize-default
+  :link '(info-link "(modus-themes) Extend the palette for use with overrides"))
 
 (defcustom modus-themes-common-palette-overrides nil
   "Set palette overrides for all the Modus themes.
@@ -1068,22 +1085,22 @@ C1 and C2 are color values written in hexadecimal RGB."
   (car (or (modus-themes--list-enabled-themes)
            (modus-themes--list-known-themes))))
 
-(defun modus-themes--palette-symbol (theme &optional overrides)
-  "Return THEME palette as a symbol.
-With optional OVERRIDES, return THEME palette overrides as a
-symbol."
-  (when-let ((suffix (cond
-                      ((and theme overrides)
-                       "palette-overrides")
-                      (theme
-                       "palette"))))
-    (intern (format "%s-%s" theme suffix))))
+(defun modus-themes--palette-symbol (theme &optional suffix)
+  "Return THEME palette as a symbol of the form THEME-palette.
+With optional SUFFIX, return THEME-palette-SUFFIX as a symbol."
+  (when theme
+    (intern
+     (if suffix
+         (format "%s-palette-%s" theme suffix)
+       (format "%s-palette" theme)))))
 
 (defun modus-themes--palette-value (theme &optional overrides)
   "Return palette value of THEME with optional OVERRIDES."
-  (let ((base-value (symbol-value (modus-themes--palette-symbol theme))))
+  (let* ((core-palette (symbol-value (modus-themes--palette-symbol theme)))
+         (user-palette (symbol-value (modus-themes--palette-symbol theme "user")))
+         (base-value (append user-palette modus-themes-common-palette-user core-palette)))
     (if overrides
-        (append (symbol-value (modus-themes--palette-symbol theme :overrides))
+        (append (symbol-value (modus-themes--palette-symbol theme "overrides"))
                 modus-themes-common-palette-overrides
                 base-value)
       base-value)))
@@ -1092,7 +1109,7 @@ symbol."
   "Return palette value of active Modus theme, else produce `user-error'.
 With optional OVERRIDES return palette value plus whatever
 overrides."
-  (if-let ((theme (modus-themes--current-theme)))
+  (if-let* ((theme (modus-themes--current-theme)))
       (if overrides
           (modus-themes--palette-value theme :overrides)
         (modus-themes--palette-value theme))
@@ -1168,13 +1185,15 @@ symbol, which is safe when used as a face attribute's value."
 
 ;;;; Commands
 
+;;;;; Select a theme with completion
+
 (defvar modus-themes--select-theme-history nil
   "Minibuffer history of `modus-themes--select-prompt'.")
 
 (defun modus-themes--annotate-theme (theme)
   "Return completion annotation for THEME."
-  (when-let ((symbol (intern-soft theme))
-             (doc-string (get symbol 'theme-documentation)))
+  (when-let* ((symbol (intern-soft theme))
+              (doc-string (get symbol 'theme-documentation)))
     (format " -- %s"
             (propertize (car (split-string doc-string "\\."))
                         'face 'completions-annotations))))
@@ -1208,6 +1227,8 @@ Disable other themes per `modus-themes-disable-other-themes'."
   (interactive (list (modus-themes--select-prompt)))
   (modus-themes-load-theme theme))
 
+;;;;; Toggle between two themes
+
 (defun modus-themes--toggle-theme-p ()
   "Return non-nil if `modus-themes-to-toggle' are valid."
   (mapc
@@ -1227,12 +1248,51 @@ practically the same as the `modus-themes-select' command).
 
 Run `modus-themes-after-load-theme-hook' after loading the theme.
 Disable other themes per `modus-themes-disable-other-themes'."
+  (declare (interactive-only t))
   (interactive)
   (if-let* ((themes (modus-themes--toggle-theme-p))
             (one (car themes))
             (two (cadr themes)))
       (modus-themes-load-theme (if (eq (car custom-enabled-themes) one) two one))
     (modus-themes-load-theme (modus-themes--select-prompt))))
+
+;;;;; Rotate through a list of themes
+
+(defun modus-themes--rotate (themes)
+  "Rotate THEMES rightward such that the car is moved to the end."
+  (if (proper-list-p themes)
+      (let* ((index (seq-position themes (modus-themes--current-theme)))
+             (offset (1+ index)))
+        (append (nthcdr offset themes) (take offset themes)))
+    (error "The `%s' is not a list" themes)))
+
+(defun modus-themes--rotate-p (themes)
+  "Return a new theme among THEMES if it is possible to rotate to it."
+  (if-let* ((new-theme (car (modus-themes--rotate themes))))
+      (if (eq new-theme (modus-themes--current-theme))
+          (car (modus-themes--rotate-p (modus-themes--rotate themes)))
+        new-theme)
+    (error "Cannot determine a theme among `%s'" themes)))
+
+;;;###autoload
+(defun modus-themes-rotate (themes)
+  "Rotate to the next theme among THEMES.
+When called interactively THEMES is the value of `modus-themes-to-rotate'.
+
+If the current theme is already the next in line, then move to the one
+after.  Perform the rotation rightwards, such that the first element in
+the list becomes the last.  Do not modify THEMES in the process."
+  (interactive (list modus-themes-to-rotate))
+  (unless (proper-list-p themes)
+    "This is not a list of themes: `%s'" themes)
+  (let ((candidate (modus-themes--rotate-p themes)))
+    (if (modus-themes--modus-p candidate)
+        (progn
+          (message "Rotating to `%s'" (propertize (symbol-name candidate) 'face 'success))
+          (modus-themes-load-theme candidate))
+      (user-error "`%s' is not part of the Modus collection" candidate))))
+
+;;;;; Preview a theme palette
 
 (defun modus-themes--list-colors-render (buffer theme &optional mappings &rest _)
   "Render colors in BUFFER from THEME for `modus-themes-list-colors'.
@@ -1621,7 +1681,7 @@ FG and BG are the main colors."
     `(comint-highlight-prompt ((,c :inherit modus-themes-prompt)))
     `(confusingly-reordered ((,c :inherit modus-themes-lang-error)))
     `(edmacro-label ((,c :inherit bold :foreground ,accent-0)))
-    `(elisp-shorthand-font-lock-face ((,c :inherit font-lock-variable-name-face)))
+    `(elisp-shorthand-font-lock-face ((,c :inherit (italic font-lock-preprocessor-face))))
     `(error ((,c :inherit bold :foreground ,err)))
     `(escape-glyph ((,c :foreground ,err)))
     `(file-name-shadow ((,c :inherit shadow)))
@@ -1650,6 +1710,10 @@ FG and BG are the main colors."
     `(shadow ((,c :foreground ,fg-dim)))
     `(success ((,c :inherit bold :foreground ,info)))
     `(trailing-whitespace ((,c :background ,bg-space-err)))
+    ;; NOTE 2024-06-22: I use `list' here to suppress a bogus warning
+    ;; from the compiler: it says I should depend on Emacs 29 to use
+    ;; vtable.
+    (list 'vtable `((,c :inherit modus-themes-fixed-pitch)))
     `(warning ((,c :inherit bold :foreground ,warning)))
 ;;;;; buttons, links, widgets
     `(button ((,c :background ,bg-link :foreground ,fg-link :underline ,underline-link)))
@@ -1723,12 +1787,12 @@ FG and BG are the main colors."
     `(all-the-icons-silver ((,c :foreground "gray50")))
     `(all-the-icons-yellow ((,c :foreground ,yellow)))
 ;;;;; all-the-icons-dired
-    `(all-the-icons-dired-dir-face ((,c :foreground ,cyan-faint)))
+    `(all-the-icons-dired-dir-face ((,c :foreground ,accent-0)))
 ;;;;; all-the-icons-ibuffer
-    `(all-the-icons-ibuffer-dir-face ((,c :foreground ,cyan-faint)))
-    `(all-the-icons-ibuffer-file-face ((,c :foreground ,blue-faint)))
-    `(all-the-icons-ibuffer-mode-face ((,c :foreground ,cyan)))
-    `(all-the-icons-ibuffer-size-face ((,c :foreground ,cyan-cooler)))
+    `(all-the-icons-ibuffer-dir-face ((,c :foreground ,accent-0)))
+    `(all-the-icons-ibuffer-file-face ((,c :foreground ,docstring)))
+    `(all-the-icons-ibuffer-mode-face ((,c :foreground ,type)))
+    `(all-the-icons-ibuffer-size-face ((,c :foreground ,variable)))
 ;;;;; annotate
     `(annotate-annotation ((,c :inherit modus-themes-subtle-blue)))
     `(annotate-annotation-secondary ((,c :inherit modus-themes-subtle-magenta)))
@@ -1768,7 +1832,7 @@ FG and BG are the main colors."
     `(font-latex-italic-face ((,c :inherit italic)))
     `(font-latex-math-face ((,c :inherit font-lock-constant-face)))
     `(font-latex-script-char-face ((,c :inherit font-lock-builtin-face)))
-    `(font-latex-sectioning-5-face ((,c :inherit (bold modus-themes-variable-pitch) :foreground ,fg-alt)))
+    `(font-latex-sectioning-5-face ((,c :inherit bold :foreground ,fg-alt)))
     `(font-latex-sedate-face ((,c :inherit font-lock-keyword-face)))
     `(font-latex-slide-title-face ((,c :inherit modus-themes-heading-1)))
     `(font-latex-string-face ((,c :inherit font-lock-string-face)))
@@ -1924,7 +1988,7 @@ FG and BG are the main colors."
     `(company-scrollbar-bg ((,c :background ,bg-active)))
     `(company-scrollbar-fg ((,c :background ,fg-main)))
     `(company-template-field ((,c :background ,bg-active)))
-    `(company-tooltip ((,c :background ,bg-dim)))
+    `(company-tooltip ((,c :inherit modus-themes-fixed-pitch :background ,bg-dim)))
     `(company-tooltip-annotation ((,c :inherit completions-annotations)))
     `(company-tooltip-common ((,c :inherit company-echo-common)))
     `(company-tooltip-deprecated ((,c :inherit company-tooltip :strike-through t)))
@@ -1960,7 +2024,7 @@ FG and BG are the main colors."
     `(corfu-current ((,c :inherit modus-themes-completion-selected)))
     `(corfu-bar ((,c :background ,fg-dim)))
     `(corfu-border ((,c :background ,bg-active)))
-    `(corfu-default ((,c :background ,bg-dim)))
+    `(corfu-default ((,c :inherit modus-themes-fixed-pitch :background ,bg-dim)))
 ;;;;; corfu-candidate-overlay
     `(corfu-candidate-overlay-face ((t :inherit shadow)))
 ;;;;; corfu-quick
@@ -2175,7 +2239,7 @@ FG and BG are the main colors."
     `(doom-modeline-evil-visual-state ((,c :inherit warning)))
     `(doom-modeline-info ((,c :inherit success)))
     `(doom-modeline-input-method (( )))
-    `(doom-modeline-lsp-error ((,c :inherit bold-italic)))
+    `(doom-modeline-lsp-error ((,c :inherit bold)))
     `(doom-modeline-lsp-running (( )))
     `(doom-modeline-lsp-success ((,c :inherit success)))
     `(doom-modeline-lsp-warning ((,c :inherit warning)))
@@ -2186,7 +2250,7 @@ FG and BG are the main colors."
     `(doom-modeline-repl-success ((,c :inherit success)))
     `(doom-modeline-repl-warning ((,c :inherit warning)))
     `(doom-modeline-time (( )))
-    `(doom-modeline-urgent ((,c :inherit bold-italic :foreground ,modeline-err)))
+    `(doom-modeline-urgent ((,c :inherit bold :foreground ,modeline-err)))
     `(doom-modeline-warning ((,c :inherit warning)))
 ;;;;; ediff
     `(ediff-current-diff-A ((,c :background ,bg-removed :foreground ,fg-removed)))
@@ -2251,8 +2315,10 @@ FG and BG are the main colors."
     `(elpher-gemini-heading2 ((,c :inherit modus-themes-heading-2)))
     `(elpher-gemini-heading3 ((,c :inherit modus-themes-heading-3)))
 ;;;;; embark
+    `(embark-collect-group-title ((,c :inherit bold :foreground ,name)))
     `(embark-keybinding ((,c :inherit modus-themes-key-binding)))
-    `(embark-collect-marked ((,c :inherit modus-themes-mark-sel)))
+    `(embark-keybinding-repeat ((,c :inherit bold)))
+    `(embark-selected ((,c :inherit modus-themes-mark-sel)))
 ;;;;; ement (ement.el)
     `(ement-room-fully-read-marker ((,c :inherit success)))
     `(ement-room-membership ((,c :inherit shadow)))
@@ -2400,22 +2466,44 @@ FG and BG are the main colors."
 ;;;;; fold-this
     `(fold-this-overlay ((,c :background ,bg-inactive)))
 ;;;;; font-lock
+    `(font-lock-bracket-face ((,c :foreground ,bracket)))
     `(font-lock-builtin-face ((,c :inherit modus-themes-bold :foreground ,builtin)))
     `(font-lock-comment-delimiter-face ((,c :inherit font-lock-comment-face)))
     `(font-lock-comment-face ((,c :inherit modus-themes-slant :foreground ,comment)))
     `(font-lock-constant-face ((,c :foreground ,constant)))
+    `(font-lock-delimiter-face ((,c :foreground ,delimiter)))
     `(font-lock-doc-face ((,c :inherit modus-themes-slant :foreground ,docstring)))
     `(font-lock-doc-markup-face ((,c :inherit modus-themes-slant :foreground ,docmarkup)))
     `(font-lock-function-name-face ((,c :foreground ,fnname)))
     `(font-lock-keyword-face ((,c :inherit modus-themes-bold :foreground ,keyword)))
     `(font-lock-negation-char-face ((,c :inherit error)))
+    `(font-lock-number-face ((,c :foreground ,number)))
+    `(font-lock-operator-face ((,c :foreground ,operator)))
     `(font-lock-preprocessor-face ((,c :foreground ,preprocessor)))
+    `(font-lock-punctuation-face ((,c :foreground ,punctuation)))
     `(font-lock-regexp-grouping-backslash ((,c :inherit modus-themes-bold :foreground ,rx-backslash)))
     `(font-lock-regexp-grouping-construct ((,c :inherit modus-themes-bold :foreground ,rx-construct)))
     `(font-lock-string-face ((,c :foreground ,string)))
     `(font-lock-type-face ((,c :inherit modus-themes-bold :foreground ,type)))
     `(font-lock-variable-name-face ((,c :foreground ,variable)))
     `(font-lock-warning-face ((,c :inherit modus-themes-bold :foreground ,warning)))
+;;;;; forge
+    `(forge-dimmed ((,c :inherit shadow)))
+    `(forge-issue-completed ((,c :inherit shadow)))
+    `(forge-issue-open (( )))
+    `(forge-issue-unplanned ((,c :inherit forge-dimmed :strike-through t)))
+    `(forge-post-author ((,c :inherit bold :foreground ,name)))
+    `(forge-post-date ((,c :inherit bold :foreground ,date-common)))
+    `(forge-pullreq-merged ((,c :foreground ,fg-alt)))
+    `(forge-pullreq-open ((,c :foreground ,info)))
+    `(forge-pullreq-rejected ((,c :foreground ,err :strike-through t)))
+    `(forge-topic-done (( )))
+    `(forge-topic-pending ((,c :inherit italic)))
+    `(forge-topic-slug-completed ((,c :inherit forge-dimmed)))
+    `(forge-topic-slug-open ((,c :inherit forge-dimmed)))
+    `(forge-topic-slug-saved ((,c :inherit success)))
+    `(forge-topic-slug-unplanned ((,c :inherit forge-dimmed :strike-through t)))
+    `(forge-topic-unread ((,c :inherit bold)))
 ;;;;; geiser
     `(geiser-font-lock-autodoc-current-arg ((,c :inherit bold :background ,bg-active-argument :foreground ,fg-active-argument)))
     `(geiser-font-lock-autodoc-identifier ((,c :foreground ,docstring)))
@@ -2539,6 +2627,9 @@ FG and BG are the main colors."
     `(golden-ratio-scroll-highlight-line-face ((,c :background ,bg-cyan-subtle :foreground ,fg-main)))
 ;;;;; helpful
     `(helpful-heading ((,c :inherit modus-themes-heading-1)))
+;;;;; hexl-mode
+    `(hexl-address-region ((,c :foreground ,constant)))
+    `(hexl-ascii-region ((,c :foreground ,variable)))
 ;;;;; highlight region or ad-hoc regexp
     ;; HACK 2022-06-23: The :inverse-video prevents hl-line-mode from
     ;; overriding the background.  Such an override really defeats the
@@ -2597,6 +2688,11 @@ FG and BG are the main colors."
     `(hydra-face-pink ((,c :inherit bold :foreground ,magenta)))
     `(hydra-face-red ((,c :inherit bold :foreground ,red-faint)))
     `(hydra-face-teal ((,c :inherit bold :foreground ,cyan-cooler)))
+;;;;; hyperbole
+    `(hbut-item-face ((,c :foreground ,info)))
+    `(hbut-face ((,c :inherit modus-themes-button)))
+    `(hbut-flash ((,c :background ,bg-search-replace)))
+    `(ibut-face ((,c :inherit button :background ,bg-link-symbolic :foreground ,fg-link-symbolic :underline ,underline-link-symbolic)))
 ;;;;; icomplete
     `(icomplete-first-match ((,c :inherit modus-themes-completion-match-0)))
     `(icomplete-selected-match ((,c :inherit modus-themes-completion-selected)))
@@ -2712,6 +2808,24 @@ FG and BG are the main colors."
 ;;;;; ivy-posframe
     `(ivy-posframe-border ((,c :background ,border)))
     `(ivy-posframe-cursor ((,c :background ,fg-main :foreground ,bg-main)))
+;;;;; jabber
+    `(jabber-activity-face ((,c :foreground ,modeline-info)))
+    `(jabber-roster-user-away ((,c :foreground ,red-faint)))
+    `(jabber-roster-user-xa ((,c :foreground ,magenta :slant italic)))
+    `(jabber-roster-user-dnd ((,c :foreground ,red :weight bold)))
+    `(jabber-roster-user-chatty ((,c :foreground ,cyan-intense)))
+    `(jabber-roster-user-error ((,c :inherit error)))
+    `(jabber-roster-user-offline ((,c :foreground ,fg-dim :slant italic)))
+    `(jabber-roster-user-online ((,c :foreground ,cyan :weight bold)))
+    `(jabber-chat-prompt-foreign ((,c :foreground ,red :weight bold)))
+    `(jabber-chat-prompt-system ((,c :foreground ,green)))
+    `(jabber-chat-prompt-local ((,c :foreground ,cyan)))
+    `(jabber-chat-error ((,c :inherit error)))
+    `(jabber-activity-personal-face ((,c :foreground ,blue-intense)))
+    `(jabber-rare-time-face ((,c :foreground ,green-faint :underline t)))
+    `(jabber-title-small ((,c :weight bold :height 1.0 :foreground ,fg-heading-3)))
+    `(jabber-title-medium ((,c :weight bold :width expanded :height 2.0 :foreground ,fg-heading-2)))
+    `(jabber-title-large ((,c :weight bold :width ultra-expanded :height 3.0 :foreground ,fg-heading-1)))
 ;;;;; japanese-holidays
     `(japanese-holiday-saturday ((,c :foreground ,date-holiday-other)))
 ;;;;; jira (org-jira)
@@ -2761,6 +2875,10 @@ FG and BG are the main colors."
 ;;;;; keycast
     `(keycast-command ((,c :inherit bold)))
     `(keycast-key ((,c :inherit modus-themes-bold :background ,keybind :foreground ,bg-main)))
+;;;;; kmacro-menu
+    `(kmacro-menu-mark ((,c :inherit bold)))
+    `(kmacro-menu-marked ((,c :inherit modus-themes-mark-sel)))
+    `(kmacro-menu-flagged ((,c :inherit modus-themes-mark-del)))
 ;;;;; ledger-mode
     `(ledger-font-auto-xact-face ((,c :inherit font-lock-builtin-face)))
     `(ledger-font-account-name-face ((,c :foreground ,name)))
@@ -2958,6 +3076,8 @@ FG and BG are the main colors."
     `(markup-title-4-face ((,c :inherit modus-themes-heading-5)))
     `(markup-title-5-face ((,c :inherit modus-themes-heading-6)))
     `(markup-verbatim-face ((,c :inherit modus-themes-prose-verbatim)))
+;;;;; mbdepth
+    `(minibuffer-depth-indicator ((,c :inherit modus-themes-mark-alt)))
 ;;;;; mct
     `(mct-highlight-candidate ((,c :inherit modus-themes-completion-selected)))
 ;;;;; messages
@@ -3081,14 +3201,14 @@ FG and BG are the main colors."
     `(nerd-icons-silver ((,c :foreground "gray50")))
     `(nerd-icons-yellow ((,c :foreground ,yellow)))
 ;;;;; nerd-icons-completion
-    `(nerd-icons-completion-dir-face ((,c :foreground ,cyan-faint)))
+    `(nerd-icons-completion-dir-face ((,c :foreground ,accent-0)))
 ;;;;; nerd-icons-dired
-    `(nerd-icons-dired-dir-face ((,c :foreground ,cyan-faint)))
+    `(nerd-icons-dired-dir-face ((,c :foreground ,accent-0)))
 ;;;;; nerd-icons-ibuffer
-    `(nerd-icons-ibuffer-dir-face ((,c :foreground ,cyan-faint)))
-    `(nerd-icons-ibuffer-file-face ((,c :foreground ,blue-faint)))
-    `(nerd-icons-ibuffer-mode-face ((,c :foreground ,cyan)))
-    `(nerd-icons-ibuffer-size-face ((,c :foreground ,cyan-cooler)))
+    `(nerd-icons-ibuffer-dir-face ((,c :foreground ,accent-0)))
+    `(nerd-icons-ibuffer-file-face ((,c :foreground ,docstring)))
+    `(nerd-icons-ibuffer-mode-face ((,c :foreground ,type)))
+    `(nerd-icons-ibuffer-size-face ((,c :foreground ,variable)))
 ;;;;; neotree
     `(neo-banner-face ((,c :foreground ,accent-0)))
     `(neo-button-face ((,c :inherit button)))
@@ -3132,7 +3252,8 @@ FG and BG are the main colors."
     `(notmuch-tag-unread ((,c :foreground ,accent-1)))
     `(notmuch-tree-match-author-face ((,c :inherit notmuch-search-matching-authors)))
     `(notmuch-tree-match-date-face ((,c :inherit notmuch-search-date)))
-    `(notmuch-tree-match-face ((,c :foreground ,fg-main)))
+    `(notmuch-tree-match-face ((,c :foreground ,fg-dim)))
+    `(notmuch-tree-match-subject-face ((,c :foreground ,fg-main)))
     `(notmuch-tree-match-tag-face ((,c :inherit notmuch-tag-face)))
     `(notmuch-tree-no-match-face ((,c :inherit shadow)))
     `(notmuch-tree-no-match-date-face ((,c :inherit shadow)))
@@ -3225,7 +3346,7 @@ FG and BG are the main colors."
     `(org-headline-todo ((,c :inherit org-todo)))
     `(org-hide ((,c :foreground ,bg-main)))
     `(org-indent ((,c :inherit (fixed-pitch org-hide))))
-    `(org-imminent-deadline ((,c :inherit modus-themes-bold :foreground ,date-deadline)))
+    `(org-imminent-deadline ((,c :inherit bold :foreground ,date-deadline)))
     `(org-latex-and-related ((,c :foreground ,type)))
     `(org-level-1 ((,c :inherit modus-themes-heading-1)))
     `(org-level-2 ((,c :inherit modus-themes-heading-2)))
@@ -3244,9 +3365,9 @@ FG and BG are the main colors."
     `(org-priority ((,c :foreground ,prose-tag)))
     `(org-property-value ((,c :inherit modus-themes-fixed-pitch :foreground ,prose-metadata-value)))
     `(org-quote ((,c :inherit org-block)))
-    `(org-scheduled ((,c :foreground ,date-scheduled)))
-    `(org-scheduled-previously ((,c :inherit org-scheduled)))
-    `(org-scheduled-today ((,c :inherit (modus-themes-bold org-scheduled))))
+    `(org-scheduled ((,c :foreground ,date-scheduled-subtle)))
+    `(org-scheduled-previously ((,c :inherit (bold org-scheduled-today))))
+    `(org-scheduled-today ((,c :foreground ,date-scheduled)))
     `(org-sexp-date ((,c :foreground ,date-common)))
     `(org-special-keyword ((,c :inherit org-drawer)))
     `(org-table ((,c :inherit modus-themes-fixed-pitch :foreground ,prose-table)))
@@ -3256,8 +3377,8 @@ FG and BG are the main colors."
     `(org-target ((,c :underline t)))
     `(org-time-grid ((,c :foreground ,fg-dim)))
     `(org-todo ((,c :foreground ,prose-todo)))
-    `(org-upcoming-deadline ((,c :foreground ,date-deadline)))
-    `(org-upcoming-distant-deadline ((,c :inherit org-upcoming-deadline)))
+    `(org-upcoming-deadline ((,c :foreground ,date-deadline-subtle)))
+    `(org-upcoming-distant-deadline ((,c :foreground ,fg-main)))
     `(org-verbatim ((,c :inherit modus-themes-prose-verbatim)))
     `(org-verse ((,c :inherit org-block)))
     `(org-warning ((,c :inherit warning)))
@@ -3668,9 +3789,9 @@ FG and BG are the main colors."
     `(telega-username ((,c :foreground ,cyan-cooler)))
     `(telega-webpage-chat-link ((,c :background ,bg-inactive)))
     `(telega-webpage-fixed ((,c :inherit modus-themes-fixed-pitch :height 0.85)))
-    `(telega-webpage-header ((,c :inherit modus-themes-variable-pitch :height 1.3)))
+    `(telega-webpage-header ((,c :height 1.3)))
     `(telega-webpage-preformatted ((,c :inherit modus-themes-fixed-pitch :background ,bg-inactive)))
-    `(telega-webpage-subheader ((,c :inherit modus-themes-variable-pitch :height 1.15)))
+    `(telega-webpage-subheader ((,c :height 1.15)))
 ;;;;; terraform-mode
     `(terraform--resource-name-face ((,c :foreground ,keyword)))
     `(terraform--resource-type-face ((,c :foreground ,type)))
@@ -3815,6 +3936,12 @@ FG and BG are the main colors."
     `(vimish-fold-fringe ((,c :foreground ,cyan)))
     `(vimish-fold-mouse-face ((,c :inherit modus-themes-intense-blue)))
     `(vimish-fold-overlay ((,c :background ,bg-inactive)))
+;;;;; viper
+    `(viper-search ((,c :inherit modus-themes-search-current)))
+    `(viper-replace-overlay ((,c :inherit modus-themes-search-replace)))
+    `(viper-minibuffer-emacs (( )))
+    `(viper-minibuffer-insert (( )))
+    `(viper-minibuffer-vi (( )))
 ;;;;; visible-mark
     `(visible-mark-active ((,c :background ,bg-blue-intense)))
     `(visible-mark-face1 ((,c :background ,bg-cyan-intense)))
@@ -3877,7 +4004,7 @@ FG and BG are the main colors."
     `(web-mode-css-string-face ((,c :inherit web-mode-string-face)))
     `(web-mode-css-variable-face ((,c :inherit font-lock-variable-name-face)))
     `(web-mode-current-column-highlight-face ((,c :background ,bg-inactive)))
-    `(web-mode-current-element-highlight-face ((,c :inherit modus-themes-cyan-subtle)))
+    `(web-mode-current-element-highlight-face ((,c :inherit modus-themes-subtle-cyan)))
     `(web-mode-doctype-face ((,c :inherit font-lock-doc-face)))
     `(web-mode-error-face ((,c :inherit error)))
     `(web-mode-filter-face ((,c :inherit font-lock-function-name-face)))
@@ -3952,6 +4079,10 @@ FG and BG are the main colors."
     `(window-divider ((,c :foreground ,border)))
     `(window-divider-first-pixel ((,c :foreground ,bg-inactive)))
     `(window-divider-last-pixel ((,c :foreground ,bg-inactive)))
+;;;;; window-tool-bar-mode
+    `(window-tool-bar-button ((,c :inherit modus-themes-button)))
+    `(window-tool-bar-button-hover ((,c :inherit (highlight modus-themes-button))))
+    `(window-tool-bar-button-disabled ((,c :inherit modus-themes-button :background ,bg-button-inactive :foreground ,fg-button-inactive)))
 ;;;;; widget
     `(widget-button ((,c :inherit bold :foreground ,fg-link)))
     `(widget-button-pressed ((,c :inherit widget-button :foreground ,fg-link-visited)))
@@ -4079,6 +4210,10 @@ FG and BG are the main colors."
        ,fg-term-magenta
        ,fg-term-cyan
        ,fg-term-white])
+;;;; viper
+    `(viper-replace-overlay-cursor-color ,err)
+    `(viper-insert-state-cursor-color ,info)
+    `(viper-emacs-state-cursor-color ,fg-main)
 ;;;; xterm-color
     `(xterm-color-names
       [,fg-term-black

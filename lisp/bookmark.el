@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1997, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Created: July, 1993
@@ -587,11 +587,8 @@ If DEFAULT is nil then return empty string for empty input."
     (let* ((completion-ignore-case bookmark-completion-ignore-case)
            (default (unless (equal "" default) default)))
       (completing-read (format-prompt prompt default)
-                       (lambda (string pred action)
-                         (if (eq action 'metadata)
-                             '(metadata (category . bookmark))
-                             (complete-with-action
-                              action bookmark-alist string pred)))
+                       (completion-table-with-metadata
+                        bookmark-alist '((category . bookmark)))
                        nil 0 nil 'bookmark-history default))))
 
 
@@ -1259,33 +1256,34 @@ Useful for example to unhide text in `outline-mode'.")
 
 (defun bookmark--jump-via (bookmark-name-or-record display-function)
   "Handle BOOKMARK-NAME-OR-RECORD, then call DISPLAY-FUNCTION.
-DISPLAY-FUNCTION is called with the current buffer as argument.
+DISPLAY-FUNCTION is called with the new buffer as argument.
 
 After calling DISPLAY-FUNCTION, set window point to the point specified
 by BOOKMARK-NAME-OR-RECORD, if necessary, run `bookmark-after-jump-hook',
 and then show any annotations for this bookmark."
-  (bookmark-handle-bookmark bookmark-name-or-record)
-  ;; Store `point' now, because `display-function' might change it.
-  (let ((point (point)))
-    (save-current-buffer
-      (funcall display-function (current-buffer)))
-    (let ((win (get-buffer-window (current-buffer) 0)))
-      (if win (set-window-point win point))))
-  ;; FIXME: we used to only run bookmark-after-jump-hook in
-  ;; `bookmark-jump' itself, but in none of the other commands.
-  (when bookmark-fringe-mark
-    (let ((overlays (overlays-in (pos-bol) (1+ (pos-bol))))
-          temp found)
-      (while (and (not found) (setq temp (pop overlays)))
-        (when (eq 'bookmark (overlay-get temp 'category))
-          (setq found t)))
-      (unless found
-        (bookmark--set-fringe-mark))))
-  (run-hooks 'bookmark-after-jump-hook)
-  (if bookmark-automatically-show-annotations
+  (let (buf point)
+    (save-window-excursion
+      (bookmark-handle-bookmark bookmark-name-or-record)
+      (setq buf (current-buffer)
+            point (point)))
+    (funcall display-function buf)
+    (when-let* ((win (get-buffer-window buf 0)))
+      (set-window-point win point))
+    (when bookmark-fringe-mark
+      (let ((overlays (overlays-in (pos-bol) (1+ (pos-bol))))
+            temp found)
+        (while (and (not found) (setq temp (pop overlays)))
+          (when (eq 'bookmark (overlay-get temp 'category))
+            (setq found t)))
+        (unless found
+          (bookmark--set-fringe-mark))))
+    ;; FIXME: we used to only run bookmark-after-jump-hook in
+    ;; `bookmark-jump' itself, but in none of the other commands.
+    (run-hooks 'bookmark-after-jump-hook)
+    (when bookmark-automatically-show-annotations
       ;; if there is an annotation for this bookmark,
       ;; show it in a buffer.
-      (bookmark-show-annotation bookmark-name-or-record)))
+      (bookmark-show-annotation bookmark-name-or-record))))
 
 
 ;;;###autoload
@@ -1678,7 +1676,8 @@ for a file, defaulting to the file defined by variable
 	;; Rather than a single call to `pp' we make one per bookmark.
 	;; Apparently `pp' has a poor algorithmic complexity, so this
 	;; scales a lot better.  bug#4485.
-	(dolist (i bookmark-alist) (pp i (current-buffer)))
+	(let ((pp-default-function #'pp-28))
+	  (dolist (i bookmark-alist) (pp i (current-buffer))))
 	(insert ")\n")
 	;; Make sure the specified encoding can safely encode the
 	;; bookmarks.  If it cannot, suggest utf-8-emacs as default.
@@ -1857,6 +1856,7 @@ unique numeric suffixes \"<2>\", \"<3>\", etc."
   "a" #'bookmark-bmenu-show-annotation
   "A" #'bookmark-bmenu-show-all-annotations
   "e" #'bookmark-bmenu-edit-annotation
+  "J" #'bookmark-jump
   "/" #'bookmark-bmenu-search
   "<mouse-2>" #'bookmark-bmenu-other-window-with-mouse)
 

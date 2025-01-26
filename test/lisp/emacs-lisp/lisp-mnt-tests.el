@@ -1,6 +1,6 @@
 ;;; lisp-mnt-tests.el --- Tests for lisp-mnt  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 
@@ -49,6 +49,19 @@
                      (project "0.9.8") (xref "1.6.2") (eldoc "1.14.0")
                      (seq "2.23") (external-completion "0.1"))))))
 
+(ert-deftest lm-tests--lm-package-needs-footer-line/empty-dependencies ()
+  (with-temp-buffer
+    (should (lm-package-needs-footer-line))))
+
+(ert-deftest lm-tests--lm-package-needs-footer-line/old-version ()
+  (with-temp-buffer
+    (insert ";; Package-Requires: ((emacs \"29.1\"))\n")
+    (should (lm-package-needs-footer-line))))
+
+(ert-deftest lm-tests--lm-package-needs-footer-line/new-version ()
+  (with-temp-buffer
+    (insert ";; Package-Requires: ((emacs \"30.1\"))\n")
+    (should (not (lm-package-needs-footer-line)))))
 
 (ert-deftest lm--tests-lm-website ()
   (with-temp-buffer

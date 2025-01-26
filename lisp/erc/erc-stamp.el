@@ -1,6 +1,6 @@
 ;;; erc-stamp.el --- Timestamping for ERC messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -182,13 +182,11 @@ from entering them and instead jump over them."
    (add-hook 'erc-insert-modify-hook #'erc-add-timestamp 70)
    (add-hook 'erc-send-modify-hook #'erc-add-timestamp 70)
    (add-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)
-   (add-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear 40)
    (unless erc--updating-modules-p (erc-buffer-do #'erc-stamp--setup)))
   ((remove-hook 'erc-mode-hook #'erc-stamp--setup)
    (remove-hook 'erc-insert-modify-hook #'erc-add-timestamp)
    (remove-hook 'erc-send-modify-hook #'erc-add-timestamp)
    (remove-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)
-   (remove-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear)
    (erc-buffer-do #'erc-stamp--setup)))
 
 (defvar erc-stamp--invisible-property nil
@@ -199,22 +197,22 @@ from entering them and instead jump over them."
 
 (defun erc-stamp--recover-on-reconnect ()
   "Attempt to restore \"last-inserted\" snapshots from prior session."
-  (when-let ((priors (or erc--server-reconnecting erc--target-priors)))
+  (when-let* ((priors (or erc--server-reconnecting erc--target-priors)))
     (dolist (var '(erc-timestamp-last-inserted
                    erc-timestamp-last-inserted-left
                    erc-timestamp-last-inserted-right
                    erc-stamp--deferred-date-stamp
                    erc-stamp--date-stamps))
-      (when-let (existing (alist-get var priors))
+      (when-let* ((existing (alist-get var priors)))
         (set var existing)))))
 
 (defvar erc-stamp--current-time nil
   "The current time when calling `erc-insert-timestamp-function'.
-Specifically, this is the same lisp time object used to create
+Specifically, this is the same Lisp time object used to create
 the stamp passed to `erc-insert-timestamp-function'.")
 
 (cl-defgeneric erc-stamp--current-time ()
-  "Return a lisp time object to associate with an IRC message.
+  "Return a Lisp time object to associate with an IRC message.
 This becomes the message's `erc--ts' text property."
   (erc-compat--current-lisp-time))
 
@@ -398,14 +396,14 @@ non-nil."
   (goto-char (point-min))
   (while
       (progn
-        (when-let (((< (point) (pos-eol)))
-                   (end (1- (pos-eol)))
-                   ((eq 'erc-timestamp (field-at-pos end)))
-                   (beg (field-beginning end))
-                   ;; Skip a line that's just a timestamp.
-                   ((> beg (point))))
+        (when-let* (((< (point) (pos-eol)))
+                    (end (1- (pos-eol)))
+                    ((eq 'erc-timestamp (field-at-pos end)))
+                    (beg (field-beginning end))
+                    ;; Skip a line that's just a timestamp.
+                    ((> beg (point))))
           (delete-region beg (1+ end)))
-        (when-let (time (erc--get-inserted-msg-prop 'erc--ts))
+        (when-let* ((time (erc--get-inserted-msg-prop 'erc--ts)))
           (insert (format-time-string "[%H:%M:%S] " time)))
         (zerop (forward-line))))
   "")
@@ -507,10 +505,10 @@ and `erc-stamp--margin-left-p', before activating the mode."
   (&context (erc-stamp--display-margin-mode (eql t))
             (erc-stamp--margin-left-p (eql t))
             (erc-stamp--skip-left-margin-prompt-p null))
-  (when-let (((null erc--hidden-prompt-overlay))
-             (prompt (string-pad erc-prompt-hidden left-margin-width nil 'start))
-             (ov (make-overlay erc-insert-marker (1- erc-input-marker)
-                               nil 'front-advance)))
+  (when-let* (((null erc--hidden-prompt-overlay))
+              (prompt (string-pad erc-prompt-hidden left-margin-width nil 'start))
+              (ov (make-overlay erc-insert-marker (1- erc-input-marker)
+                                nil 'front-advance)))
     (overlay-put ov 'display `((margin left-margin) ,prompt))
     (setq erc--hidden-prompt-overlay ov)))
 
@@ -536,7 +534,7 @@ and `erc-stamp--margin-left-p', before activating the mode."
     (goto-char (point-min))
     (insert-and-inherit (setq erc-timestamp-last-inserted string))
     (dolist (p erc-stamp--inherited-props)
-      (when-let ((v (get-text-property (point) p)))
+      (when-let* ((v (get-text-property (point) p)))
         (put-text-property (point-min) (point) p v)))
     (erc-put-text-property (point-min) (point) 'invisible
                            erc-stamp--invisible-property)
@@ -643,7 +641,7 @@ printed just after each line's text (no alignment)."
         (_ (indent-to pos)))
       (insert string)
       (dolist (p erc-stamp--inherited-props)
-        (when-let ((v (get-text-property (1- from) p)))
+        (when-let* ((v (get-text-property (1- from) p)))
           (put-text-property from (point) p v)))
       (erc-put-text-property from (point) 'field 'erc-timestamp)
       (erc-put-text-property from (point) 'rear-nonsticky t)
@@ -707,7 +705,8 @@ Return P or, if found, a position less than P."
   ;; Continue searching after encountering a message without a
   ;; timestamp because date stamps must be unique, and
   ;; "Re-establishing connection" messages should have stamps.
-  (while-let ((q (previous-single-property-change (1- p) 'erc--ts))
+  (while-let ((pp (max (1- p) (point-min)))
+              (q (previous-single-property-change pp 'erc--ts))
               (qq (erc--get-inserted-msg-beg q))
               (ts (get-text-property qq 'erc--ts))
               ((not (time-less-p ts target-time))))
@@ -725,13 +724,13 @@ inserted is a date stamp."
   "Schedule a date stamp to be inserted via HOOK-VAR.
 Do so when `erc-stamp--deferred-date-stamp' and its `fn' slot are
 non-nil."
-  (when-let ((data erc-stamp--deferred-date-stamp)
-             ((eq (erc-stamp--date-fn data) #'ignore))
-             (ct (erc-stamp--date-ts data))
-             (rendered (erc-stamp--date-str data))
-             (buffer (current-buffer))
-             (symbol (make-symbol "erc-stamp--insert-date"))
-             (marker (setf (erc-stamp--date-marker data) (point-min-marker))))
+  (when-let* ((data erc-stamp--deferred-date-stamp)
+              ((eq (erc-stamp--date-fn data) #'ignore))
+              (ct (erc-stamp--date-ts data))
+              (rendered (erc-stamp--date-str data))
+              (buffer (current-buffer))
+              (symbol (make-symbol "erc-stamp--insert-date"))
+              (marker (setf (erc-stamp--date-marker data) (point-min-marker))))
     (setf (erc-stamp--date-fn data) symbol)
     (fset symbol
           (lambda (&rest _)
@@ -753,7 +752,7 @@ non-nil."
                              (set-marker marker (point-min))
                              (set-marker-insertion-type marker t)
                              (erc--hide-message 'timestamp))
-                          ,@erc-insert-post-hook))
+                          ,@(ensure-list erc-insert-post-hook)))
                        (erc-insert-timestamp-function
                         #'erc-stamp--propertize-left-date-stamp)
                        (pos (erc-stamp--find-insertion-point marker aligned))
@@ -857,15 +856,15 @@ and date stamps inserted by this function."
     ;; "prepended" date stamps as well.  However, since this is a
     ;; compatibility oriented code path, and pre-5.6 did no such
     ;; thing, better to punt.
-    (if-let ((erc-stamp-prepend-date-stamps-p)
-             (ts-left (erc-format-timestamp ct erc-timestamp-format-left))
-             ((not (string= ts-left erc-timestamp-last-inserted-left))))
+    (if-let* ((erc-stamp-prepend-date-stamps-p)
+              (ts-left (erc-format-timestamp ct erc-timestamp-format-left))
+              ((not (string= ts-left erc-timestamp-last-inserted-left))))
         (progn
           (goto-char (point-min))
           (erc-put-text-property 0 (length ts-left) 'field 'erc-timestamp
                                  ts-left)
           (insert (setq erc-timestamp-last-inserted-left ts-left)))
-      (when-let
+      (when-let*
           (((null erc-stamp--deferred-date-stamp))
            (rendered (erc-stamp--format-date-stamp ct))
            ((not (string-equal rendered erc-timestamp-last-inserted-left)))
@@ -980,11 +979,16 @@ For `erc-hide-timestamps, modify `buffer-invisibility-spec'."
 (defun erc-stamp--setup ()
   "Enable or disable buffer-local `erc-stamp-mode' modifications."
   (if erc-stamp-mode
-      (erc-stamp--manage-local-options-state)
+      (progn
+        (erc-stamp--manage-local-options-state)
+        (add-function :around (local 'erc--clear-function)
+                      #'erc-stamp--reset-on-clear '((depth . 40))))
     (let (erc-echo-timestamps erc-hide-timestamps erc-timestamp-intangible)
       (erc-stamp--manage-local-options-state))
     ;; Undo local mods from `erc-insert-timestamp-left-and-right'.
     (erc-stamp--date-mode -1) ; kills `erc-timestamp-last-inserted-left'
+    (remove-function (local 'erc--clear-function)
+                     #'erc-stamp--reset-on-clear)
     (kill-local-variable 'erc-stamp--last-stamp)
     (kill-local-variable 'erc-timestamp-last-inserted)
     (kill-local-variable 'erc-timestamp-last-inserted-right)
@@ -1023,6 +1027,8 @@ enabled when the message was inserted."
 
 (defvar-local erc-stamp--last-stamp nil)
 
+;; FIXME rename this to avoid confusion with IRC messages.
+;; Something like `erc-stamp--on-clear-echo-area-message'.
 (defun erc-stamp--on-clear-message (&rest _)
   "Return `dont-clear-message' when operating inside the same stamp."
   (and erc-stamp--last-stamp erc-echo-timestamps
@@ -1052,25 +1058,81 @@ with the option `erc-echo-timestamps', see the companion option
 (defun erc--echo-ts-csf (_window _before dir)
   (erc-echo-timestamp dir (erc--get-inserted-msg-prop 'erc--ts)))
 
-(defun erc-stamp--update-saved-position (&rest _)
-  (remove-hook 'erc-stamp--insert-date-hook
-               #'erc-stamp--update-saved-position t)
-  (move-marker erc-last-saved-position (1- (point-max))))
+(defun erc-stamp--redo-right-stamp-post-clear (_ end)
+  "Append new right stamp to first inserted message after END."
+  ;; During truncation, the last existing right stamp is often deleted
+  ;; regardless of `erc-timestamp-only-if-changed-flag'.  As of ERC 5.6,
+  ;; recreating inserted messages from scratch isn't doable.  (Although,
+  ;; attempting surgery like this is likely unwise.)
+  (when-let* ((erc-stamp--date-mode)
+              ((< end (1- erc-insert-marker))) ; not a /CLEAR
+              (bounds (erc--get-inserted-msg-bounds (1+ end)))
+              (ts (get-text-property (car bounds) 'erc--ts))
+              (format (with-suppressed-warnings
+                          ((obsolete erc-timestamp-format-right))
+                        (or erc-timestamp-format-right erc-timestamp-format)))
+              (rendered (erc-format-timestamp ts format))
+              ((not (equal rendered erc-timestamp-last-inserted-right)))
+              ((not (eq 'erc-timestamp (field-at-pos (1- (cdr bounds))))))
+              (erc--msg-props (map-into `((erc--ts . ,ts)) 'hash-table)))
+    (save-excursion
+      (save-restriction
+        (let ((erc-timestamp-last-inserted erc-timestamp-last-inserted)
+              (erc-timestamp-last-inserted-right
+               erc-timestamp-last-inserted-right))
+          (narrow-to-region (car bounds) (1+ (cdr bounds)))
+          (cl-assert (= ?\n (char-before (point-max))))
+          (erc-add-timestamp))))))
 
-(defun erc-stamp--reset-on-clear (pos)
-  "Forget last-inserted stamps when POS is at insert marker.
-And discard stale references in `erc-stamp--date-stamps'."
-  (when erc-stamp--date-stamps
-    (setq erc-stamp--date-stamps
-          (seq-filter (lambda (o) (> (erc-stamp--date-marker o) pos))
-                      erc-stamp--date-stamps)))
-  (when (= pos (1- erc-insert-marker))
-    (when erc-stamp--date-mode
-      (add-hook 'erc-stamp--insert-date-hook
-                #'erc-stamp--update-saved-position 0 t))
-    (setq erc-timestamp-last-inserted nil
-          erc-timestamp-last-inserted-left nil
-          erc-timestamp-last-inserted-right nil)))
+(defun erc-stamp--reset-on-clear (orig beg end)
+  "Forget date stamps older than POS and remake newest culled.
+Call ORIG, an `erc--clear-function', with BEG and END markers."
+  (let ((fullp (= (1- erc-insert-marker) end)) ; /CLEAR-p
+        (skipp (or (erc--memq-msg-prop 'erc--skip 'stamp)
+                   (and erc--msg-prop-overrides
+                        (memq 'stamp (alist-get 'erc--skip
+                                                erc--msg-prop-overrides)))))
+        (culled ()))
+    (when erc-stamp--date-stamps
+      (setq erc-stamp--date-stamps
+            ;; Assume `seq-filter' visits items in order.
+            (seq-filter (lambda (o)
+                          (or (> (erc-stamp--date-marker o) end)
+                              (ignore
+                               (set-marker (erc-stamp--date-marker o) nil)
+                               (push o culled))))
+                        erc-stamp--date-stamps)))
+    ;; Before /CLEAR'ing a data stamp, skip past last blank in headroom.
+    (when (and fullp culled (not skipp) (< 1 beg 3 end))
+      (set-marker beg 3))
+    (funcall orig beg end)
+    (when-let* ((culled)
+                ((not skipp))
+                (ct (erc-stamp--date-ts (car culled)))
+                (hook (make-symbol "temporary-hook"))
+                (rendered (erc-stamp--format-date-stamp ct))
+                (data (make-erc-stamp--date :ts ct :str rendered)))
+      (cl-assert erc-stamp--date-mode)
+      ;; Object successfully removed from model but snapshot remains.
+      (cl-assert (null (cl-find rendered erc-stamp--date-stamps
+                                :test #'string=
+                                :key #'erc-stamp--date-str)))
+      (let ((erc-stamp--deferred-date-stamp data)
+            ;; At midnight, `rendered' may still be yesterday while
+            ;; `erc-timestamp-last-inserted-left' is already today.
+            (erc-timestamp-last-inserted-left nil))
+        (erc-stamp--defer-date-insertion-on-post-modify hook)
+        (set-marker (erc-stamp--date-marker data) end)
+        (run-hooks hook)
+        ;; After /CLEAR'ing, remove new date stamp's trailing newline
+        ;; because one resides between `end' and `erc-input-marker'
+        ;; (originally meant to protect `erc-last-saved-position').
+        (when (and fullp (= end erc-last-saved-position))
+          (cl-assert (or erc--called-as-input-p (null erc--msg-props)))
+          (delete-region (1- end) end)))
+      (when fullp
+        (setq erc-timestamp-last-inserted-right nil
+              erc-timestamp-last-inserted nil)))))
 
 (defun erc-stamp--dedupe-date-stamps (old-stamps)
   "Update `erc-stamp--date-stamps' from its counterpart OLD-STAMPS.
@@ -1082,9 +1144,9 @@ copy non-duplicate `erc-stamp--date' objects from OLD-STAMPS to the
 current buffer's, maintaining order."
   (let (need)
     (dolist (old old-stamps)
-      (if-let ((new (cl-find (erc-stamp--date-str old) erc-stamp--date-stamps
-                             :test #'string= :key #'erc-stamp--date-str))
-               (new-marker (erc-stamp--date-marker new)))
+      (if-let* ((new (cl-find (erc-stamp--date-str old) erc-stamp--date-stamps
+                              :test #'string= :key #'erc-stamp--date-str))
+                (new-marker (erc-stamp--date-marker new)))
           ;; The new buffer now has a duplicate stamp, so remove the
           ;; "newer" one from the buffer.
           (progn

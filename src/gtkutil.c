@@ -1,6 +1,6 @@
 /* Functions for creating and updating GTK widgets.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1735,7 +1735,6 @@ xg_create_frame_widgets (struct frame *f)
   g_signal_connect (wtop, "query-tooltip", G_CALLBACK (qttip_cb), f);
 
   imc = gtk_im_multicontext_new ();
-  g_object_ref (imc);
   gtk_im_context_set_use_preedit (imc, TRUE);
 
   g_signal_connect (G_OBJECT (imc), "commit",
@@ -1884,6 +1883,12 @@ xg_free_frame_widgets (struct frame *f)
                              TB_INFO_KEY);
       if (tbinfo)
         xfree (tbinfo);
+
+      if (x->toolbar_widget && !x->toolbar_is_packed)
+	{
+	  gtk_widget_destroy (x->toolbar_widget);
+	  x->toolbar_widget = NULL;
+	}
 
       /* x_free_frame_resources should have taken care of it */
 #ifndef HAVE_PGTK
@@ -5506,7 +5511,7 @@ find_rtl_image (struct frame *f, Lisp_Object image, Lisp_Object rtl)
       Lisp_Object rtl_image = PROP (TOOL_BAR_ITEM_IMAGES);
       if (!NILP (file = file_for_image (rtl_image)))
         {
-          file = call1 (Qfile_name_sans_extension,
+          file = calln (Qfile_name_sans_extension,
 			Ffile_name_nondirectory (file));
           if (! NILP (Fequal (file, rtl_name)))
             {
@@ -5920,7 +5925,7 @@ update_frame_tool_bar (struct frame *f)
 
       specified_file = file_for_image (image);
       if (!NILP (specified_file) && !NILP (Ffboundp (Qx_gtk_map_stock)))
-        stock = call1 (Qx_gtk_map_stock, specified_file);
+        stock = calln (Qx_gtk_map_stock, specified_file);
 
       if (CONSP (stock))
         {
@@ -6081,12 +6086,12 @@ update_frame_tool_bar (struct frame *f)
         xg_pack_tool_bar (f, FRAME_TOOL_BAR_POSITION (f));
       gtk_widget_show_all (x->toolbar_widget);
       if (xg_update_tool_bar_sizes (f))
-	/* It's not entirely clear whether here we want a treatment
-	   similar to that for frames with internal tool bar.  */
-	adjust_frame_size (f, -1, -1, 2, 0, Qtool_bar_lines);
-
-      f->tool_bar_resized = f->tool_bar_redisplayed;
+	adjust_frame_size (f, -1, -1, 2, false, Qtool_bar_lines);
     }
+
+  /* Set this regardless of whether a tool bar was made or not.  It's
+     needed for 'frame-inhibit-implied-resize' to work on GTK.  */
+  f->tool_bar_resized = true;
 
   unblock_input ();
 }
@@ -6117,8 +6122,7 @@ free_frame_tool_bar (struct frame *f)
       else
         gtk_widget_destroy (x->toolbar_widget);
 
-      x->toolbar_widget = 0;
-      x->toolbar_widget = 0;
+      x->toolbar_widget = NULL;
       x->toolbar_is_packed = false;
       FRAME_TOOLBAR_TOP_HEIGHT (f) = FRAME_TOOLBAR_BOTTOM_HEIGHT (f) = 0;
       FRAME_TOOLBAR_LEFT_WIDTH (f) = FRAME_TOOLBAR_RIGHT_WIDTH (f) = 0;

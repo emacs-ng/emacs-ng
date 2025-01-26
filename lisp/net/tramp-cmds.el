@@ -1,6 +1,6 @@
 ;;; tramp-cmds.el --- Interactive commands for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -39,6 +39,8 @@
 (defvar mm-7bit-chars)
 (defvar reporter-eval-buffer)
 (defvar reporter-prompt-for-summary-p)
+(defvar tramp-repository-branch)
+(defvar tramp-repository-version)
 
 ;;;###tramp-autoload
 (defun tramp-change-syntax (&optional syntax)
@@ -53,6 +55,36 @@ SYNTAX can be one of the symbols `default' (default),
        (list (intern input)))))
   (when syntax
     (customize-set-variable 'tramp-syntax syntax)))
+
+;;;###tramp-autoload
+(defun tramp-enable-method (method)
+  "Enable optional METHOD if possible."
+  (interactive
+   (list
+    (completing-read
+     "method: "
+     (tramp-compat-seq-keep
+      (lambda (x)
+	(when-let* ((name (symbol-name x))
+		    ;; It must match `tramp-enable-METHOD-method'.
+		    ((string-match
+		      (rx "tramp-enable-"
+			  (group (regexp tramp-method-regexp))
+			  "-method")
+		      name))
+		    (method (match-string 1 name))
+		    ;; It must not be enabled yet.
+		    ((not (assoc method tramp-methods))))
+	  method))
+      ;; All method enabling functions.
+      (mapcar
+       #'intern (all-completions "tramp-enable-" obarray #'functionp))))))
+
+  (when-let* (((not (assoc method tramp-methods)))
+	      (fn (intern (format "tramp-enable-%s-method" method)))
+	      ((functionp fn)))
+    (funcall fn)
+    (message "Tramp method \"%s\" enabled" method)))
 
 ;; Use `match-buffers' starting with Emacs 29.1.
 ;;;###tramp-autoload
@@ -86,11 +118,12 @@ Each function is called with the current vector as argument.")
 (defun tramp-cleanup-connection
     (vec &optional keep-debug keep-password keep-processes)
   "Flush all connection related objects.
-This includes password cache, file cache, connection cache,
-buffers, processes.  KEEP-DEBUG non-nil preserves the debug
-buffer.  KEEP-PASSWORD non-nil preserves the password cache.
-KEEP-PROCESSES non-nil preserves the asynchronous processes.
-When called interactively, a Tramp connection has to be selected."
+This includes password cache, file cache, connection cache, buffers,
+processes.  KEEP-DEBUG non-nil preserves the debug and trace buffer.
+KEEP-PASSWORD non-nil preserves the password cache.  KEEP-PROCESSES
+non-nil preserves the asynchronous processes.  When called
+interactively, a Tramp connection has to be selected."
+  (declare (completion tramp-active-command-completion-p))
   (interactive
    ;; When interactive, select the Tramp remote identification.
    ;; Return nil when there is no Tramp connection.
@@ -140,7 +173,7 @@ When called interactively, a Tramp connection has to be selected."
 		     (get-buffer (tramp-debug-buffer-name vec)))
 		   (unless keep-debug
 		     (get-buffer (tramp-trace-buffer-name vec)))
-		   (tramp-get-connection-property vec "process-buffer")))
+		   (tramp-get-connection-property vec " connected")))
       (when (bufferp buf) (kill-buffer buf)))
 
     ;; Flush file cache.
@@ -155,17 +188,11 @@ When called interactively, a Tramp connection has to be selected."
 ;;;###tramp-autoload
 (defun tramp-cleanup-this-connection ()
   "Flush all connection related objects of the current buffer's connection."
-  ;; (declare (completion tramp-command-completion-p)))
+  (declare (completion tramp-command-completion-p))
   (interactive)
   (and (tramp-tramp-file-p default-directory)
        (tramp-cleanup-connection
 	(tramp-dissect-file-name default-directory 'noexpand))))
-
-;; Starting with Emacs 28.1, this can be replaced by the "(declare ...)" form.
-;;;###tramp-autoload
-(function-put
- #'tramp-cleanup-this-connection 'completion-predicate
- #'tramp-command-completion-p)
 
 ;;;###tramp-autoload
 (defvar tramp-cleanup-all-connections-hook nil
@@ -175,6 +202,7 @@ When called interactively, a Tramp connection has to be selected."
 (defun tramp-cleanup-all-connections ()
   "Flush all Tramp internal objects.
 This includes password cache, file cache, connection cache, buffers."
+  (declare (completion tramp-active-command-completion-p))
   (interactive)
 
   ;; Flush password cache.
@@ -218,7 +246,8 @@ happens when at least one of the functions returns non-nil.  The
 functions are called with `current-buffer' set."
   :group 'tramp
   :version "30.1"
-  :type 'hook)
+  :type 'hook
+  :link '(info-link :tag "Tramp manual" "(tramp) Cleanup remote connections"))
 
 (add-hook 'tramp-cleanup-some-buffers-hook
 	  #'buffer-file-name)
@@ -271,6 +300,7 @@ functions are called with `current-buffer' set."
 A buffer is killed when it has a remote `default-directory', and
 one of the functions in `tramp-cleanup-some-buffers-hook' returns
 non-nil."
+  (declare (completion tramp-active-command-completion-p))
   (interactive)
 
   ;; Remove all Tramp related connections.
@@ -286,8 +316,9 @@ non-nil."
 ;;;###tramp-autoload
 (defun tramp-cleanup-all-buffers ()
   "Kill all remote buffers."
+  (declare (completion tramp-active-command-completion-p))
   (interactive)
-  (let ((tramp-cleanup-some-buffers-hook '(tramp-compat-always)))
+  (let ((tramp-cleanup-some-buffers-hook '(always)))
     (tramp-cleanup-some-buffers)))
 
 ;;; Rename
@@ -312,13 +343,15 @@ expression which always matches."
   :group 'tramp
   :version "27.1"
   :type '(repeat (cons (choice :tag "Source regexp" regexp sexp)
-		       (choice :tag "Target   name" string (const nil)))))
+		       (choice :tag "Target   name" string (const nil))))
+  :link '(info-link :tag "Tramp manual" "(tramp) Renaming remote files"))
 
 (defcustom tramp-confirm-rename-file-names t
   "Whether renaming a buffer file name must be confirmed."
   :group 'tramp
   :version "27.1"
-  :type 'boolean)
+  :type 'boolean
+  :link '(info-link :tag "Tramp manual" "(tramp) Renaming remote files"))
 
 (defun tramp-default-rename-file (string)
   "Determine default file name for renaming according to STRING.
@@ -335,7 +368,7 @@ function returns nil"
 	(when (string-match-p (or (eval (car item) t) "") string)
 	  (setq tdra nil
 		result
-		(format-spec
+		(tramp-format-spec
 		 (cdr item) (format-spec-make ?m method ?u user ?h host)))))
       result)))
 
@@ -382,6 +415,7 @@ without confirmation if the prefix argument is non-nil.
 
 The remote connection identified by SOURCE is flushed by
 `tramp-cleanup-connection'."
+  (declare (completion tramp-active-command-completion-p))
   (interactive
    (let ((connections
 	  (mapcar #'tramp-make-tramp-file-name (tramp-list-connections)))
@@ -472,8 +506,7 @@ ESC or `q' to quit without changing further buffers,
 	(dolist (buffer (tramp-list-remote-buffers))
           (switch-to-buffer buffer)
 	  (let* ((bfn (buffer-file-name))
-		 (new-bfn (and (stringp bfn)
-			       (tramp-compat-string-replace source target bfn)))
+		 (new-bfn (and (stringp bfn) (string-replace source target bfn)))
 		 (prompt (format-message
 			  "Set visited file name to `%s' [Type yn!eq or %s] "
 			  new-bfn (key-description (vector help-char)))))
@@ -520,7 +553,7 @@ Interactively, TARGET is selected from `tramp-default-rename-alist'
 without confirmation if the prefix argument is non-nil.
 
 For details, see `tramp-rename-files'."
-  ;; (declare (completion tramp-command-completion-p))
+  (declare (completion tramp-command-completion-p))
   (interactive
    (let ((source default-directory)
 	 target
@@ -551,11 +584,6 @@ For details, see `tramp-rename-files'."
 
   (tramp-rename-files default-directory target))
 
-;; Starting with Emacs 28.1, this can be replaced by the "(declare ...)" form.
-;;;###tramp-autoload
-(function-put
- #'tramp-rename-these-files 'completion-predicate #'tramp-command-completion-p)
-
 ;;; Run as sudo
 
 (defcustom tramp-file-name-with-method "sudo"
@@ -566,7 +594,8 @@ For details, see `tramp-rename-files'."
 		 (const "sudo")
 		 (const "doas")
 		 (const "run0")
-		 (const "ksu")))
+		 (const "ksu"))
+  :link '(tramp-info-link :tag "Tramp manual" tramp-file-name-with-method))
 
 (defun tramp-file-name-with-sudo (filename)
   "Convert FILENAME into a multi-hop file name with \"sudo\".
@@ -624,13 +653,12 @@ If the buffer runs `dired', the buffer is reverted."
 
 ;;; Recompile on ELPA
 
-;; This function takes action since Emacs 28.1, when
-;; `read-extended-command-predicate' is set to
-;; `command-completion-default-include-p'.
+;; This function takes action, when `read-extended-command-predicate'
+;; is set to `command-completion-default-include-p'.
 ;;;###tramp-autoload
 (defun tramp-recompile-elpa-command-completion-p (_symbol _buffer)
   "A predicate for `tramp-recompile-elpa'.
-It is completed by \"M-x TAB\" only if package.el is loaded, and
+It is completed by `M-x TAB' only if package.el is loaded, and
 Tramp is an installed ELPA package."
   ;; We cannot apply `package-installed-p', this would also return the
   ;; builtin package.
@@ -641,10 +669,10 @@ Tramp is an installed ELPA package."
 (defun tramp-recompile-elpa ()
   "Recompile the installed Tramp ELPA package.
 This is needed if there are compatibility problems."
-  ;; (declare (completion tramp-recompile-elpa-command-completion-p))
+  (declare (completion tramp-recompile-elpa-command-completion-p))
   (interactive)
   ;; We expect just one Tramp package is installed.
-  (when-let
+  (when-let*
       ((dir (tramp-compat-funcall
 	     'package-desc-dir
 	     (car (alist-get 'tramp (bound-and-true-p package-alist))))))
@@ -660,12 +688,6 @@ This is needed if there are compatibility problems."
 	 "-Q" "-batch" "-L" dir
 	 "--eval" (format "(byte-recompile-directory %S 0 t)" dir))
 	(message "Package `tramp' recompiled.")))))
-
-;; Starting with Emacs 28.1, this can be replaced by the "(declare ...)" form.
-;;;###tramp-autoload
-(function-put
- #'tramp-recompile-elpa 'completion-predicate
- #'tramp-recompile-elpa-command-completion-p)
 
 ;; Tramp version is useful in a number of situations.
 
@@ -741,8 +763,8 @@ buffer in your bug report.
 
 (defun tramp-reporter-dump-variable (varsym mailbuf)
   "Pretty-print the value of the variable in symbol VARSYM."
-  (when-let ((reporter-eval-buffer reporter-eval-buffer)
-	     (val (buffer-local-value varsym reporter-eval-buffer)))
+  (when-let* ((reporter-eval-buffer reporter-eval-buffer)
+	      (val (buffer-local-value varsym reporter-eval-buffer)))
 
     (if (hash-table-p val)
 	;; Pretty print the cache.
@@ -827,7 +849,7 @@ buffer in your bug report.
   (insert "\nload-path shadows:\n==================\n")
   (ignore-errors
     (mapc
-     (lambda (x) (when (tramp-compat-string-search "tramp" x) (insert x "\n")))
+     (lambda (x) (when (string-search "tramp" x) (insert x "\n")))
      (split-string (list-load-path-shadows t) "\n")))
 
   ;; Append buffers only when we are in message mode.

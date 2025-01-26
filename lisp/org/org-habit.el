@@ -1,6 +1,6 @@
 ;;; org-habit.el --- The habit tracking code for Org -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw at gnu dot org>
 ;; Keywords: outlines, hypermedia, calendar, text
@@ -69,7 +69,7 @@ relative to the current effective date."
   :type 'boolean)
 
 (defcustom org-habit-show-all-today nil
-  "If non-nil, will show the consistency graph of all habits on
+  "If non-nil, show the consistency graph of all habits on
 today's agenda, even if they are not scheduled."
   :group 'org-habit
   :type 'boolean)

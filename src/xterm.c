@@ -1,6 +1,6 @@
 /* X Communication module for terminals which understand the X protocol.
 
-Copyright (C) 1989, 1993-2024 Free Software Foundation, Inc.
+Copyright (C) 1989, 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -3099,27 +3099,19 @@ x_dnd_compute_toplevels (struct x_display_info *dpyinfo)
 #ifdef USE_XCB
   USE_SAFE_ALLOCA;
 
-  window_attribute_cookies
-    = SAFE_ALLOCA (sizeof *window_attribute_cookies * nitems);
-  translate_coordinate_cookies
-    = SAFE_ALLOCA (sizeof *translate_coordinate_cookies * nitems);
-  get_property_cookies
-    = SAFE_ALLOCA (sizeof *get_property_cookies * nitems);
-  xm_property_cookies
-    = SAFE_ALLOCA (sizeof *xm_property_cookies * nitems);
-  extent_property_cookies
-    = SAFE_ALLOCA (sizeof *extent_property_cookies * nitems);
-  get_geometry_cookies
-    = SAFE_ALLOCA (sizeof *get_geometry_cookies * nitems);
+  SAFE_NALLOCA (window_attribute_cookies, 1, nitems);
+  SAFE_NALLOCA (translate_coordinate_cookies, 1, nitems);
+  SAFE_NALLOCA (get_property_cookies, 1, nitems);
+  SAFE_NALLOCA (xm_property_cookies, 1, nitems);
+  SAFE_NALLOCA (extent_property_cookies, 1, nitems);
+  SAFE_NALLOCA (get_geometry_cookies, 1, nitems);
 
 #ifdef HAVE_XCB_SHAPE
-  bounding_rect_cookies
-    = SAFE_ALLOCA (sizeof *bounding_rect_cookies * nitems);
+  SAFE_NALLOCA (bounding_rect_cookies, 1, nitems);
 #endif
 
 #ifdef HAVE_XCB_SHAPE_INPUT_RECTS
-  input_rect_cookies
-    = SAFE_ALLOCA (sizeof *input_rect_cookies * nitems);
+  SAFE_NALLOCA (input_rect_cookies, 1, nitems);
 #endif
 
   for (i = 0; i < nitems; ++i)
@@ -4129,10 +4121,10 @@ x_dnd_send_unsupported_drop (struct x_display_info *dpyinfo, Window target_windo
   x_dnd_unsupported_drop_time = before;
   x_dnd_unsupported_drop_window = target_window;
   x_dnd_unsupported_drop_data
-    = listn (5, assq_no_quit (QXdndSelection,
-			      dpyinfo->terminal->Vselection_alist),
-	     targets, arg, make_fixnum (root_x),
-	     make_fixnum (root_y));
+    = list (assq_no_quit (QXdndSelection,
+			  dpyinfo->terminal->Vselection_alist),
+	    targets, arg, make_fixnum (root_x),
+	    make_fixnum (root_y));
 
   x_dnd_waiting_for_finish = true;
   x_dnd_finish_display = dpyinfo->display;
@@ -6377,7 +6369,6 @@ x_cr_export_frames (Lisp_Object frames, cairo_surface_type_t surface_type)
   Lisp_Object acc = Qnil;
   specpdl_ref count = SPECPDL_INDEX ();
 
-  specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (31);
 
   f = XFRAME (XCAR (frames));
@@ -13104,7 +13095,7 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 
 		  ref = SPECPDL_INDEX ();
 		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
-		  call2 (Vx_dnd_movement_function, frame_object,
+		  calln (Vx_dnd_movement_function, frame_object,
 			 Fposn_at_x_y (x, y, frame_object, Qnil));
 		  x_dnd_unwind_flag = false;
 		  unbind_to (ref, Qnil);
@@ -13138,7 +13129,7 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 
 		  ref = SPECPDL_INDEX ();
 		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
-		  call4 (Vx_dnd_wheel_function,
+		  calln (Vx_dnd_wheel_function,
 			 Fposn_at_x_y (x, y, frame_object, Qnil),
 			 make_fixnum (x_dnd_wheel_button),
 			 make_uint (x_dnd_wheel_state),
@@ -13207,7 +13198,7 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 	      record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
 
 	      if (!NILP (Vx_dnd_unsupported_drop_function))
-		val = call8 (Vx_dnd_unsupported_drop_function,
+		val = calln (Vx_dnd_unsupported_drop_function,
 			     XCAR (XCDR (x_dnd_unsupported_drop_data)),
 			     Fnth (make_fixnum (3), x_dnd_unsupported_drop_data),
 			     Fnth (make_fixnum (4), x_dnd_unsupported_drop_data),
@@ -14699,7 +14690,7 @@ x_construct_mouse_click (struct input_event *result,
           result->kind = (event->type != ButtonRelease ? NO_EVENT
 		          : wheel & 2 ? HORIZ_WHEEL_EVENT : WHEEL_EVENT);
           result->code = 0;         /* Not used.  */
-          result->modifiers &= ~(up_modifier || down_modifier);
+          result->modifiers &= ~(up_modifier | down_modifier);
           result->modifiers |= wheel & 1 ? up_modifier : down_modifier;
         }
     }
@@ -15474,7 +15465,7 @@ xt_action_hook (Widget widget, XtPointer client_data, String action_name,
 
   if (scroll_bar_p
       && strcmp (action_name, end_action) == 0
-      && WINDOWP (window_being_scrolled))
+      && WINDOW_LIVE_P (window_being_scrolled))
     {
       struct window *w;
       struct scroll_bar *bar;
@@ -15593,7 +15584,7 @@ x_send_scroll_bar_event (Lisp_Object window, enum scroll_bar_part part,
   XClientMessageEvent *ev = &event.xclient;
   struct window *w = XWINDOW (window);
   struct frame *f = XFRAME (w->frame);
-  verify (INTPTR_WIDTH <= 64);
+  static_assert (INTPTR_WIDTH <= 64);
 
   /* Don't do anything if too many scroll bar events have been
      sent but not received.  */
@@ -20410,8 +20401,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 		  if (overflow)
 		    {
-		      copy_bufptr = SAFE_ALLOCA ((copy_bufsiz += overflow)
-						 * sizeof *copy_bufptr);
+		      copy_bufsiz += overflow;
+		      copy_bufptr = SAFE_ALLOCA (copy_bufsiz);
 		      overflow = 0;
 
 		      /* Use the original keysym derived from the
@@ -24325,9 +24316,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 						       &overflow);
 			  if (overflow)
 			    {
-			      copy_bufptr
-				= SAFE_ALLOCA ((copy_bufsiz += overflow)
-					       * sizeof *copy_bufptr);
+			      copy_bufsiz += overflow;
+			      copy_bufptr = SAFE_ALLOCA (copy_bufsiz);
 			      overflow = 0;
 
 			      /* Use the original keysym derived from
@@ -24668,7 +24658,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      any_changed = false;
 #endif /* !USE_X_TOOLKIT && (!USE_GTK || HAVE_GTK3) */
 	      hev = (XIHierarchyEvent *) xi_event;
-	      disabled = SAFE_ALLOCA (sizeof *disabled * hev->num_info);
+	      SAFE_NALLOCA (disabled, 1, hev->num_info);
 	      n_disabled = 0;
 
 	      for (i = 0; i < hev->num_info; ++i)
@@ -27133,11 +27123,13 @@ x_error_quitter (Display *display, XErrorEvent *event)
 static int NO_INLINE
 x_io_error_quitter (Display *display)
 {
-  char buf[256];
-
-  snprintf (buf, sizeof buf, "Connection lost to X server '%s'",
-	    DisplayString (display));
+  char const *server = DisplayString (display);
+  static char const fmt[] = "Connection lost to X server '%s'";
+  USE_SAFE_ALLOCA;
+  char *buf = SAFE_ALLOCA (sizeof fmt - sizeof "%s" + strlen (server) + 1);
+  sprintf (buf, fmt, server);
   x_connection_closed (display, buf, true);
+  SAFE_FREE ();
 
   return 0;
 }
@@ -31690,8 +31682,7 @@ x_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
 	}
 
 #ifdef USE_XCB
-      selection_cookies = SAFE_ALLOCA (sizeof *selection_cookies
-				       * num_fast_selections);
+      SAFE_NALLOCA (selection_cookies, 1, num_fast_selections);
 #endif
 
       /* Now, ask for the current owners of all those selections.  */
@@ -32245,7 +32236,7 @@ x_initialize (void)
   Xt_app_con = XtCreateApplicationContext ();
 
   /* Register a converter from strings to pixels, which uses
-     Emacs' color allocation infrastructure.  */
+     Emacs's color allocation infrastructure.  */
   XtAppSetTypeConverter (Xt_app_con,
 			 XtRString, XtRPixel, cvt_string_to_pixel,
 			 cvt_string_to_pixel_args,

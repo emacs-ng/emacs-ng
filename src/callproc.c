@@ -1,6 +1,6 @@
 /* Synchronous subprocess invocation for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1995, 1999-2024 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1999-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -914,7 +914,7 @@ call_process (ptrdiff_t nargs, Lisp_Object *args, int filefd,
       /* If the caller required, let the buffer inherit the
 	 coding-system used to decode the process output.  */
       if (inherit_process_coding_system)
-	call1 (Qafter_insert_file_set_buffer_file_coding_system,
+	calln (Qafter_insert_file_set_buffer_file_coding_system,
 	       make_fixnum (total_read));
     }
 
@@ -1721,7 +1721,7 @@ getenv_internal (const char *var, ptrdiff_t varlen, char **value,
 			 Vprocess_environment))
     return *value ? 1 : 0;
 
-  /* On Windows we make some modifications to Emacs' environment
+  /* On Windows we make some modifications to Emacs's environment
      without recording them in Vprocess_environment.  */
 #ifdef WINDOWSNT
   {

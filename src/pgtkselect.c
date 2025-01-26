@@ -1,5 +1,5 @@
 /* Gtk selection processing for emacs.
-   Copyright (C) 1993-1994, 2005-2006, 2008-2024 Free Software
+   Copyright (C) 1993-1994, 2005-2006, 2008-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -266,10 +266,8 @@ pgtk_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 	}
 
       if (!NILP (handler_fn))
-	value = call3 (handler_fn, selection_symbol,
-		       (local_request
-			? Qnil
-			: target_type),
+	value = calln (handler_fn, selection_symbol,
+		       (local_request ? Qnil : target_type),
 		       tem);
       else
 	value = Qnil;
@@ -1644,10 +1642,24 @@ frame's display, or the first available X display.  */)
 
   if (NILP (val) && FRAME_LIVE_P (f))
     {
-      Lisp_Object frame;
+      Lisp_Object frame, val;
       XSETFRAME (frame, f);
-      return pgtk_get_foreign_selection (selection_symbol, target_type,
-					 time_stamp, frame);
+
+      val = pgtk_get_foreign_selection (selection_symbol, target_type,
+					time_stamp, frame);
+
+      /* A window property holding just one item is indistinguishable
+	 from an array of one element, and is always decoded as the
+	 former, producing issues with programs that expect the TARGETS
+	 property always to return vectors, even when the toolkit
+	 reports just one data type.  Though X sidesteps this ambiguity
+	 by defining TARGETS as returning at least two properties
+	 TARGETS and MULTIPLE, GTK knows no such scruples, and therefore
+	 symbol values (or nil) should be enclosed in vectors when
+	 TARGETS is being requested.  (bug#72254) */
+      if (EQ (target_type, QTARGETS) && (NILP (val) || SYMBOLP (val)))
+	val = make_vector (NILP (val) ? 0 : 1, val);
+      return val;
     }
 
   if (CONSP (val) && SYMBOLP (XCAR (val)))
@@ -1808,7 +1820,7 @@ targets) that can be dropped on top of FRAME.  */)
   CHECK_LIST (targets);
   length = list_length (targets);
   n = 0;
-  entries = SAFE_ALLOCA (sizeof *entries * length);
+  SAFE_NALLOCA (entries, 1, length);
   memset (entries, 0, sizeof *entries * length);
   tem = targets;
 

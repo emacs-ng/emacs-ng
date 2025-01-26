@@ -1,6 +1,6 @@
 ;;; rst.el --- Mode for viewing and editing reStructuredText-documents  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: Stefan Merten <stefan at merten-home dot de>
 ;; Author: Stefan Merten <stefan at merten-home dot de>,
@@ -56,7 +56,7 @@
 ;; There are a number of convenient key bindings provided by rst-mode.  For the
 ;; bindings, try C-c C-h when in rst-mode.  There are also many variables that
 ;; can be customized, look for defcustom in this file or look for the "rst"
-;; customization group contained in the "wp" group.
+;; customization group contained in the "text" group.
 ;;
 ;; If you use the table-of-contents feature, you may want to add a hook to
 ;; update the TOC automatically every time you adjust a section title::
@@ -102,7 +102,6 @@
 
 ;; FIXME: Embed complicated `defconst's in `eval-when-compile'.
 
-;; Common Lisp stuff
 (require 'cl-lib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1323,8 +1322,6 @@ The hook for `text-mode' is run before this one."
 
 ;; Pull in variable definitions silencing byte-compiler.
 (require 'newcomment)
-
-(defvar electric-indent-inhibit)
 
 ;; Use rst-mode for *.rst and *.rest files.  Many ReStructured-Text files
 ;; use *.txt, but this is too generic to be set as a default.
@@ -4438,7 +4435,7 @@ column is used (fill-column vs. end of previous/next line)."
 
 
 
-;; LocalWords:  docutils http sourceforge rst html wp svn svnroot txt reST regex
+;; LocalWords:  docutils http sourceforge rst html svn svnroot txt reST regex
 ;; LocalWords:  regexes alist seq alt grp keymap abbrev overline overlines toc
 ;; LocalWords:  XML PNT propertized init referenceable
 

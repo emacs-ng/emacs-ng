@@ -1,6 +1,6 @@
 /* A substitute for POSIX 2008 <stddef.h>, for platforms that have issues.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -131,7 +131,7 @@ typedef long max_align_t;
  */
 #ifndef _GL_ATTRIBUTE_NOTHROW
 # if defined __cplusplus
-#  if (__GNUC__ + (__GNUC_MINOR__ >= 8) > 2) || __clang_major >= 4
+#  if (__GNUC__ + (__GNUC_MINOR__ >= 8) > 2) || __clang_major__ >= 4
 #   if __cplusplus >= 201103L
 #    define _GL_ATTRIBUTE_NOTHROW noexcept (true)
 #   else
@@ -147,11 +147,6 @@ typedef long max_align_t;
 #   define _GL_ATTRIBUTE_NOTHROW
 #  endif
 # endif
-#endif
-
-/* Some platforms lack wchar_t.  */
-#if !@HAVE_WCHAR_T@
-# define wchar_t int
 #endif
 
 /* Some platforms lack max_align_t.  The check for _GCC_MAX_ALIGN_T is
@@ -199,7 +194,7 @@ typedef union
 # ifndef _GL_HAS_BUILTIN_UNREACHABLE
 #  if defined __clang_major__ && __clang_major__ < 5
 #   define _GL_HAS_BUILTIN_UNREACHABLE 0
-#  elif 4 < __GNUC__ + (5 <= __GNUC_MINOR__)
+#  elif 4 < __GNUC__ + (5 <= __GNUC_MINOR__) && !defined __clang__
 #   define _GL_HAS_BUILTIN_UNREACHABLE 1
 #  elif defined __has_builtin
 #   define _GL_HAS_BUILTIN_UNREACHABLE __has_builtin (__builtin_unreachable)

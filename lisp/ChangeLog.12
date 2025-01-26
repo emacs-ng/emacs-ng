@@ -15827,7 +15827,7 @@
 
 	* progmodes/cc-cmds.el (c-hungry-delete): New function to fix
 	<delete> key behavior in XEmacs according to `delete-forward-p'.
-	C.f. `c-electric-delete'.
+	Cf. `c-electric-delete'.
 
 2005-12-08  Alan Mackenzie  <acm@muc.de>
 
@@ -33335,7 +33335,7 @@ See ChangeLog.11 for earlier changes.
 ;; add-log-time-zone-rule: t
 ;; End:
 
-    Copyright (C) 2005-2024 Free Software Foundation, Inc.
+    Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
   This file is part of GNU Emacs.
 

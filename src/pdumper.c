@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -44,6 +44,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "systime.h"
 #include "thread.h"
 #include "bignum.h"
+#include "treesit.h"
 
 #ifdef CHECK_STRUCTS
 # include "dmpstruct.h"
@@ -98,11 +99,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    are the same size and have the same layout, and where bytes have
    eight bits --- that is, a general-purpose computer made after 1990.
    Also require Lisp_Object to be at least as wide as pointers.  */
-verify (sizeof (ptrdiff_t) == sizeof (void *));
-verify (sizeof (intptr_t) == sizeof (ptrdiff_t));
-verify (sizeof (void (*) (void)) == sizeof (void *));
-verify (sizeof (ptrdiff_t) <= sizeof (Lisp_Object));
-verify (sizeof (ptrdiff_t) <= sizeof (EMACS_INT));
+static_assert (sizeof (ptrdiff_t) == sizeof (void *));
+static_assert (sizeof (intptr_t) == sizeof (ptrdiff_t));
+static_assert (sizeof (void (*) (void)) == sizeof (void *));
+static_assert (sizeof (ptrdiff_t) <= sizeof (Lisp_Object));
+static_assert (sizeof (ptrdiff_t) <= sizeof (EMACS_INT));
 
 static size_t
 divide_round_up (size_t x, size_t y)
@@ -225,6 +226,8 @@ enum
    EMACS_RELOC_LENGTH_BITS = DUMP_OFF_WIDTH - EMACS_RELOC_TYPE_BITS
   };
 
+static_assert (RELOC_EMACS_EMACS_LV <= (1 << EMACS_RELOC_TYPE_BITS));
+
 struct emacs_reloc
 {
   ENUM_BF (emacs_reloc_type) type : EMACS_RELOC_TYPE_BITS;
@@ -275,15 +278,15 @@ enum
    DUMP_RELOC_OFFSET_BITS = DUMP_OFF_WIDTH - DUMP_RELOC_TYPE_BITS
   };
 
-verify (RELOC_DUMP_TO_EMACS_LV + 8 < (1 << DUMP_RELOC_TYPE_BITS));
-verify (DUMP_ALIGNMENT >= GCALIGNMENT);
+static_assert (RELOC_DUMP_TO_EMACS_LV + 8 < (1 << DUMP_RELOC_TYPE_BITS));
+static_assert (DUMP_ALIGNMENT >= GCALIGNMENT);
 
 struct dump_reloc
 {
   unsigned int raw_offset : DUMP_RELOC_OFFSET_BITS;
   ENUM_BF (dump_reloc_type) type : DUMP_RELOC_TYPE_BITS;
 };
-verify (sizeof (struct dump_reloc) == sizeof (dump_off));
+static_assert (sizeof (struct dump_reloc) == sizeof (dump_off));
 
 /* Set the type of a dump relocation.
 
@@ -674,8 +677,8 @@ static Lisp_Object
 dump_ptr_referrer (const char *label, void const *address)
 {
   char buf[128];
-  buf[0] = '\0';
-  sprintf (buf, "%s @ %p", label, address);
+  if (sizeof buf <= snprintf (buf, sizeof buf, "%s @ %p", label, address))
+    strcpy (buf + sizeof buf - 4, "...");
   return build_string (buf);
 }
 
@@ -2125,10 +2128,9 @@ dump_marker (struct dump_context *ctx, const struct Lisp_Marker *marker)
 }
 
 static dump_off
-dump_interval_node (struct dump_context *ctx, struct itree_node *node,
-                    dump_off parent_offset)
+dump_interval_node (struct dump_context *ctx, struct itree_node *node)
 {
-#if CHECK_STRUCTS && !defined (HASH_itree_node_50DE304F13)
+#if CHECK_STRUCTS && !defined (HASH_itree_node_03626AFCA9)
 # error "itree_node changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct itree_node out;
@@ -2136,9 +2138,9 @@ dump_interval_node (struct dump_context *ctx, struct itree_node *node,
   if (node->parent)
     dump_field_fixup_later (ctx, &out, node, &node->parent);
   if (node->left)
-    dump_field_fixup_later (ctx, &out, node, &node->parent);
+    dump_field_fixup_later (ctx, &out, node, &node->left);
   if (node->right)
-    dump_field_fixup_later (ctx, &out, node, &node->parent);
+    dump_field_fixup_later (ctx, &out, node, &node->right);
   DUMP_FIELD_COPY (&out, node, begin);
   DUMP_FIELD_COPY (&out, node, end);
   DUMP_FIELD_COPY (&out, node, limit);
@@ -2153,17 +2155,17 @@ dump_interval_node (struct dump_context *ctx, struct itree_node *node,
       dump_remember_fixup_ptr_raw
 	(ctx,
 	 offset + dump_offsetof (struct itree_node, parent),
-	 dump_interval_node (ctx, node->parent, offset));
+	 dump_interval_node (ctx, node->parent));
   if (node->left)
       dump_remember_fixup_ptr_raw
 	(ctx,
 	 offset + dump_offsetof (struct itree_node, left),
-	 dump_interval_node (ctx, node->left, offset));
+	 dump_interval_node (ctx, node->left));
   if (node->right)
       dump_remember_fixup_ptr_raw
 	(ctx,
 	 offset + dump_offsetof (struct itree_node, right),
-	 dump_interval_node (ctx, node->right, offset));
+	 dump_interval_node (ctx, node->right));
   return offset;
 }
 
@@ -2180,7 +2182,7 @@ dump_overlay (struct dump_context *ctx, const struct Lisp_Overlay *overlay)
   dump_remember_fixup_ptr_raw
     (ctx,
      offset + dump_offsetof (struct Lisp_Overlay, interval),
-     dump_interval_node (ctx, overlay->interval, offset));
+     dump_interval_node (ctx, overlay->interval));
   return offset;
 }
 
@@ -2209,11 +2211,26 @@ dump_finalizer (struct dump_context *ctx,
   /* Do _not_ call dump_pseudovector_lisp_fields here: we dump the
      only Lisp field, finalizer->function, manually, so we can give it
      a low weight.  */
-  dump_field_lv (ctx, &out, finalizer, &finalizer->function, WEIGHT_NONE);
-  dump_field_finalizer_ref (ctx, &out, finalizer, &finalizer->prev);
-  dump_field_finalizer_ref (ctx, &out, finalizer, &finalizer->next);
+  dump_field_lv (ctx, out, finalizer, &finalizer->function, WEIGHT_NONE);
+  dump_field_finalizer_ref (ctx, out, finalizer, &finalizer->prev);
+  dump_field_finalizer_ref (ctx, out, finalizer, &finalizer->next);
   return finish_dump_pvec (ctx, &out->header);
 }
+
+#ifdef HAVE_TREE_SITTER
+static dump_off
+dump_treesit_compiled_query (struct dump_context *ctx,
+			     struct Lisp_TS_Query *query)
+{
+  START_DUMP_PVEC (ctx, &query->header, struct Lisp_TS_Query, out);
+  dump_field_lv (ctx, &out->language, query, &query->language, WEIGHT_STRONG);
+  dump_field_lv (ctx, &out->source, query, &query->source, WEIGHT_STRONG);
+  /* These will be recompiled after load from dump.  */
+  out->query = NULL;
+  out->cursor = NULL;
+  return finish_dump_pvec (ctx, &out->header);
+}
+#endif
 
 struct bignum_reload_info
 {
@@ -2229,7 +2246,7 @@ dump_bignum (struct dump_context *ctx, Lisp_Object object)
 #endif
   const struct Lisp_Bignum *bignum = XBIGNUM (object);
   START_DUMP_PVEC (ctx, &bignum->header, struct Lisp_Bignum, out);
-  verify (sizeof (out->value) >= sizeof (struct bignum_reload_info));
+  static_assert (sizeof (out->value) >= sizeof (struct bignum_reload_info));
   dump_field_fixup_later (ctx, out, bignum, xbignum_val (object));
   dump_off bignum_offset = finish_dump_pvec (ctx, &out->header);
   if (ctx->flags.dump_object_contents)
@@ -2719,7 +2736,7 @@ dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 static dump_off
 dump_hash_table (struct dump_context *ctx, Lisp_Object object)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_267C58D687
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
@@ -2951,7 +2968,7 @@ dump_bool_vector (struct dump_context *ctx, const struct Lisp_Vector *v)
 static dump_off
 dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_20B7443AD7)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_EE5F7351CC)
 # error "Lisp_Subr changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct Lisp_Subr out;
@@ -3108,6 +3125,10 @@ dump_vectorlike (struct dump_context *ctx,
           return DUMP_OBJECT_IS_RUNTIME_MAGIC;
         }
       break;
+    case PVEC_TS_COMPILED_QUERY:
+#ifdef HAVE_TREE_SITTER
+      return dump_treesit_compiled_query (ctx, XTS_COMPILED_QUERY (lv));
+#endif
     case PVEC_WINDOW_CONFIGURATION:
     case PVEC_OTHER:
     case PVEC_XWIDGET:
@@ -3122,11 +3143,12 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_FREE:
     case PVEC_TS_PARSER:
     case PVEC_TS_NODE:
-    case PVEC_TS_COMPILED_QUERY:
       break;
     }
-  char msg[60];
-  snprintf (msg, sizeof msg, "pseudovector type %d", (int) ptype);
+  int iptype = ptype;
+  static char const fmt[] = "pseudovector type %d";
+  char msg[sizeof fmt - sizeof "%d" + INT_STRLEN_BOUND (iptype) + 1];
+  sprintf (msg, fmt, iptype);
   error_unsupported_dump_object (ctx, lv, msg);
 }
 
@@ -3220,7 +3242,8 @@ dump_object (struct dump_context *ctx, Lisp_Object object)
     case Lisp_Float:
       offset = dump_float (ctx, XFLOAT (object));
       break;
-    case_Lisp_Int:
+    case Lisp_Int0:
+    case Lisp_Int1:
       eassert ("should not be dumping int: is self-representing" && 0);
       abort ();
     default:
@@ -4138,7 +4161,7 @@ types.  */)
     error ("No other Lisp threads can be running when this function is called");
 
 #ifdef HAVE_NATIVE_COMP
-  CALLN (Ffuncall, intern_c_string ("load--fixup-all-elns"));
+  calln (intern_c_string ("load--fixup-all-elns"));
 #endif
 
   check_pure_size ();
@@ -4230,11 +4253,11 @@ types.  */)
                         O_RDWR | O_TRUNC | O_CREAT, 0666);
   if (ctx->fd < 0)
     report_file_error ("Opening dump output", filename);
-  verify (sizeof (ctx->header.magic) == sizeof (dump_magic));
+  static_assert (sizeof (ctx->header.magic) == sizeof (dump_magic));
   memcpy (&ctx->header.magic, dump_magic, sizeof (dump_magic));
   ctx->header.magic[0] = '!'; /* Note that dump is incomplete.  */
 
-  verify (sizeof (fingerprint) == sizeof (ctx->header.fingerprint));
+  static_assert (sizeof (fingerprint) == sizeof (ctx->header.fingerprint));
   for (int i = 0; i < sizeof fingerprint; i++)
     ctx->header.fingerprint[i] = fingerprint[i];
 
@@ -4835,11 +4858,14 @@ struct dump_memory_map_heap_control_block
 static void
 dump_mm_heap_cb_release (struct dump_memory_map_heap_control_block *cb)
 {
-  eassert (cb->refcount > 0);
-  if (--cb->refcount == 0)
+  if (cb)
     {
-      free (cb->mem);
-      free (cb);
+      eassert (cb->refcount > 0);
+      if (--cb->refcount == 0)
+	{
+	  free (cb->mem);
+	  free (cb);
+	}
     }
 }
 
@@ -5504,7 +5530,7 @@ dump_do_dump_relocation (const uintptr_t dump_base,
       {
         struct Lisp_Bignum *bignum = dump_ptr (dump_base, reloc_offset);
         struct bignum_reload_info reload_info;
-        verify (sizeof (reload_info) <= sizeof (*bignum_val (bignum)));
+	static_assert (sizeof (reload_info) <= sizeof (*bignum_val (bignum)));
         memcpy (&reload_info, bignum_val (bignum), sizeof (reload_info));
         const mp_limb_t *limbs =
           dump_ptr (dump_base, reload_info.data_location);
@@ -5695,7 +5721,7 @@ pdumper_load (const char *dump_filename, char *argv0)
     }
 
   err = PDUMPER_LOAD_VERSION_MISMATCH;
-  verify (sizeof (header->fingerprint) == sizeof (fingerprint));
+  static_assert (sizeof (header->fingerprint) == sizeof (fingerprint));
   unsigned char desired[sizeof fingerprint];
   for (int i = 0; i < sizeof fingerprint; i++)
     desired[i] = fingerprint[i];

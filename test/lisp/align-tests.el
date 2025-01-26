@@ -1,6 +1,6 @@
 ;;; align-tests.el --- Test suite for aligns  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -51,7 +51,7 @@
 
 (autoload 'treesit-ready-p "treesit")
 
-(ert-deftest align-lua ()
+(ert-deftest align-ts-lua ()
   (skip-unless (treesit-ready-p 'lua t))
   (let ((comment-column 20)
         (indent-tabs-mode nil))

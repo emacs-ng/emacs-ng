@@ -1,5 +1,5 @@
 /* NeXT/Open/GNUstep / macOS Cocoa selection processing for emacs.
-   Copyright (C) 1993-1994, 2005-2006, 2008-2024 Free Software
+   Copyright (C) 1993-1994, 2005-2006, 2008-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -439,7 +439,7 @@ anything that the functions on `selection-converter-alist' know about.  */)
     {
       /* FIXME: Use run-hook-with-args!  */
       for (rest = Vns_sent_selection_hooks; CONSP (rest); rest = Fcdr (rest))
-        call3 (Fcar (rest), selection, target_symbol, successful_p);
+        calln (Fcar (rest), selection, target_symbol, successful_p);
     }
 
   return value;

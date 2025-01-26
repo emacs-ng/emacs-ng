@@ -1,6 +1,6 @@
 ;;; yaml-ts-mode.el --- tree-sitter support for YAML  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -148,7 +148,7 @@ boundaries.  JUSTIFY is passed to `fill-paragraph'."
   :syntax-table yaml-ts-mode--syntax-table
 
   (when (treesit-ready-p 'yaml)
-    (treesit-parser-create 'yaml)
+    (setq treesit-primary-parser (treesit-parser-create 'yaml))
 
     ;; Comments.
     (setq-local comment-start "# ")
@@ -167,7 +167,22 @@ boundaries.  JUSTIFY is passed to `fill-paragraph'."
 
     (setq-local fill-paragraph-function #'yaml-ts-mode--fill-paragraph)
 
-    (treesit-major-mode-setup)))
+    ;; Navigation.
+    (setq-local treesit-thing-settings
+                `((yaml
+                   (list ,(regexp-opt '("block_mapping_pair"
+                                        "flow_sequence"))
+                         'symbols))))
+
+    (treesit-major-mode-setup)
+
+    ;; Use the `list' thing defined above to navigate only lists
+    ;; with `C-M-n', `C-M-p', `C-M-u', `C-M-d', but not sexps
+    ;; with `C-M-f', `C-M-b' neither adapt to 'show-paren-mode'
+    ;; that is problematic in languages without explicit
+    ;; opening/closing nodes.
+    (setq-local forward-sexp-function nil)
+    (setq-local show-paren-data-function 'show-paren--default)))
 
 (derived-mode-add-parents 'yaml-ts-mode '(yaml-mode))
 

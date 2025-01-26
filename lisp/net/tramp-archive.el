@@ -1,6 +1,6 @@
 ;;; tramp-archive.el --- Tramp archive manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -426,6 +426,7 @@ arguments to pass to the OPERATION."
 
 ;; File name conversions.
 
+;;;###tramp-autoload
 (defun tramp-archive-file-name-p (name)
   "Return t if NAME is a string with archive file name syntax."
   (and (stringp name)
@@ -581,6 +582,12 @@ offered."
   "Return NAME in GVFS syntax."
   (tramp-make-tramp-file-name (tramp-archive-dissect-file-name name)))
 
+;; This is used in GNU ELPA package tramp-locproc.el.
+(defun tramp-archive-local-file-name (filename)
+  "Return local mount name of FILENAME."
+  (let ((tramp-methods (cons `(,tramp-archive-method) tramp-methods)))
+    (tramp-gvfs-local-file-name (tramp-archive-gvfs-file-name filename))))
+
 
 ;; File name primitives.
 
@@ -602,7 +609,7 @@ offered."
 (defun tramp-archive-handle-directory-file-name (directory)
   "Like `directory-file-name' for file archives."
   (with-parsed-tramp-archive-file-name directory nil
-    (if (and (tramp-compat-length> localname 0)
+    (if (and (length> localname 0)
 	     (eq (aref localname (1- (length localname))) ?/)
 	     (not (string= localname "/")))
 	(substring directory 0 -1)

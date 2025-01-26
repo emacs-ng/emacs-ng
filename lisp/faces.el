@@ -1,6 +1,6 @@
 ;;; faces.el --- Lisp faces -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -100,7 +100,7 @@ a font height that isn't optimal."
 ;; which are generally available.
 (defcustom face-font-family-alternatives
   (mapcar (lambda (arg) (mapcar 'purecopy arg))
-  '(("Monospace" "courier" "fixed")
+  '(("Monospace" "Cascadia Code" "Lucida Console" "courier" "fixed")
 
     ;; Monospace Serif is an Emacs invention, intended to work around
     ;; portability problems when using Courier.  It should work well
@@ -133,7 +133,10 @@ a font height that isn't optimal."
     ;; This is present for backward compatibility.
     ("courier" "CMU Typewriter Text" "fixed")
 
-    ("Sans Serif" "helv" "helvetica" "arial" "fixed")
+    ("Sans Serif"
+     ;; https://en.wikipedia.org/wiki/List_of_typefaces_included_with_Microsoft_Windows
+     "Calibri" "Tahoma" "Lucida Sans Unicode"
+     "helv" "helvetica" "arial" "fixed")
     ("helv" "helvetica" "arial" "fixed")))
   "Alist of alternative font family names.
 Each element has the form (FAMILY ALTERNATIVE1 ALTERNATIVE2 ...).
@@ -1144,17 +1147,6 @@ returned.  Otherwise, DEFAULT is returned verbatim."
     (let ((prompt (if default
                       (format-prompt prompt default)
                     (format "%s: " prompt)))
-          (completion-extra-properties
-           `(:affixation-function
-             ,(lambda (faces)
-                (mapcar
-                 (lambda (face)
-                   (list face
-                         (concat (propertize read-face-name-sample-text
-                                             'face face)
-                                 "\t")
-                         ""))
-                 faces))))
           aliasfaces nonaliasfaces faces)
       ;; Build up the completion tables.
       (mapatoms (lambda (s)
@@ -1177,7 +1169,18 @@ returned.  Otherwise, DEFAULT is returned verbatim."
             (nreverse faces))
         (let ((face (completing-read
                      prompt
-                     (completion-table-in-turn nonaliasfaces aliasfaces)
+                     (completion-table-with-metadata
+                      (completion-table-in-turn nonaliasfaces aliasfaces)
+                      `((affixation-function
+                        . ,(lambda (faces)
+                             (mapcar
+                              (lambda (face)
+                                (list face
+                                      (concat (propertize read-face-name-sample-text
+                                                          'face face)
+                                              "\t")
+                                      ""))
+                              faces)))))
                      nil t nil 'face-name-history defaults)))
           (when (facep face) (if (stringp face)
                                  (intern face)
@@ -2094,7 +2097,7 @@ do that, use `get-text-property' and `get-char-property'."
   (let (faces)
     (when text
       ;; Try to get a face name from the buffer.
-      (when-let ((face (thing-at-point 'face)))
+      (when-let* ((face (thing-at-point 'face)))
         (push face faces)))
     ;; Add the named faces that the `read-face-name' or `face' property uses.
     (let ((faceprop (or (get-char-property (point) 'read-face-name)
@@ -2622,9 +2625,9 @@ unwanted effects."
 
 (defface line-number-major-tick
   '((((class color grayscale) (background light))
-     :background "grey85" :bold t)
+     :background "grey85" :weight bold)
     (((class color grayscale) (background dark))
-     :background "grey75" :bold t)
+     :background "grey75" :weight bold)
     (t :inherit line-number))
   "Face for highlighting \"major ticks\" (as in a ruler).
 When `display-line-numbers-major-tick' is positive, highlight
@@ -2643,9 +2646,9 @@ unwanted effects."
 
 (defface line-number-minor-tick
   '((((class color grayscale) (background light))
-     :background "grey95" :bold t)
+     :background "grey95" :weight bold)
     (((class color grayscale) (background dark))
-     :background "grey55" :bold t)
+     :background "grey55" :weight bold)
     (t :inherit line-number))
   "Face for highlighting \"minor ticks\" (as in a ruler).
 When `display-line-numbers-minor-tick' is positive, highlight
@@ -2816,6 +2819,21 @@ Use the face `mode-line-highlight' for features that can be selected."
 (defface header-line-highlight '((t :inherit mode-line-highlight))
   "Basic header line face for highlighting."
   :version "28.1"
+  :group 'basic-faces)
+
+(defface header-line-active
+  '((t :inherit header-line))
+  "Face for the selected header line.
+This inherits from the `header-line' face."
+  :version "31.1"
+  :group 'mode-line-faces
+  :group 'basic-faces)
+
+(defface header-line-inactive
+  '((t :inherit header-line))
+  "Basic header line face for non-selected windows."
+  :version "31.1"
+  :group 'mode-line-faces
   :group 'basic-faces)
 
 (defface vertical-border

@@ -1,6 +1,6 @@
 Known Problems with GNU Emacs
 
-Copyright (C) 1987-1989, 1993-1999, 2001-2024 Free Software Foundation,
+Copyright (C) 1987-1989, 1993-1999, 2001-2025 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
@@ -456,6 +456,26 @@ However, the exact directory name will depend on the system, and you
 will need to both upgrade source and debug info when your system
 upgrades or patches Emacs, and change your startup file accordingly.
 
+** SUSE based distributions (openSUSE, SUSE Linux Enterprise)
+
+On systems with distributions, you can install source and debug info via
+superuser commands like the following:
+
+    # Install Emacs source and debuginfo by using --plus-content
+    zypper --plus-content debug,source install \
+      emacs-debuginfo emacs-debugsource
+
+To get describe-function and similar commands to work, you can then add
+something like the following to your startup file:
+
+    (setq find-function-C-source-directory
+           "/usr/src/debug/emacs-27.1-1/src/")
+
+The line above should work for all systems using zypper besides SUSE
+based ones, however it could be that you have to adjust the path to the
+sources slightly depending on the version of the distribution you have
+installed.
+
 ** Source and debuginfo for other systems
 
 If your system follows neither the Debian nor the Red Hat patterns,
@@ -464,6 +484,16 @@ of Emacs, building Emacs with the appropriate debug flags enabled, and
 running the just-built Emacs.
 
 * General runtime problems
+
+** GTK+ problems
+
+*** Some tool-bar icons aren't displayed.
+
+This could be caused by lack of support for XPM image format in the
+installed GTK packages.  Some GNU/Linux distros no longer install
+support for those formats by default, so you might need to install
+additional support packages.  E.g., on Fedora you need to install the
+'gdk-pixbuf2-modules-extra' package.
 
 ** Lisp problems
 
@@ -757,7 +787,7 @@ window sizes" (Lisp value 'ignore').
 
 This can happen if your Emacs is configured to convert PDF to SVG for
 display, and the version of the MuPDF package you have installed has a
-a known bug, whereby it sometimes produces invalid SVG images.
+known bug, whereby it sometimes produces invalid SVG images.
 Version 1.21 of MuPDF is known to be affected.
 
 The solution is either to upgrade or downgrade to a version of MuPDF
@@ -1274,6 +1304,27 @@ Emacs will select some other font instead.
 The only workaround is not to choose such font variants as the default
 font when running Emacs on MS-Windows.
 
+** On OpenBSD, color Emoji are not supported by default.
+
+The system's FreeType library is not built with libpng support, so it
+can't display color emoji.  This is due to the fact that, on OpenBSD,
+libpng is provided through ports and that a base component cannot depend
+on that.
+
+However, you can add support for PNG in the system's FreeType library by
+following those steps:
+	1. Install the 'png' package.
+	2. Read the release(8) man page for how to get Xenocara sources.
+	3. Patch the file
+	   "/usr/xenocara/lib/freetype/include/freetype/config/ftoption.h"
+	   by uncommenting the "#define FT_CONFIG_OPTION_USE_PNG" line.
+	4. Patch the file "/usr/xenocara/lib/freetype/Makefile" by
+	   appending "-L/usr/local/lib -lpng" to LDADD and appending
+	   "-I/usr/local/include" to CPPFLAGS.
+	5. Build and install Xenocara (also, see release(8)).
+
+Note that this support will be gone after each OpenBSD's system upgrade.
+
 * Internationalization problems
 
 ** M-{ does not work on a Spanish PC keyboard.
@@ -1547,6 +1598,12 @@ https://debbugs.gnu.org/cgi/bugreport.cgi?bug=22000,
 https://debbugs.gnu.org/cgi/bugreport.cgi?bug=22898 and
 https://lists.gnu.org/r/emacs-devel/2016-07/msg00154.html.
 
+*** In Emacs built with GTK+ toolkit, menu-bar background becomes transparent.
+
+This happens when 'alpha-background' is less than 100.  This is due to a
+GTK limitation, for which no workaround is currently known,
+unfortunately.
+
 *** Metacity: Resizing Emacs or ALT-Tab causes X to be unresponsive.
 
 This happens sometimes when using Metacity.  Resizing Emacs or ALT-Tab:bing
@@ -1562,6 +1619,12 @@ With Enlightenment version 0.25, Emacs frames may no be redrawn orderly
 after switching back from another virtual desktop.  Setting the variable
 'x-set-frame-visibility-more-laxly' to one of 'focus-in', 'expose' or
 't' should fix this.
+
+*** Gnome desktop does not respect frame size specified in .Xresources
+
+This has been observed when running a GTK+ build of Emacs 29 from the
+launch pad on Ubuntu 24.04 with mutter as window manager.  The problem
+can be resolved by running Emacs from the command line instead.
 
 *** Gnome: Emacs receives input directly from the keyboard, bypassing XIM.
 
@@ -1736,6 +1799,23 @@ desktops) when setting the 'sticky' frame parameter to nil.  This may
 happen without any special user interaction, for example, when Emacs
 restores a saved desktop.  A fix is to install version 2.6.8 of FVWM,
 see https://debbugs.gnu.org/cgi/bugreport.cgi?bug=31650.
+
+*** ssh -X session hangs on exit after remote emacsclient -c frame is deleted.
+
+When Emacs is configured with an X toolkit, for example,
+--with-x-toolkit=lucid, and "emacsclient -c" is run over an "ssh -X"
+connection, deleting the emacsclient frame (via C-x 5 0 or C-x C-c) can
+leave the X display connection open.
+
+The symptom is that after you delete the "emacsclient -c" frame and then
+attempt to exit ssh (with C-d, or "exit"), ssh will hang before
+returning you to the local shell.  You will have to press C-c (to sever
+the X connection) before ssh returns you to your local shell (that is,
+the shell from which you invoked "ssh -X").
+
+To avoid this issue configure Emacs with --with-x-toolkit=no.
+
+See <URL:https://debbugs.gnu.org/72517>.
 
 ** General X problems
 
@@ -1925,6 +2005,12 @@ want, rewrite the resource.
 To check thoroughly for such resource specifications, use 'xrdb
 -query' to see what resources the X server records, and also look at
 the user's ~/.Xdefaults and ~/.Xdefaults-* files.
+
+*** In Emacs built with Lucid cannot display very long popup menus.
+
+Very long popup menus cannot be shown in their entirety, and don't have
+a scroll bar to scroll them vertically.  Lucid does not support this
+feature.  A workaround is to use other toolkits (GTK, LessTif, etc.).
 
 *** Emacs running under X Window System does not handle mouse clicks.
 *** 'emacs -geometry 80x20' finds a file named '80x20'.
@@ -3202,11 +3288,6 @@ Files larger than 4GB cause overflow in the size (represented as a
 well, since the Windows port uses a Lisp emulation of 'ls', which relies
 on 'file-attributes'.
 
-** Playing sound doesn't support the :data method
-
-Sound playing is not supported with the ':data DATA' key-value pair.
-You _must_ use the ':file FILE' method.
-
 ** Typing Alt-Shift has strange effects on MS-Windows.
 
 This combination of keys is a command to change keyboard layout.  If
@@ -3472,6 +3553,22 @@ file; for example:
 
 * Runtime problems specific to PGTK build
 
+** Whether a display server is available cannot be automatically detected.
+
+When started with no arguments from a text terminal and in an
+environment where no display server is specified, Emacs will print:
+
+  $ emacs
+  (emacs:3988): Gtk-WARNING **: 19:19:10.887: cannot open display:
+
+and exit.  This is a byproduct of GTK's not providing any means of
+probing for a display connection before committing to opening one, and
+cannot be addressed by Emacs.  Rather, users must expressly request a
+text mode session:
+
+  $ emacs -nw
+  [...]
+
 ** SECONDARY selections don't work on Wayland.
 
 This is because the SECONDARY selection is not implemented by the
@@ -3502,6 +3599,18 @@ GTK_IM_MODULE.
 
 GTK does not allow programs to warp the pointer anymore.  There is
 nothing that can be done about this problem.
+
+** 'frame-edges' and 'frame-geometry' return incorrect information
+
+The information returned by these and similar functions on Wayland about
+frame position is incorrect.  For example, 'frame-edges' can return zero
+in the first 2 elements although the top-left corner of the frame is not
+at pixel coordinates (0,0).  This happens because the Wayland protocol
+is specifically engineered not to reveal this information to clients.
+For similar reasons, 'frame-monitor-workarea',
+'frame-monitor-attributes', and related geometry-querying functions
+cannot establish the size of the workarea, and return placeholder
+results instead.
 
 ** Certain keys such as 'C-S-u' are not reported correctly.
 

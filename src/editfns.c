@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -46,7 +46,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 #include <intprops.h>
 #include <stdlib.h>
-#include <verify.h>
 
 #include "composite.h"
 #include "intervals.h"
@@ -1364,8 +1363,8 @@ to unibyte for insertion (see `string-make-unibyte').
 
 When operating on binary data, it may be necessary to preserve the
 original bytes of a unibyte string when inserting it into a multibyte
-buffer; to accomplish this, apply `string-as-multibyte' to the string
-and insert the result.
+buffer; to accomplish this, apply `decode-coding-string' with the
+`no-conversion' coding system to the string and insert the result.
 
 usage: (insert &rest ARGS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
@@ -3408,7 +3407,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
    SPRINTF_BUFSIZE = (sizeof "-." + (LDBL_MAX_10_EXP + 1)
 		      + USEFUL_PRECISION_MAX)
   };
-  verify (USEFUL_PRECISION_MAX > 0);
+  static_assert (USEFUL_PRECISION_MAX > 0);
 
   ptrdiff_t n;		/* The number of the next arg to substitute.  */
   char initial_buffer[1000 + SPRINTF_BUFSIZE];
@@ -3432,10 +3431,6 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
   /* Information recorded for each format spec.  */
   struct info
   {
-    /* The corresponding argument, converted to string if conversion
-       was needed.  */
-    Lisp_Object argument;
-
     /* The start and end bytepos in the output string.  */
     ptrdiff_t start, end;
 
@@ -3462,6 +3457,10 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
       || SIZE_MAX < alloca_size)
     memory_full (SIZE_MAX);
   info = SAFE_ALLOCA (alloca_size);
+  /* One argument belonging to each spec; but needs to be allocated
+     separately so GC doesn't free the strings (bug#75754).  */
+  Lisp_Object *spec_arguments;
+  SAFE_ALLOCA_LISP (spec_arguments, nspec_bound);
   /* discarded[I] is 1 if byte I of the format
      string was not copied into the output.
      It is 2 if byte I was not the first byte of its character.  */
@@ -3611,14 +3610,15 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	  if (! (n < nargs))
 	    error ("Not enough arguments for format string");
 
-	  struct info *spec = &info[ispec++];
+	  ptrdiff_t spec_index = ispec++;
+	  struct info *spec = &info[spec_index];
 	  if (nspec < ispec)
 	    {
-	      spec->argument = args[n];
+	      spec_arguments[spec_index] = args[n];
 	      spec->intervals = false;
 	      nspec = ispec;
 	    }
-	  Lisp_Object arg = spec->argument;
+	  Lisp_Object arg = spec_arguments[spec_index];
 
 	  /* For 'S', prin1 the argument, and then treat like 's'.
 	     For 's', princ any argument that is not a string or
@@ -3631,7 +3631,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      if (EQ (arg, args[n]))
 		{
 		  Lisp_Object noescape = conversion == 'S' ? Qnil : Qt;
-		  spec->argument = arg = Fprin1_to_string (arg, noescape, Qnil);
+		  spec_arguments[spec_index] = arg = Fprin1_to_string (arg, noescape, Qnil);
 		  if (STRING_MULTIBYTE (arg) && ! multibyte)
 		    {
 		      multibyte = true;
@@ -3649,7 +3649,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		      multibyte = true;
 		      goto retry;
 		    }
-		  spec->argument = arg = Fchar_to_string (arg);
+		  spec_arguments[spec_index] = arg = Fchar_to_string (arg);
 		}
 
 	      if (!EQ (arg, args[n]))
@@ -3659,7 +3659,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 
 	  if (SYMBOLP (arg))
 	    {
-	      spec->argument = arg = SYMBOL_NAME (arg);
+	      spec_arguments[spec_index] = arg = SYMBOL_NAME (arg);
 	      if (STRING_MULTIBYTE (arg) && ! multibyte)
 		{
 		  multibyte = true;
@@ -4304,9 +4304,9 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	for (ptrdiff_t i = 0; i < nspec; i++)
 	  if (info[i].intervals)
 	    {
-	      len = make_fixnum (SCHARS (info[i].argument));
+	      len = make_fixnum (SCHARS (spec_arguments[i]));
 	      Lisp_Object new_len = make_fixnum (info[i].end - info[i].start);
-	      props = text_property_list (info[i].argument,
+	      props = text_property_list (spec_arguments[i],
                                           make_fixnum (0), len, Qnil);
 	      props = extend_property_ranges (props, len, new_len);
 	      /* If successive arguments have properties, be sure that

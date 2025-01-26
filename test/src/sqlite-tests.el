@@ -1,6 +1,6 @@
 ;;; sqlite-tests.el --- Tests for sqlite.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -37,6 +37,7 @@
 (declare-function sqlite-open "sqlite.c")
 (declare-function sqlite-load-extension "sqlite.c")
 (declare-function sqlite-version "sqlite.c")
+(declare-function sqlite-execute-batch "sqlite.c")
 
 (ert-deftest sqlite-select ()
   (skip-unless (sqlite-available-p))

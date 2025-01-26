@@ -1,6 +1,6 @@
 ;;; tramp-sudoedit.el --- Functions for accessing under root permissions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -161,15 +161,15 @@ See `tramp-actions-before-shell' for more info.")
 ;;;###tramp-autoload
 (defsubst tramp-sudoedit-file-name-p (vec-or-filename)
   "Check if it's a VEC-OR-FILENAME for SUDOEDIT."
-  (when-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename)))
-    (string= (tramp-file-name-method vec) tramp-sudoedit-method)))
+  (and-let* ((vec (tramp-ensure-dissected-file-name vec-or-filename))
+	     ((string= (tramp-file-name-method vec) tramp-sudoedit-method)))))
 
 ;;;###tramp-autoload
 (defun tramp-sudoedit-file-name-handler (operation &rest args)
   "Invoke the SUDOEDIT handler for OPERATION and ARGS.
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
-  (if-let ((fn (assoc operation tramp-sudoedit-file-name-handler-alist)))
+  (if-let* ((fn (assoc operation tramp-sudoedit-file-name-handler-alist)))
       (prog1 (save-match-data (apply (cdr fn) args))
 	(setq tramp-debug-message-fnh-function (cdr fn)))
     (prog1 (tramp-run-real-handler operation args)
@@ -305,7 +305,7 @@ absolute file names."
 	  ;; Set the time and mode. Mask possible errors.
 	  (when keep-date
 	    (ignore-errors
-	      (tramp-compat-set-file-times
+	      (set-file-times
 	       newname file-times (unless ok-if-already-exists 'nofollow))
 	      (set-file-modes newname file-modes)))
 
@@ -371,7 +371,7 @@ the result will be a local, non-Tramp, file name."
     (setq name "."))
   ;; Unless NAME is absolute, concat DIR and NAME.
   (unless (file-name-absolute-p name)
-    (setq name (tramp-compat-file-name-concat dir name)))
+    (setq name (file-name-concat dir name)))
   ;; If NAME is not a Tramp file, run the real handler.
   (if (not (tramp-tramp-file-p name))
       (tramp-run-real-handler #'expand-file-name (list name))
@@ -785,7 +785,7 @@ in case of error, t otherwise."
       ;; Avoid process status message in output buffer.
       (set-process-sentinel p #'ignore)
       (tramp-post-process-creation p vec)
-      (tramp-set-connection-property p "password-vector" tramp-sudoedit-null-hop)
+      (tramp-set-connection-property p "pw-vector" tramp-sudoedit-null-hop)
       (tramp-process-actions p vec nil tramp-sudoedit-sudo-actions)
       (tramp-message vec 6 "%s\n%s" (process-exit-status p) (buffer-string))
       (prog1

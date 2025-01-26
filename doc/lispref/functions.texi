@@ -1,6 +1,6 @@
-@c -*- mode: texinfo; coding: utf-8 -*-
+@c -*- mode: texinfo -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Functions
@@ -11,7 +11,7 @@ explains what functions are, how they accept arguments, and how to
 define them.
 
 @menu
-* What Is a Function::          Lisp functions vs. primitives; terminology.
+* What Is a Function::          Lisp functions vs.@: primitives; terminology.
 * Lambda Expressions::          How functions are expressed as Lisp objects.
 * Function Names::              A symbol can serve as the name of a function.
 * Defining Functions::          Lisp expressions for defining functions.
@@ -90,7 +90,7 @@ fundamental part of Lisp (e.g., @code{car}), or because it provides a
 low-level interface to operating system services, or because it needs
 to run fast.  Unlike functions defined in Lisp, primitives can be
 modified or added only by changing the C sources and recompiling
-Emacs.  See @ref{Writing Emacs Primitives}.
+Emacs.  @xref{Writing Emacs Primitives}.
 
 @item special form
 A primitive that is like a function but does not evaluate all of its
@@ -186,8 +186,8 @@ their code.
 @end defun
 
 @noindent
-Unlike @code{functionp}, the next three functions do @emph{not} treat
-a symbol as its function definition.
+Unlike @code{functionp}, the next functions do @emph{not} treat a symbol
+as its function definition.
 
 @defun subrp object
 This function returns @code{t} if @var{object} is a built-in function
@@ -242,6 +242,20 @@ This works like @code{func-arity}, but only for built-in functions and
 without symbol indirection.  It signals an error for non-built-in
 functions.  We recommend to use @code{func-arity} instead.
 @end defun
+
+@defun cl-functionp object
+This function is like @code{functionp}, except it returns @code{nil} for
+lists and symbols.
+@end defun
+
+@findex subr-primitive-p
+@defun primitive-function-p object
+This function returns @code{t} if @var{object} is a built-in primitive
+written in C (@pxref{Primitive Function Type}).  Note that special forms
+are explicitly excluded, as they are not functions.  Use
+@code{subr-primitive-p} if you need to recognize special forms as well.
+@end defun
+
 
 @node Lambda Expressions
 @section Lambda Expressions
@@ -738,9 +752,9 @@ commands, such as @kbd{C-h f}, which present in the @file{*Help*}
 buffer a button to jump to the function's definition, might be unable
 to find the source code because generating a function dynamically
 usually looks very different from the usual static calls to
-@code{defun}.  You can make the job of finding the code which
+@code{defun}.  You can make the job of finding the code that
 generates such functions easier by using the @code{definition-name}
-property, @pxref{Standard Properties}.
+or @code{find-function-type-alist} property, @pxref{Standard Properties}.
 
 @cindex override existing functions
 @cindex redefine existing functions
@@ -817,6 +831,97 @@ and tells the Lisp compiler to perform inline expansion on it.
 
   To undefine a function name, use @code{fmakunbound}.
 @xref{Function Cells}.
+
+@menu
+* Finding Definitions::         Finding function definitions created by macros.
+@end menu
+
+@node Finding Definitions
+@subsection Finding Definitions
+
+Tools such as Emacs's built-in help command @kbd{C-h f} (@pxref{Help,,,
+emacs, The GNU Emacs Manual}) can find the definition site of functions
+and other Lisp objects in the source code.  To do this, they use the
+variable @code{find-function-regexp-alist}.
+
+@vindex @code{find-function-regexp-alist}
+The alist @code{find-function-regexp-alist} associates object types with
+a regexp or function that finds the definition of that object in its
+source file.  Each element's car is a symbol the describes the type of
+object, or @code{nil} to identify functions defined with @code{defun}.
+Each element's cdr is a symbol: either the value of that symbol is a
+string interpreted as a regexp, or that symbol names a function that can
+find the definition.
+
+A regexp string is actually a format string, and @code{%s} will be
+substituted with the name of the symbol we are looking for.
+
+A function will be called with one argument, the (symbol for) the object
+we are searching for.
+
+@cindex @code{definition-name} (symbol property)
+If the function to be found is defined by a macro, it may be hard for
+Emacs to find the definition site in the source code.  A macro call may
+have an unexpected look to it, and @code{find-function-regexp-alist}
+will fail to identify the definition.
+
+For example, a @code{define-derived-mode} (@pxref{Derived Modes}) might
+define a mode-specific function or a variable implicitly; or your Lisp
+program might generate a run-time call to @code{defun} to define a
+function.  In these and similar cases, the @code{definition-name}
+property of the symbol should be another symbol whose definition can be
+found by textual search and whose code defines the original symbol.  In
+the example with @code{define-derived-mode}, the value of this property
+of the functions and variables it defines should be the mode symbol.
+
+@cindex @code{find-function-type-alist} (symbol property)
+In some cases, the definition cannot be found by looking for the
+definition of another symbol.  For example, a test file might use a
+macro to generate calls to @code{ert-deftest} (@pxref{How to Write
+Tests,,,ert, ERT: Emacs Lisp Regression Testing}) where the code is
+boiler plate and only varying data need to be passed in.  In such cases,
+the @code{find-function-type-alist} property of the symbol can be an
+alist that augments @code{find-function-regexp-alist} telling how to
+find the definition of symbols of this type.
+
+The @code{find-function-regexp-alist} property is most easily maintained
+with the convenience function @code{find-function-update-type-alist}.
+
+@defun find-function-update-type-alist symbol type variable
+Update property @code{find-function-type-alist} of @var{symbol} with
+a new element containing key @var{type} and value @var{variable}.
+@end defun
+
+In the example of a macro defining calls to @code{ert-deftest},
+the macro could put the property @code{find-function-type-alist} on each
+test defined, associating @code{ert--test} (the internal type of ERT
+tests) with the name of a regexp or function that can find the correct
+macro call.  The file defining the macro would also have to provide that
+definition-finding function or regexp.
+Here is an example using a function to find the definition:
+
+@example
+@group
+(defmacro define-foo-test (data)
+  "Define a test of the foo system using DATA."
+  (declare (debug (&rest sexp)))
+  (let ((test-name (intern (concat ...))))
+    `(progn
+       (find-function-update-type-alist
+        ',test-name 'ert--test 'foo-find-test-def-function)
+       (ert-deftest ,test-name ()
+         ,(concat "Test foo with " ...)
+         ...))))
+@end group
+
+@group
+(defun foo-find-test-def-function (test-name)
+  "Search for the `define-foo-test' call defining TEST-NAME.
+Return non-nil if the definition is found."
+  (let ((regexp ...))
+    (re-search-forward regexp nil t)))
+@end group
+@end example
 
 @node Calling Functions
 @section Calling Functions
@@ -1364,7 +1469,7 @@ that don't require them.
 The type specializer, @code{(@var{arg} @var{type})}, can specify one
 of the @dfn{system types} in the following list.  When a parent type
 is specified, an argument whose type is any of its more specific child
-types, as well as grand-children, grand-grand-children, etc. will also
+types, as well as grand-children, grand-grand-children, etc.@: will also
 be compatible.
 
 @table @code
@@ -1496,10 +1601,7 @@ indirect-function}.
 @kindex void-function
 This returns the object in the function cell of @var{symbol}.  It does
 not check that the returned object is a legitimate function.
-
-If the function cell is void, the return value is @code{nil}.  To
-distinguish between a function cell that is void and one set to
-@code{nil}, use @code{fboundp} (see below).
+If the function is void, the return value is @code{nil}.
 
 @example
 @group
@@ -1519,29 +1621,29 @@ distinguish between a function cell that is void and one set to
 @end defun
 
 @cindex void function cell
-  If you have never given a symbol any function definition, we say
-that that symbol's function cell is @dfn{void}.  In other words, the
-function cell does not have any Lisp object in it.  If you try to call
+  If you have never given a symbol any function definition, its function
+cell contains the default value @code{nil} and we say
+that that function is @dfn{void}.  If you try to call
 the symbol as a function, Emacs signals a @code{void-function} error.
 
-  Note that void is not the same as @code{nil} or the symbol
-@code{void}.  The symbols @code{nil} and @code{void} are Lisp objects,
-and can be stored into a function cell just as any other object can be
-(and @code{void} can be a valid function if you define it with
-@code{defun}).  A void function cell contains no object whatsoever.
+  Unlike with void variables (@pxref{Void Variables}), a symbol's
+function cell that contains @code{nil} is indistinguishable from the
+function's being void.  Note that void is not the same as the symbol
+@code{void}: @code{void} can be a valid function if you define it with
+@code{defun}.
 
   You can test the voidness of a symbol's function definition with
 @code{fboundp}.  After you have given a symbol a function definition, you
 can make it void once more using @code{fmakunbound}.
 
 @defun fboundp symbol
-This function returns @code{t} if the symbol has an object in its
-function cell, @code{nil} otherwise.  It does not check that the object
-is a legitimate function.
+This function returns @code{t} if the symbol has a non-@code{nil} object
+in its function cell, @code{nil} otherwise.  It does not check that the
+object is a legitimate function.
 @end defun
 
 @defun fmakunbound symbol
-This function makes @var{symbol}'s function cell void, so that a
+This function makes @var{symbol}'s function cell @code{nil}, so that a
 subsequent attempt to access this cell will cause a
 @code{void-function} error.  It returns @var{symbol}.  (See also
 @code{makunbound}, in @ref{Void Variables}.)
@@ -2045,7 +2147,7 @@ is the better way to modify a named function because it keeps track of
 the modifications, so they can be listed and undone.
 
   Modifying a named function should be reserved for
-the cases where you cannot modify Emacs' behavior in any other way.
+the cases where you cannot modify Emacs's behavior in any other way.
 If it is possible to do the same thing via a hook, that is preferable
 (@pxref{Hooks}).  If you simply want to change what a particular key
 does, it may be better to write a new command, and remap the old
@@ -2075,7 +2177,7 @@ code) obey the advice and other calls (from C code) do not.
 
 @defmac define-advice symbol (where lambda-list &optional name depth) &rest body
 This macro defines a piece of advice and adds it to the function named
-@var{symbol}.  If @var{name} is non-nil, the advice is named
+@var{symbol}.  If @var{name} is non-@code{nil}, the advice is named
 @code{@var{symbol}@@@var{name}} and installed with the name @var{name}; otherwise,
 the advice is anonymous.  See @code{advice-add} for explanation of
 other arguments.
@@ -2224,7 +2326,7 @@ More specifically, the composition of the two functions behaves like:
 @cindex old advices, porting
 @c NB: The following index entries deliberately avoid ``old'',
 @c an adjective that does not come to mind for those who grew up
-@c on ‘defadvice’ et al.  For those folks, that way is ``current''.
+@c on `defadvice' et al.  For those folks, that way is ``current''.
 @c They discover its oldness reading this node.
 @cindex advices, porting from @code{defadvice}
 @findex defadvice
@@ -2715,6 +2817,7 @@ function.  This allows function-level control of the safety level used
 for the code emitted for the function (@pxref{Native-Compilation
 Variables}).
 
+@cindex function type declaration
 @item (ftype @var{type} &optional @var{function})
 Declare @var{type} to be the type of this function.  This is used for
 documentation by @code{describe-function}.  Also it can be used by the
@@ -2722,10 +2825,11 @@ native compiler (@pxref{Native Compilation}) for improving code
 generation and for deriving more precisely the type of other functions
 without type declaration.
 
-@var{type} is a type specifier in the form @w{@code{(function
-(ARG-1-TYPE ... ARG-N-TYPE) RETURN-TYPE)}}.  Argument types can be
-interleaved with symbols @code{&optional} and @code{&rest} to match the
-function's arguments (@pxref{Argument List}).
+@var{type} is a @dfn{type specifier} (@pxref{Type Specifiers}) in the
+form @w{@code{(function (@var{arg-1-type} @dots{} @var{arg-n-type})
+RETURN-TYPE)}}.  Argument types can be interleaved with symbols
+@code{&optional} and @code{&rest} to match the function's arguments
+(@pxref{Argument List}).
 
 @var{function} if present should be the name of function being defined.
 
@@ -2791,7 +2895,7 @@ defined in other files which would be loaded if that code is run.  For
 example, byte-compiling @file{simple.el} used to warn:
 
 @example
-simple.el:8727:1:Warning: the function ‘shell-mode’ is not known to be
+simple.el:8727:1:Warning: the function `shell-mode' is not known to be
     defined.
 @end example
 
@@ -2963,56 +3067,56 @@ elsewhere, but we provide cross references here.
 
 @table @code
 @item apply
-See @ref{Calling Functions}.
+@xref{Calling Functions}.
 
 @item autoload
-See @ref{Autoload}.
+@xref{Autoload}.
 
 @item call-interactively
-See @ref{Interactive Call}.
+@xref{Interactive Call}.
 
 @item called-interactively-p
-See @ref{Distinguish Interactive}.
+@xref{Distinguish Interactive}.
 
 @item commandp
-See @ref{Interactive Call}.
+@xref{Interactive Call}.
 
 @item documentation
-See @ref{Accessing Documentation}.
+@xref{Accessing Documentation}.
 
 @item eval
-See @ref{Eval}.
+@xref{Eval}.
 
 @item funcall
-See @ref{Calling Functions}.
+@xref{Calling Functions}.
 
 @item function
-See @ref{Anonymous Functions}.
+@xref{Anonymous Functions}.
 
 @item ignore
-See @ref{Calling Functions}.
+@xref{Calling Functions}.
 
 @item indirect-function
-See @ref{Function Indirection}.
+@xref{Function Indirection}.
 
 @item interactive
-See @ref{Using Interactive}.
+@xref{Using Interactive}.
 
 @item interactive-p
-See @ref{Distinguish Interactive}.
+@xref{Distinguish Interactive}.
 
 @item mapatoms
-See @ref{Creating Symbols}.
+@xref{Creating Symbols}.
 
 @item mapcar
-See @ref{Mapping Functions}.
+@xref{Mapping Functions}.
 
 @item map-char-table
-See @ref{Char-Tables}.
+@xref{Char-Tables}.
 
 @item mapconcat
-See @ref{Mapping Functions}.
+@xref{Mapping Functions}.
 
 @item undefined
-See @ref{Functions for Key Lookup}.
+@xref{Functions for Key Lookup}.
 @end table

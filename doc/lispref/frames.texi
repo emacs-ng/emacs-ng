@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Frames
@@ -380,6 +380,9 @@ than one physical monitor.  You can use the functions
 @code{display-monitor-attributes-list} and @code{frame-monitor-attributes}
 to obtain information about such setups.
 
+@cindex display geometry
+@cindex monitor geometry
+@cindex geometry of display monitor
 @defun display-monitor-attributes-list &optional display
 This function returns a list of physical monitor attributes on
 @var{display}, which can be a display name (a string), a terminal, or
@@ -589,7 +592,7 @@ The @dfn{external border} is part of the decorations supplied by the
 window manager.  It is typically used for resizing the frame with the
 mouse and is therefore not shown on ``fullboth'' and maximized frames
 (@pxref{Size Parameters}).  Its width is determined by the window
-manager and cannot be changed by Emacs' functions.
+manager and cannot be changed by Emacs's functions.
 
 External borders don't exist on text terminal frames.  For graphical
 frames, their display can be suppressed by setting the
@@ -771,8 +774,7 @@ As a rule, the inner frame is subdivided into the frame's root window
 rule: A @dfn{minibuffer-less frame} contains a root window only and does
 not contain a minibuffer window.  A @dfn{minibuffer-only frame} contains
 only a minibuffer window which also serves as that frame's root window.
-See @ref{Initial Parameters} for how to create such frame
-configurations.
+@xref{Initial Parameters}, for how to create such frame configurations.
 
 @item Text Area
 @cindex text area
@@ -2283,7 +2285,7 @@ it on an undecorated frame.
 If non-@code{nil}, this means that this is an @dfn{override redirect}
 frame---a frame not handled by window managers under X@.  Override
 redirect frames have no window manager decorations, can be positioned
-and resized only via Emacs' positioning and resizing functions and are
+and resized only via Emacs's positioning and resizing functions and are
 usually drawn on top of all other frames.  Setting this parameter has
 no effect on MS-Windows.
 
@@ -2447,7 +2449,8 @@ off color support.
 
 If the parameter's value is a symbol, it specifies a number through
 the value of @code{tty-color-mode-alist}, and the associated number is
-used instead.
+used instead.  This parameter supports dynamic changes during a running
+Emacs session (but not on MS-Windows and MS-DOS).
 
 @vindex screen-gamma@r{, a frame parameter}
 @item screen-gamma
@@ -2760,6 +2763,43 @@ With the prefix argument @var{iconify}, the frames are iconified rather
 than deleted.
 @end deffn
 
+The following function checks whether a frame can be safely deleted.  It
+is useful to avoid that a subsequent call of @code{delete-frame} throws
+an error.
+
+@defun frame-deletable-p &optional frame
+This function returns non-@code{nil} if the frame specified by
+@var{frame} can be safely deleted.  @var{frame} must be a live frame and
+defaults to the selected frame.
+
+A frame cannot be safely deleted in the following cases:
+
+@itemize @bullet
+@item
+It is the only visible or iconified frame (@pxref{Visibility of
+Frames}).
+
+@item
+It hosts the active minibuffer window and minibuffer windows do not
+follow the selected frame (@pxref{Basic Minibuffer,,, emacs}).
+
+@item
+All other visible or iconified frames are either child frames
+(@pxref{Child Frames}) or have a non-@code{nil} @code{delete-before}
+parameter.
+
+@item
+The frame or one of its descendants hosts the minibuffer window of a
+frame that is not a descendant of the frame (@pxref{Child Frames}).
+@end itemize
+
+These conditions cover most cases where @code{delete-frame} might fail
+when called from top-level.  They do not catch some special cases like,
+for example, deleting a frame during a drag-and-drop operation
+(@pxref{Drag and Drop}).  In any such case, it will be better to wrap
+the @code{delete-frame} call in a @code{condition-case} form.
+@end defun
+
 
 @node Finding All Frames
 @section Finding All Frames
@@ -2780,7 +2820,7 @@ visible, even though only the selected one is actually displayed.
 @end defun
 
 @defun frame-list-z-order &optional display
-This function returns a list of Emacs' frames, in Z (stacking) order
+This function returns a list of Emacs's frames, in Z (stacking) order
 (@pxref{Raising and Lowering}).  The optional argument @var{display}
 specifies which display to poll.  @var{display} should be either a frame
 or a display name (a string).  If omitted or @code{nil}, that stands for
@@ -3157,7 +3197,7 @@ A frame on a graphical display may be @dfn{visible}, @dfn{invisible}, or
 usual manner.  If it is iconified, its contents are not displayed, but
 there is a little icon somewhere to bring the frame back into view (some
 window managers refer to this state as @dfn{minimized} rather than
-@dfn{iconified}, but from Emacs' point of view they are the same thing).
+@dfn{iconified}, but from Emacs's point of view they are the same thing).
 If a frame is invisible, it is not displayed at all.
 
 @cindex mapped frame
@@ -3355,8 +3395,8 @@ of its sibling child frames.
 
   By design, operations to make or modify child frames are implemented
 with the help of frame parameters (@pxref{Frame Parameters}) without any
-specialized functions or customizable variables.  Note that child frames
-are meaningful on graphical terminals only.
+specialized functions or customizable variables.  Child frames
+are meaningful on graphical and text terminals.
 
   To create a new child frame or to convert a normal frame into a child
 frame, set that frame's @code{parent-frame} parameter (@pxref{Frame
@@ -3538,7 +3578,7 @@ work on all window-systems.  Some will drop the object on the parent
 frame or on some ancestor instead.
 @end itemize
 
-  The following two functions can be useful when working with child and
+  The following three functions can be useful when working with child and
 parent frames:
 
 @defun frame-parent &optional frame
@@ -3550,12 +3590,23 @@ exists, @var{frame} is considered a child frame of that frame.
 This function returns @code{nil} if @var{frame} has no parent frame.
 @end defun
 
+@cindex ancestor frame
 @defun frame-ancestor-p ancestor descendant
 This functions returns non-@code{nil} if @var{ancestor} is an ancestor
 of @var{descendant}.  @var{ancestor} is an ancestor of @var{descendant}
 when it is either @var{descendant}'s parent frame or it is an ancestor
 of @var{descendant}'s parent frame.  Both, @var{ancestor} and
 @var{descendant} must specify live frames.
+@end defun
+
+@cindex root frame
+@defun frame-root-frame &optional frame
+This function returns the root frame of the specified @var{frame}.
+@var{frame} must be a live frame and defaults to the selected one.  The
+root frame of @var{frame} is the frame obtained by following the chain
+of parent frames starting with @var{frame} until a frame is reached that
+has no parent.  If @var{frame} has no parent, its root frame is
+@var{frame} itself.
 @end defun
 
 Note also the function @code{window-largest-empty-rectangle}
@@ -4678,7 +4729,7 @@ A unibyte string containing data in a certain MIME type.
 @end table
 @end defvar
 
-  A call to @code{gui-get-selection} generally returns the the data
+  A call to @code{gui-get-selection} generally returns the data
 named @var{data-type} within the selection message, albeit with
 @var{data-type} replaced by an alternative name should it be one of
 the following X selection targets:
@@ -4708,7 +4759,7 @@ and secondary selections by saving the value supplied into a variable
 subsequent calls to @code{gui-get-selection} return.
 
   From the clipboard, @code{gui-get-selection} is capable of returning
-UTF-8 string data of the type @code{STRING}, the @code{TAREGTS} data
+UTF-8 string data of the type @code{STRING}, the @code{TARGETS} data
 type, or image and application data of any MIME type.
 @code{gui-set-selection} sets only string data, much as under
 MS-Windows, although this data is not affected by the value of
@@ -4719,15 +4770,16 @@ to encoding or decoding by any coding system.
 
 @node Yanking Media
 @section Yanking Media
+@cindex yank media from window-system selections
 
-  Data saved within window system selections is not restricted to
-plain text.  It is possible for selection data to encompass images or
-other binary data of the like, as well as rich text content instanced
-by HTML, and also PostScript.  Since the selection data types incident
-to this data are at variance with those for plain text, the insertion
-of such data is facilitated by a set of functions dubbed
-@dfn{yank-media handlers}, which are registered by each major mode
-undertaking its insertion and called where warranted upon the
+  Data saved within window system selections and the MS-Windows
+clipboard is not restricted to plain text.  It is possible for selection
+data to encompass images or other binary data of the like, as well as
+rich text content instanced by HTML, and also PostScript.  Since the
+selection data types incident to this data are at variance with those
+for plain text, the insertion of such data is facilitated by a set of
+functions dubbed @dfn{yank-media handlers}, which are registered by each
+major mode undertaking its insertion and called where warranted upon the
 execution of the @code{yank-media} command.
 
 @defun yank-media-handler types handler

@@ -1,6 +1,6 @@
 ;;; esh-cmd-tests.el --- esh-cmd test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -33,6 +33,10 @@
                                                     default-directory))))
 
 (defvar eshell-test-value nil)
+
+(defun eshell-test-replace-command (command &rest args)
+  "Run COMMAND with ARGS by throwing `eshell-replace-command'."
+  (throw 'eshell-replace-command `(eshell-named-command ,command ',args)))
 
 ;;; Tests:
 
@@ -113,7 +117,7 @@ bug#59469."
     (with-temp-eshell
      (eshell-match-command-output
       (format "*echo hi > #<%s> &" bufname)
-      (rx "[echo" (? ".exe") "] " (+ digit) "\n"))
+      (rx bos "[echo" (? ".exe") "] " (+ digit) "\n"))
      (eshell-wait-for-subprocess t))
     (should (equal (buffer-string) "hi\n"))))
 
@@ -128,6 +132,18 @@ bug#59469."
       (rx "[echo" (? ".exe") "] " (+ digit) "\n"))
      (eshell-wait-for-subprocess t))
     (should (equal (buffer-string) "olleh\n"))))
+
+(ert-deftest esh-cmd-test/background/kill ()
+  "Make sure that a background command that gets killed doesn't emit a prompt."
+  (skip-unless (executable-find "sleep"))
+  (let ((background-message (rx bos "[sleep" (? ".exe") "] " (+ digit) "\n")))
+    (with-temp-eshell
+      (eshell-match-command-output "*sleep 10 &" background-message)
+      (kill-process (caar eshell-process-list))
+      (eshell-wait-for-subprocess t)
+      ;; Ensure we didn't emit another prompt after killing the
+      ;; background process.
+      (should (eshell-match-output background-message)))))
 
 
 ;; Lisp forms
@@ -160,6 +176,21 @@ bug#59469."
    (eshell-match-command-output "[ foo = bar ] && echo hi"
                                 "\\`\\'")))
 
+(ert-deftest esh-cmd-test/and-operator/output ()
+  "Test output with logical && operator."
+  (skip-unless (executable-find "sh"))
+  (with-temp-eshell
+   ;; Direct commands
+   (eshell-match-command-output "sh -c 'echo one; exit 1' && echo two"
+                                "\\`one\n\\'")
+   (eshell-match-command-output "echo one && echo two"
+                                "\\`one\ntwo\n\\'")
+   ;; Subcommands
+   (eshell-match-command-output "{ sh -c 'echo one; exit 1' } && echo two"
+                                "\\`one\n\\'")
+   (eshell-match-command-output "{ echo one } && echo two"
+                                "\\`one\ntwo\n\\'")))
+
 (ert-deftest esh-cmd-test/or-operator ()
   "Test logical || operator."
   (skip-unless (executable-find "["))
@@ -168,6 +199,21 @@ bug#59469."
                                 "\\`\\'")
    (eshell-match-command-output "[ foo = bar ] || echo hi"
                                 "hi\n")))
+
+(ert-deftest esh-cmd-test/or-operator/output ()
+  "Test output with logical || operator."
+  (skip-unless (executable-find "sh"))
+  (with-temp-eshell
+   ;; Direct commands
+   (eshell-match-command-output "sh -c 'echo one; exit 1' || echo two"
+                                "\\`one\ntwo\n\\'")
+   (eshell-match-command-output "echo one || echo two"
+                                "\\`one\n\\'")
+   ;; Subcommands
+   (eshell-match-command-output "{ sh -c 'echo one; exit 1' } || echo two"
+                                "\\`one\ntwo\n\\'")
+   (eshell-match-command-output "{ echo one } || echo two"
+                                "\\`one\n\\'")))
 
 
 ;; Pipelines
@@ -253,14 +299,35 @@ This should also wait for the subcommand."
      (format template "format \"%s\" eshell-in-pipeline-p")
      "nil")))
 
+(ert-deftest esh-cmd-test/pipeline/replace-command ()
+  "Ensure that `eshell-replace-command' doesn't affect Eshell deferral.
+Pipelines want to defer (yield) execution after starting all the
+processes in the pipeline, not before.  This lets us track all the
+processes correctly."
+  (skip-unless (and (executable-find "sleep")
+                    (executable-find "cat")))
+  (with-temp-eshell
+    (eshell-insert-command "eshell-test-replace-command *sleep 1 | cat")
+    ;; Make sure both processes are in `eshell-foreground-command'; this
+    ;; makes sure that the first command (which was replaced via
+    ;; `eshell-replace-command' isn't deferred by `eshell-do-eval'.
+    (should (= (length (cadr eshell-foreground-command)) 2))))
+
 
 ;; Control flow statements
 
 (ert-deftest esh-cmd-test/for-loop ()
   "Test invocation of a for loop."
   (with-temp-eshell
-   (eshell-match-command-output "for i in 5 { echo $i }"
-                                "5\n")))
+    (eshell-match-command-output "for i in 1 2 { echo $i }"
+                                 "1\n2\n")))
+
+(ert-deftest esh-cmd-test/for-loop-string ()
+  "Test invocation of a for loop with complex string arguments."
+  (let ((eshell-test-value "X"))
+    (with-temp-eshell
+      (eshell-match-command-output "for i in a b$eshell-test-value { echo $i }"
+                                   "a\nbX\n"))))
 
 (ert-deftest esh-cmd-test/for-loop-list ()
   "Test invocation of a for loop iterating over a list."
@@ -268,7 +335,28 @@ This should also wait for the subcommand."
    (eshell-match-command-output "for i in (list 1 2 (list 3 4)) { echo $i }"
                                 "1\n2\n(3 4)\n")))
 
-(ert-deftest esh-cmd-test/for-loop-multiple-args ()
+(ert-deftest esh-cmd-test/for-loop-vector ()
+  "Test invocation of a for loop iterating over a vector."
+  (with-temp-eshell
+    (eshell-match-command-output "for i in `[1 2 3] { echo $i }"
+                                 "1\n2\n3\n")))
+
+(ert-deftest esh-cmd-test/for-loop-range ()
+  "Test invocation of a for loop iterating over a range."
+  (with-temp-eshell
+    (eshell-match-command-output "for i in 1..5 { echo $i }"
+                                 "1\n2\n3\n4\n")
+    (let ((eshell-test-value 2))
+      (eshell-match-command-output "for i in $eshell-test-value..5 { echo $i }"
+                                   "2\n3\n4\n"))
+    ;; Make sure range syntax only work when it's part of the literal
+    ;; syntax; a variable expanding to something that looks like a range
+    ;; doesn't count.
+    (let ((eshell-test-value "1..5"))
+      (eshell-match-command-output "for i in $eshell-test-value { echo $i }"
+                                   "1..5\n"))))
+
+(ert-deftest esh-cmd-test/for-loop-mixed-args ()
   "Test invocation of a for loop iterating over multiple arguments."
   (with-temp-eshell
    (eshell-match-command-output "for i in 1 2 (list 3 4) { echo $i }"
@@ -288,12 +376,11 @@ This should also wait for the subcommand."
       "echo $name; for name in 3 { echo $name }; echo $name"
       "env-value\n3\nenv-value\n"))))
 
-(ert-deftest esh-cmd-test/for-loop-for-items-shadow ()
-  "Test that the variable `for-items' isn't shadowed inside for loops."
+(ert-deftest esh-cmd-test/for-loop-lisp-body ()
+  "Test invocation of a for loop with a Lisp body form."
   (with-temp-eshell
-   (with-no-warnings (setq-local for-items "hello"))
-   (eshell-match-command-output "for i in 1 { echo $for-items }"
-                                "hello\n")))
+   (eshell-match-command-output "for i in 1 2 3 (format \"%s\" i)"
+                                "1\n2\n3\n")))
 
 (ert-deftest esh-cmd-test/for-loop-pipe ()
   "Test invocation of a for loop piped to another command."
@@ -318,6 +405,15 @@ This should also wait for the subcommand."
      (eshell-match-command-output
       (concat "while (/= eshell-test-value 3) "
               "{ setq eshell-test-value (1+ eshell-test-value) }")
+      "1\n2\n3\n"))))
+
+(ert-deftest esh-cmd-test/while-loop-lisp-body ()
+  "Test invocation of a while loop using a Lisp form for the body."
+  (with-temp-eshell
+   (let ((eshell-test-value 0))
+     (eshell-match-command-output
+      (concat "while (/= eshell-test-value 3) "
+              "(setq eshell-test-value (1+ eshell-test-value))")
       "1\n2\n3\n"))))
 
 (ert-deftest esh-cmd-test/while-loop-ext-cmd ()
@@ -382,11 +478,15 @@ This should also wait for the subcommand."
 (ert-deftest esh-cmd-test/if-else-statement ()
   "Test invocation of an if/else statement."
   (let ((eshell-test-value t))
-    (eshell-command-result-equal "if $eshell-test-value {echo yes} {echo no}"
-                                 "yes"))
+    (eshell-command-result-equal
+     "if $eshell-test-value {echo yes} {echo no}" "yes")
+    (eshell-command-result-equal
+     "if $eshell-test-value {echo yes} else {echo no}" "yes"))
   (let ((eshell-test-value nil))
-    (eshell-command-result-equal "if $eshell-test-value {echo yes} {echo no}"
-                                 "no")))
+    (eshell-command-result-equal
+     "if $eshell-test-value {echo yes} {echo no}" "no")
+    (eshell-command-result-equal
+     "if $eshell-test-value {echo yes} else {echo no}" "no")))
 
 (ert-deftest esh-cmd-test/if-else-statement-lisp-form ()
   "Test invocation of an if/else statement using a Lisp form."
@@ -410,6 +510,17 @@ This tests when `eshell-lisp-form-nil-is-failure' is nil."
       (eshell-command-result-equal "if (zerop \"foo\") {echo yes} {echo no}"
                                    "no"))))
 
+(ert-deftest esh-cmd-test/if-else-statement-lisp-body ()
+  "Test invocation of an if/else statement using Lisp forms for the bodies."
+  (eshell-command-result-equal "if (zerop 0) (format \"yes\") (format \"no\")"
+                               "yes")
+  (eshell-command-result-equal "if (zerop 1) (format \"yes\") (format \"no\")"
+                               "no")
+  (let ((debug-on-error nil))
+    (eshell-command-result-equal
+     "if (zerop \"foo\")  (format \"yes\") (format \"no\")"
+     "no")))
+
 (ert-deftest esh-cmd-test/if-else-statement-ext-cmd ()
   "Test invocation of an if/else statement using an external command."
   (skip-unless (executable-find "["))
@@ -417,6 +528,16 @@ This tests when `eshell-lisp-form-nil-is-failure' is nil."
                                "yes")
   (eshell-command-result-equal "if {[ foo = bar ]} {echo yes} {echo no}"
                                "no"))
+
+(ert-deftest esh-cmd-test/if-else-statement-chain ()
+  "Test invocation of a chained if/else statement."
+  (dolist (case '((1 . "one") (2 . "two") (3 . "other")))
+    (let ((eshell-test-value (car case)))
+      (eshell-command-result-equal
+       (concat "if (= eshell-test-value 1) {echo one} "
+               "else if (= eshell-test-value 2) {echo two} "
+               "else {echo other}")
+       (cdr case)))))
 
 (ert-deftest esh-cmd-test/if-statement-pipe ()
   "Test invocation of an if statement piped to another command."
@@ -527,6 +648,17 @@ NAME is the name of the test case."
    (should-not eshell-foreground-command)
    ;; Make sure we can call another command after throwing.
    (eshell-match-command-output "echo again" "\\`again\n")))
+
+(ert-deftest esh-cmd-test/command-not-found/pipeline ()
+  "Ensure that processes are stopped if a command in a pipeline is not found."
+  (skip-when (or (not (executable-find "cat"))
+                 (executable-find "nonexist")))
+  (with-temp-eshell
+    (let ((starting-process-list (process-list)))
+      (eshell-match-command-output "nonexist | *cat"
+                                   "\\`nonexist: command not found\n")
+      (eshell-wait-for-subprocess t)
+      (should (equal (process-list) starting-process-list)))))
 
 
 ;; `which' command

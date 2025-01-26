@@ -1,6 +1,6 @@
 ;;; css-mode.el --- Major mode to edit CSS files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Maintainer: Simen Heggestøyl <simenheg@gmail.com>
@@ -20,6 +20,15 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Tree-sitter language versions
+;;
+;; css-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-css: v0.23.1-1-g6a442a3
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
 
 ;;; Commentary:
 
@@ -1814,7 +1823,7 @@ can also be used to fill comments.
     (setq-local font-lock-fontify-region-function #'css--fontify-region)
 
     ;; Tree-sitter specific setup.
-    (treesit-parser-create 'css)
+    (setq treesit-primary-parser (treesit-parser-create 'css))
     (setq-local treesit-simple-indent-rules css--treesit-indent-rules)
     (setq-local treesit-defun-type-regexp "rule_set")
     (setq-local treesit-defun-name-function #'css--treesit-defun-name)

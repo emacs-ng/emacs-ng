@@ -1,6 +1,6 @@
 ;;; tramp-fuse.el --- Tramp access functions for FUSE mounts  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -63,8 +63,7 @@
 	    (append
 	     '("." "..")
 	     (tramp-fuse-remove-hidden-files
-	      (tramp-compat-directory-files
-	       (tramp-fuse-local-file-name directory))))))))
+	      (directory-files (tramp-fuse-local-file-name directory))))))))
     (if full
 	;; Massage the result.
 	(let ((local (rx
@@ -129,8 +128,8 @@
 
 (defun tramp-fuse-mount-spec (vec)
   "Return local mount spec of VEC."
-  (if-let ((host (tramp-file-name-host vec))
-	   (user (tramp-file-name-user vec)))
+  (if-let* ((host (tramp-file-name-host vec))
+	    (user (tramp-file-name-user vec)))
       (format "%s@%s:/" user host)
     (format "%s:/" host)))
 
@@ -139,13 +138,17 @@
   "Time period to check whether the mount point still exists.
 It has the same meaning as `remote-file-name-inhibit-cache'.")
 
+;;;###tramp-autoload
+(defconst tramp-fuse-name-prefix "tramp-"
+  "Prefix to use for temporary FUSE mount points.")
+
 (defun tramp-fuse-mount-point (vec)
   "Return local mount point of VEC."
   (let ((remote-file-name-inhibit-cache tramp-fuse-mount-timeout))
     (or (tramp-get-file-property vec "/" "mount-point")
 	(expand-file-name
 	 (concat
-	  tramp-temp-name-prefix
+	  tramp-fuse-name-prefix
 	  (tramp-file-name-method vec) "."
 	  (when (tramp-file-name-user vec)
 	    (concat (tramp-file-name-user-domain vec) "@"))
@@ -207,7 +210,7 @@ It has the same meaning as `remote-file-name-inhibit-cache'.")
 	  (delete (tramp-file-name-unify vec) tramp-fuse-mount-points))
     ;; Give the caches a chance to expire.
     (sleep-for 1)
-    (when (tramp-compat-directory-empty-p mount-point)
+    (when (directory-empty-p mount-point)
       (delete-directory mount-point))))
 
 (defun tramp-fuse-local-file-name (filename)
@@ -234,7 +237,8 @@ It has the same meaning as `remote-file-name-inhibit-cache'.")
   "Whether fuse volumes shall be unmounted on cleanup."
   :group 'tramp
   :version "28.1"
-  :type 'boolean)
+  :type 'boolean
+  :link '(info-link :tag "Tramp manual" "(tramp) FUSE setup"))
 
 (defun tramp-fuse-cleanup (vec)
   "Cleanup fuse volume determined by VEC."

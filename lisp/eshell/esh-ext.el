@@ -1,6 +1,6 @@
 ;;; esh-ext.el --- commands external to Eshell  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -171,6 +171,7 @@ These are commands with a full remote file name, such as
 commands on your local host by using the \"/local:\" prefix, like
 \"/local:whoami\"."
   :type 'boolean
+  :version "30.1"
   :group 'eshell-ext)
 
 ;;; Functions:
@@ -301,7 +302,17 @@ Return nil, or a list of the form:
   (INTERPRETER [ARGS] FILE)"
   (let ((maxlen eshell-command-interpreter-max-length))
     (if (and (file-readable-p file)
-	     (file-regular-p file))
+	     (file-regular-p file)
+             ;; If the file is zero bytes, it can't possibly have a
+             ;; shebang.  This check may seem redundant, but we can
+             ;; encounter files that Emacs considers both readable and
+             ;; regular, but which aren't *actually* readable.  This can
+             ;; happen, for example, with certain kinds of reparse
+             ;; points like APPEXECLINK on NTFS filesystems (MS-Windows
+             ;; uses these for "app execution aliases").  In these
+             ;; cases, the file size is 0, so this check protects us
+             ;; from errors.
+             (> (file-attribute-size (file-attributes file)) 0))
 	(with-temp-buffer
 	  (insert-file-contents-literally file nil 0 maxlen)
 	  (if (looking-at "#![ \t]*\\([^ \r\t\n]+\\)\\([ \t]+\\(.+\\)\\)?")

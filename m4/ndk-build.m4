@@ -1,4 +1,4 @@
-dnl Copyright (C) 2023-2024 Free Software Foundation, Inc.
+dnl Copyright (C) 2023-2025 Free Software Foundation, Inc.
 dnl This file is part of GNU Emacs.
 
 dnl GNU Emacs is free software: you can redistribute it and/or modify
@@ -56,11 +56,13 @@ ndk_ANY_CXX=
 ndk_BUILD_CFLAGS="$4"
 ndk_working_cxx=no
 ndk_CXX_SHARED=
+ndk_BUILD_SO_LDFLAGS=
+ndk_want_16k_page_sizes=no
 
 AS_CASE(["$ndk_ABI"],
-  [*arm64*], [ndk_ARCH=arm64],
+  [*arm64*], [ndk_ARCH=arm64; ndk_want_16k_page_sizes=yes],
   [*arm*], [ndk_ARCH=arm],
-  [*x86_64*], [ndk_ARCH=x86_64],
+  [*x86_64*], [ndk_ARCH=x86_64; ndk_want_16k_page_sizes=yes],
   [*x86*], [ndk_ARCH=x86],
   [*mips64*], [ndk_ARCH=mips64],
   [*mips*], [ndk_ARCH=mips],
@@ -143,22 +145,35 @@ ndk_resolve_import_module () {
   ndk_module=[$]1
 
   AC_MSG_CHECKING([for imported $ndk_module])
+  AC_CACHE_VAL([AS_TR_SH([ndk_cv_commands_$ndk_module])],
+    [for ndk_android_mk in $ndk_module_files; do
+       # Read this Android.mk file.  Set NDK_ROOT to /tmp: the Android in
+       # tree build system sets it to a meaningful value, but build files
+       # just use it to test whether or not the NDK is being used.
+       ndk_commands=`ndk_run_test`
+       eval "$ndk_commands"
 
-  for ndk_android_mk in $ndk_module_files; do
-    # Read this Android.mk file.  Set NDK_ROOT to /tmp: the Android in
-    # tree build system sets it to a meaningful value, but build files
-    # just use it to test whether or not the NDK is being used.
-    ndk_commands=`ndk_run_test`
-    eval "$ndk_commands"
+       if test -n "$module_name"; then
+         # Guarantee that evaluation of the cached value will also set
+	 # `ndk_android_mk'.
+         ndk_commands="$ndk_commands ndk_android_mk=$ndk_android_mk"
+	 break;
+       fi
+     done
+     AS_IF([test -z "$module_name"],
+       [AS_VAR_SET([AS_TR_SH([ndk_cv_commands_$ndk_module])],
+	 [""])],
+       [AS_VAR_SET([AS_TR_SH([ndk_cv_commands_$ndk_module])],
+	 [$ndk_commands])])])
 
-    if test -n "$module_name"; then
-      break;
-    fi
-  done
+  # Copy the computed value into ndk_commands.
+  AS_VAR_COPY([ndk_commands], [AS_TR_SH([ndk_cv_commands_$ndk_module])])
+  eval "$ndk_commands"
 
-  AS_IF([test -z "$module_name"],
+  # Print the outcome of the test.
+  AS_IF([test -n "$module_name"], [AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])
-     AC_MSG_ERROR([The module currently being built depends on [$]1, but \
+     AC_MSG_ERROR([The module currently being built has imported [$]1, but \
 that could not be found in the list of directories specified in \
 `--with-ndk-path'.])])
 
@@ -174,8 +189,6 @@ but none were found.])])
   AS_IF([test "$module_cxx_deps" = "yes" && test "$ndk_working_cxx" != "yes"],
     [AC_MSG_ERROR([The module [$]1 requires the C++ standard library,
 but a working C++ compiler was not found.])])
-
-  AC_MSG_RESULT([yes])
 
   # Make sure the module is prepended.
   ndk_MODULES="$ndk_MODULES $module_target"
@@ -508,8 +521,7 @@ AS_ECHO([])
 AS_ECHO(["Library includes        : $ndk_CXX_STL"])
 AS_ECHO(["Linker options          : $ndk_CXX_LDFLAGS"])
 AS_ECHO(["Library file (if any)   : $ndk_CXX_SHARED"])
-AS_ECHO([])
-])
+AS_ECHO([])])
 
 # ndk_LATE_EARLY
 # --------------
@@ -524,7 +536,7 @@ AC_DEFUN([ndk_LATE_EARLY],
 # ndk_LATE
 # --------
 # Perform late initialization of the ndk-build system by checking for
-# required C and C++ headers.
+# required C and C++ headers and 16 KB page size support.
 
 AC_DEFUN([ndk_LATE],
 [dnl
@@ -532,10 +544,30 @@ AS_IF([test "$ndk_INITIALIZED" = "yes"],[
   AS_IF([test -n "$CXX"], [
     AC_LANG_PUSH([C++])
     AC_CHECK_HEADER([string], [ndk_working_cxx=yes],
-      [AC_MSG_WARN([Your C++ compiler is not properly configured, as \
+      [AC_MSG_WARN([Your C++ compiler is not properly configured, as
 the standard library headers could not be found.])])
     AC_LANG_POP([C++])])])
 LDFLAGS="$ndk_save_LDFLAGS"
+dnl Detect whether this version of the NDK supports 16KB page sizes,
+dnl which are required on certain architectures to execute under Android
+dnl 15 (35) and later, and apply the appropriate linker options if
+dnl positive.
+AS_IF([test "$ndk_want_16k_page_sizes" = "yes"],
+  [AC_CACHE_CHECK([whether toolchain supports configurations with 16k page sizes],
+     [ndk_cv_16k_page_sizes],
+     [ndk_save_LDFLAGS="$LDFLAGS"
+      LDFLAGS="$LDFLAGS -Wl,-z,max-page-size=16384"
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
+        [ndk_cv_16k_page_sizes=yes],
+	[ndk_cv_16k_page_sizes=no])
+      LDFLAGS="$ndk_save_LDFLAGS"])
+   AS_IF([test "$ndk_cv_16k_page_sizes" = "yes"],
+     [LDFLAGS="$LDFLAGS -Wl,-z,max-page-size=16384"
+      ndk_BUILD_SO_LDFLAGS="-Wl,-z,max-page-size=16384"],
+     [AC_MSG_WARN([\
+Your toolchain does not support configurations with 16KB page sizes,
+and consequently binaries it produces cannot support all devices
+running Android 15 or later.])])])
 ])
 
 # ndk_SEARCH_MODULE(MODULE, NAME, ACTION-IF-FOUND, [ACTION-IF-NOT-FOUND])
@@ -552,19 +584,28 @@ AC_DEFUN([ndk_SEARCH_MODULE],
 module_name=
 ndk_module=$1
 ndk_replace_pkg_config_package
-AC_MSG_CHECKING([for Android.mk that builds $ndk_module])
+AC_MSG_CHECKING([for Android.mk providing $ndk_module])
+AC_CACHE_VAL([AS_TR_SH([ndk_cv_commands_$ndk_module])],
+  [for ndk_android_mk in $ndk_module_files; do
+     # Read this Android.mk file.  Set NDK_ROOT to /tmp: the Android in
+     # tree build system sets it to a meaningful value, but build files
+     # just use it to test whether or not the NDK is being used.
+     ndk_commands=`ndk_run_test`
+     eval "$ndk_commands"
 
-for ndk_android_mk in $ndk_module_files; do
-  # Read this Android.mk file.  Set NDK_ROOT to /tmp: the Android in
-  # tree build system sets it to a meaning value, but build files just
-  # use it to test whether or not the NDK is being used.
-  ndk_commands=`ndk_run_test`
-
-  eval "$ndk_commands"
-  if test -n "$module_name"; then
-    break;
-  fi
-done
+     if test -n "$module_name"; then
+       # Guarantee that evaluation of the cached value will also set
+       # `ndk_android_mk'.
+       ndk_commands="$ndk_commands ndk_android_mk=$ndk_android_mk"
+       break;
+     fi
+   done
+   AS_IF([test -n "$module_name"],
+     [AS_VAR_SET([AS_TR_SH([ndk_cv_commands_$ndk_module])],
+       [$ndk_commands])],
+     [AS_VAR_SET([AS_TR_SH([ndk_cv_commands_$ndk_module])], [])])])
+AS_VAR_COPY([ndk_commands], [AS_TR_SH([ndk_cv_commands_$ndk_module])])
+eval "$ndk_commands"
 
 if test -z "$module_name"; then
   AC_MSG_RESULT([no])
@@ -639,6 +680,7 @@ AC_DEFUN_ONCE([ndk_CONFIG_FILES],
     NDK_BUILD_CXX_STL="$ndk_CXX_STL"
     NDK_BUILD_CXX_LDFLAGS="$ndk_CXX_LDFLAGS"
     NDK_BUILD_ANY_CXX_MODULE=$ndk_ANY_CXX
+    NDK_BUILD_SO_LDFLAGS="$ndk_BUILD_SO_LDFLAGS"
     NDK_BUILD_CFLAGS="$ndk_BUILD_CFLAGS"
 
     AC_SUBST([NDK_BUILD_ANDROID_MK])
@@ -654,6 +696,7 @@ AC_DEFUN_ONCE([ndk_CONFIG_FILES],
     AC_SUBST([NDK_BUILD_CXX_STL])
     AC_SUBST([NDK_BUILD_CXX_LDFLAGS])
     AC_SUBST([NDK_BUILD_ANY_CXX_MODULE])
+    AC_SUBST([NDK_BUILD_SO_LDFLAGS])
     AC_SUBST([NDK_BUILD_CFLAGS])
     AC_SUBST([NDK_BUILD_READELF])
 

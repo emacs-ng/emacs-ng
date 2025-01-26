@@ -1,6 +1,6 @@
 ;;; erc-networks-tests.el --- Tests for erc-networks.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -76,6 +76,14 @@
                                                       :symbol 'fake.chat)))))
       (kill-buffer))))
 
+(ert-deftest erc-networks--id-string ()
+  (should (equal (erc-networks--id-string (erc-networks--id-fixed-create 'foo))
+                 "foo"))
+  (should (equal (let* ((erc-network 'FooNet)
+                        (erc-server-current-nick "Joe")) ; needs letstar
+                   (erc-networks--id-string (erc-networks--id-create nil)))
+                 "FooNet")))
+
 (ert-deftest erc-networks--id-create ()
   (cl-letf (((symbol-function 'float-time)
              (lambda (&optional _) 0.0)))
@@ -133,10 +141,12 @@
     (with-temp-buffer
       (setq erc-networks--id (erc-networks--id-fixed-create 'oldest)
             oldest (current-buffer))
+      (sleep-for 0.02)
 
       (with-temp-buffer
         (setq erc-networks--id (erc-networks--id-fixed-create 'middle)
               middle (current-buffer))
+        (sleep-for 0.02)
 
         (with-temp-buffer
           (setq erc-networks--id (erc-networks--id-fixed-create 'newest)

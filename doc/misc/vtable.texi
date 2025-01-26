@@ -12,7 +12,7 @@
 @copying
 This file documents the GNU vtable.el package.
 
-Copyright @copyright{} 2022--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2022--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -264,6 +264,10 @@ In the latter case, if @code{:columns} is non-@code{nil} and there's
 more elements in the sequence than there is in @code{:columns}, only
 the @code{:columns} first elements are displayed.
 
+If the @code{:objects} list is empty (and no @code{:objects-function} is
+defined), an empty vtable is created.  In this case, a @code{:columns}
+spec must be provided.
+
 @item :objects-function
 It's often convenient to generate the objects dynamically (for
 instance, to make reversion work automatically).  In that case, this
@@ -294,6 +298,11 @@ The width of @var{n} @samp{x} characters in the table's face.
 @item a string of the form @samp{@var{n}%}
 @var{n} percent of the window's width.
 @end table
+
+If no @code{width} is provided, the width is calculated based on the
+column data (provided in the @code{:objects} list or through the
+@code{:objects-function}) or, if there is no data, on the basis of the
+window width.
 
 @item min-width
 This uses the same format as @code{width}, but specifies the minimum
@@ -337,7 +346,9 @@ width (in pixels), and @var{table} is the table.
 @end defun
 
 @item align
-Should be either @code{right} or @code{left}.
+Should be either @code{right} or @code{left}.  If not specified,
+numerical values will be flushed to the right, and all other values will
+be flushed to the left.
 @end table
 
 @item :getter
@@ -426,14 +437,19 @@ current line, they can use the @code{vtable-current-object} function
 (@pxref{Interface Functions}) to determine what that object is.
 
 @item :separator-width
-The width of the blank space between columns.
+The width of the blank space between columns.  If not specified, it
+defaults to 1.
 
 @item :divider-width
 @itemx :divider
-You can have a divider inserted between the columns.  This can either
-be specified by using @code{:divider}, which should be a string to be
-displayed between the columns, or @code{:divider-width}, which
-specifies the width of the space to be used as the divider.
+You can have a divider inserted between the columns.  This can either be
+specified by using @code{:divider}, which should be a string to be
+displayed between the columns, or @code{:divider-width}, which specifies
+the width of the space to be used as the divider, in units of characters
+of the face used to display the table.  If not specified,
+@code{:divider} defaults to @code{nil}, but specifying
+@code{:divider-width} effectively sets the divider to a whitespace
+string of that width.
 
 @item :sort-by
 This should be a list of tuples, and specifies how the table is to be
@@ -559,15 +575,17 @@ table.
 @defun vtable-insert-object table object &optional location before
 Insert @var{object} into @var{table}.  @var{location} should be an
 object in the table, the new object is inserted after this object, or
-before it if @var{before} is non-nil.  If @var{location} is @code{nil},
-@var{object} is appended to @var{table}, or prepended if @var{before} is
-non-@code{nil}.
+before it if @var{before} is non-@code{nil}.  If @var{location} is
+@code{nil}, @var{object} is appended to @var{table}, or prepended if
+@var{before} is non-@code{nil}.
 
 @var{location} can also be an integer, a zero-based index into the
 table.  In this case, @var{object} is inserted at that index.  If the
 index is out of range, @var{object} is prepended to @var{table} if the
 index is too small, or appended if it is too large.  In this case,
 @var{before} is ignored.
+
+If @var{table} is empty, @var{location} and @var{before} are ignored.
 
 This also updates the displayed table.
 @end defun

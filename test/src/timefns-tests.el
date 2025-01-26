@@ -1,6 +1,6 @@
 ;;; timefns-tests.el --- tests for timefns.c -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -260,5 +260,9 @@ a fixed place on the right and are padded on the left."
 	  (should (time-equal-p time (time-convert time form)))
 	  (should (time-equal-p time- (time-convert time- form)))
 	  (should (time-equal-p time+ (time-convert time+ form))))))))
+
+(ert-deftest current-time-zone ()
+  (should (listp (current-time-zone)))
+  (should (= (length (current-time-zone)) 2)))
 
 ;;; timefns-tests.el ends here

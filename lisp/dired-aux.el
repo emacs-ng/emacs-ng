@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
 ;; Maintainer: emacs-devel@gnu.org
@@ -1440,7 +1440,7 @@ This excludes `dired-guess-shell-alist-user' and
    ((executable-find "run-mailcap")
     "run-mailcap"))
   "A shell command to open a file externally."
-  :type 'string
+  :type '(choice (const :tag "None" nil) string)
   :group 'dired
   :version "30.1")
 
@@ -1449,6 +1449,34 @@ This excludes `dired-guess-shell-alist-user' and
   (append (ensure-list shell-command-guess-open) commands))
 
 (declare-function w32-shell-execute "w32fns.c")
+
+;;;###autoload
+(defun shell-command-do-open (files)
+  "Open each of FILES using an external program.
+This \"opens\" the file(s) using the external command that is most
+appropriate for the file(s) according to the system conventions."
+  (let ((command shell-command-guess-open))
+    (when (and (memq system-type '(windows-nt))
+               (equal command "start"))
+      (setq command "open"))
+    (if command
+        (cond
+         ((memq system-type '(ms-dos))
+          (dolist (file files)
+            (shell-command (concat command " " (shell-quote-argument file)))))
+         ((memq system-type '(windows-nt))
+          (dolist (file files)
+            (w32-shell-execute command (convert-standard-filename file))))
+         ((memq system-type '(cygwin))
+          (dolist (file files)
+            (call-process command nil nil nil file)))
+         ((memq system-type '(darwin))
+          (dolist (file files)
+            (start-process (concat command " " file) nil command file)))
+         (t
+          (dolist (file files)
+            (call-process command nil 0 nil file))))
+      (error "Open not supported on this system"))))
 
 ;;;###autoload
 (defun dired-do-open (&optional arg)
@@ -1460,30 +1488,11 @@ run it on the next ARG files, or on the file at mouse-click, or on the
 file at point.  The appropriate command to \"open\" a file on each
 system is determined by `shell-command-guess-open'."
   (interactive "P" dired-mode)
-  (let ((files (if (mouse-event-p last-nonmenu-event)
-                   (save-excursion
-                     (mouse-set-point last-nonmenu-event)
-                     (dired-get-marked-files nil arg))
-                 (dired-get-marked-files nil arg)))
-        (command shell-command-guess-open))
-    (when (and (memq system-type '(windows-nt))
-               (equal command "start"))
-      (setq command "open"))
-    (when command
-      (dolist (file files)
-        (cond
-         ((memq system-type '(gnu/linux))
-          (call-process command nil 0 nil file))
-         ((memq system-type '(ms-dos))
-          (shell-command (concat command " " (shell-quote-argument file))))
-         ((memq system-type '(windows-nt))
-          (w32-shell-execute command (convert-standard-filename file)))
-         ((memq system-type '(cygwin))
-          (call-process command nil nil nil file))
-         ((memq system-type '(darwin))
-          (start-process (concat command " " file) nil command file))
-         (t
-          (error "Open not supported on this system")))))))
+  (shell-command-do-open (if (mouse-event-p last-nonmenu-event)
+                             (save-excursion
+                               (mouse-set-point last-nonmenu-event)
+                               (dired-get-marked-files nil arg))
+                           (dired-get-marked-files nil arg))))
 
 
 ;;; Commands that delete or redisplay part of the dired buffer
@@ -3803,7 +3812,7 @@ resume the query replace with the command \\[fileloop-continue]."
   (interactive
    (let ((common
 	  (query-replace-read-args
-	   "Query replace regexp in marked files" t t)))
+	   "Query replace regexp in marked files" t t t)))
      (list (nth 0 common) (nth 1 common) (nth 2 common)))
    dired-mode)
   (dolist (file (dired-get-marked-files nil nil #'dired-nondirectory-p nil t))
@@ -3827,7 +3836,7 @@ you can later apply as a patch after reviewing the changes."
   (interactive
    (let ((common
           (query-replace-read-args
-           "Replace regexp as diff in marked files" t t)))
+           "Replace regexp as diff in marked files" t t t)))
      (list (nth 0 common) (nth 1 common) (nth 2 common))))
   (dired-post-do-command)
   (multi-file-replace-regexp-as-diff
@@ -3903,7 +3912,7 @@ function works."
   (interactive
    (let ((common
           (query-replace-read-args
-           "Query replace regexp in marked files" t t)))
+           "Query replace regexp in marked files" t t t)))
      (list (nth 0 common) (nth 1 common)))
    dired-mode)
   (require 'xref)

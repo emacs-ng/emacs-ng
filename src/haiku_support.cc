@@ -1,5 +1,5 @@
 /* Haiku window system support.  Hey, Emacs, this is -*- C++ -*-
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -340,10 +340,18 @@ keysym_from_raw_char (int32 raw, int32 key, unsigned *code)
 
       break;
 
+#if B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6
+    case B_HANGUL_KEY:
+#else /* B_HAIKU_VERSION < B_HAIKU_VERSION_1_PRE_BETA_6 */
     case B_HANGUL:
+#endif /* B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6 */
       *code = KEY_HANGUL;
       break;
-    case B_HANGUL_HANJA:
+#if B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6
+    case B_HANGUL_HANJA_KEY:
+#else /* B_HAIKU_VERSION < B_HAIKU_VERSION_1_PRE_BETA_6 */
+    case B_HANGUL:
+#endif /* B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6 */
       *code = KEY_HANGUL_HANJA;
       break;
     case B_KATAKANA_HIRAGANA:

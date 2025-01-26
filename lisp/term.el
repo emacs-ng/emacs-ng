@@ -1,6 +1,6 @@
 ;;; term.el --- general command interpreter in a window stuff -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2024 Free Software
+;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Per Bothner <per@bothner.com>
@@ -658,8 +658,8 @@ executed once, when the buffer is created."
         ["Forward Output Group" term-next-prompt t]
         ["Kill Current Output Group" term-kill-output t]))
     map)
-  "Keymap for \"line mode\" in Term mode.  For custom keybindings purposes
-please note there is also `term-raw-map'")
+  "Keymap for \"line mode\" in Term mode.
+For custom keybindings purposes please note there is also `term-raw-map'")
 
 (defvar term-escape-char nil
   "Escape character for char sub-mode of term mode.
@@ -732,9 +732,9 @@ Buffer local variable.")
 (defvar term-ansi-current-underline nil)
 (defvar term-ansi-current-slow-blink nil)
 (defvar term-ansi-current-fast-blink nil)
-(defvar term-ansi-current-color 0)
+(defvar term-ansi-current-color nil)
 (defvar term-ansi-face-already-done nil)
-(defvar term-ansi-current-bg-color 0)
+(defvar term-ansi-current-bg-color nil)
 (defvar term-ansi-current-reverse nil)
 (defvar term-ansi-current-invisible nil)
 
@@ -1084,9 +1084,9 @@ For custom keybindings purposes please note there is also
   (setq term-ansi-current-slow-blink nil)
   (setq term-ansi-current-fast-blink nil)
   (setq term-ansi-current-reverse nil)
-  (setq term-ansi-current-color 0)
+  (setq term-ansi-current-color nil)
   (setq term-ansi-current-invisible nil)
-  (setq term-ansi-current-bg-color 0))
+  (setq term-ansi-current-bg-color nil))
 
 (defvar touch-screen-display-keyboard)
 
@@ -1097,7 +1097,7 @@ The interpreter name is same as buffer name, sans the asterisks.
 There are two submodes: line mode and char mode.  By default, you are
 in char mode.  In char sub-mode, each character (except
 `term-escape-char') is sent immediately to the subprocess.
-The escape character is equivalent to the usual meaning of C-x.
+The escape character is equivalent to the usual meaning of \\`C-x'.
 
 In line mode, you send a line of input at a time; use
 \\[term-send-input] to send.
@@ -1459,7 +1459,7 @@ Entry to this mode runs the hooks on `term-mode-hook'."
 (defun term-char-mode ()
   "Switch to char (\"raw\") sub-mode of term mode.
 Each character you type is sent directly to the inferior without
-intervention from Emacs, except for the escape character (usually C-c)."
+intervention from Emacs, except for the escape character (usually \\`C-c')."
   (interactive)
   ;; FIXME: Emit message? Cfr ilisp-raw-message
   (when (term-in-line-mode)
@@ -3015,8 +3015,8 @@ See `term-prompt-regexp'."
 
 (defconst term-control-seq-regexp
   (concat
-   ;; A control character,
-   "\\(?:[\r\n\000\007\t\b\016\017]\\|"
+   ;; A control character not matched in a longer sequence below,
+   "\\(?:[\x00-\x19\x1C-\x1F\r\n\t\b]\\|"
    ;; some Emacs specific control sequences, implemented by
    ;; `term-command-hook',
    "\032[^\n]+\n\\|"
@@ -3271,8 +3271,9 @@ See `term-prompt-regexp'."
                      (?A ;; An \eAnSiT sequence (Emacs specific).
                       (term-handle-ansi-terminal-messages
                        (substring str i ctl-end)))))
-                  ;; Ignore NUL, Shift Out, Shift In.
-                  ((or ?\0 #xE #xF 'nil) nil))
+                  ;; Ignore any control character not already recognized.
+                  ((or 'nil
+                       (and (pred characterp) (pred (lambda (c) (<= c ?\x1F))))) nil))
                 ;; Leave line-wrapping state if point was moved.
                 (unless (eq term-do-line-wrapping (point))
                   (setq term-do-line-wrapping nil))
@@ -3430,19 +3431,21 @@ option is enabled.  See `term-set-goto-process-mark'."
 (defun term--color-as-hex (for-foreground)
   "Return the current ANSI color as a hexadecimal color string.
 Use the current background color if FOR-FOREGROUND is nil,
-otherwise use the current foreground color."
+otherwise use the current foreground color.  Return nil if the
+color is unset in the terminal state."
   (let ((color (if for-foreground term-ansi-current-color
                  term-ansi-current-bg-color)))
-    (or (ansi-color--code-as-hex (1- color))
-        (progn
-          (and ansi-color-bold-is-bright term-ansi-current-bold
-               (<= 1 color 8)
-               (setq color (+ color 8)))
-          (if for-foreground
-              (face-foreground (elt ansi-term-color-vector color)
-                               nil 'default)
-            (face-background (elt ansi-term-color-vector color)
-                             nil 'default))))))
+    (when color
+      (or (ansi-color--code-as-hex (1- color))
+          (progn
+            (and ansi-color-bold-is-bright term-ansi-current-bold
+                 (<= 1 color 8)
+                 (setq color (+ color 8)))
+            (if for-foreground
+                (face-foreground (elt ansi-term-color-vector color)
+                                 nil 'default)
+              (face-background (elt ansi-term-color-vector color)
+                               nil 'default)))))))
 
 ;; New function to deal with ansi colorized output, as you can see you can
 ;; have any bold/underline/fg/bg/reverse combination. -mm
@@ -3499,7 +3502,7 @@ otherwise use the current foreground color."
          (_ (term-ansi-reset))))
 
       ;; Reset foreground (terminfo: op)
-      (39 (setq term-ansi-current-color 0))
+      (39 (setq term-ansi-current-color nil))
 
       ;; Background (terminfo: setab)
       ((and param (guard (<= 40 param 47)))
@@ -3529,7 +3532,7 @@ otherwise use the current foreground color."
          (_ (term-ansi-reset))))
 
       ;; Reset background (terminfo: op)
-      (49 (setq term-ansi-current-bg-color 0))
+      (49 (setq term-ansi-current-bg-color nil))
 
       ;; 0 (Reset) (terminfo: sgr0) or unknown (reset anyway)
       (_ (term-ansi-reset))))
@@ -3541,10 +3544,11 @@ otherwise use the current foreground color."
       (setq fg (term--color-as-hex t)
             bg (term--color-as-hex nil)))
     (setq term-current-face
-          `( :foreground ,fg
-             :background ,bg
-             ,@(unless term-ansi-current-invisible
-                 (list :inverse-video term-ansi-current-reverse)))))
+          `(,@(when fg `(:foreground ,fg))
+            ,@(when bg `(:background ,bg))
+            ,@(when (and term-ansi-current-reverse
+                         (not term-ansi-current-invisible))
+                (list :inverse-video term-ansi-current-reverse)))))
 
   (setq term-current-face
         `(,term-current-face

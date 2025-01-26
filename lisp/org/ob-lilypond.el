@@ -1,6 +1,6 @@
 ;;; ob-lilypond.el --- Babel Functions for Lilypond  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 ;; Author: Martyn Jago
 ;; Keywords: babel language, literate programming
@@ -160,7 +160,7 @@ Otherwise, execute block according to header settings."
     (org-babel-lilypond-process-basic body params)))
 
 (defun org-babel-lilypond-tangle ()
-  "Tangle lilypond blocks, then `org-babel-liypond-execute-tangled-ly'."
+  "Tangle lilypond blocks, then `org-babel-lilypond-execute-tangled-ly'."
   (interactive)
   (if (org-babel-tangle nil "yes" "lilypond")
       (org-babel-lilypond-execute-tangled-ly) nil))

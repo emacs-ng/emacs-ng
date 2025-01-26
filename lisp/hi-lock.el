@@ -1,6 +1,6 @@
 ;;; hi-lock.el --- minor mode for interactive automatic highlighting  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: David M. Koppelman <koppel@ece.lsu.edu>
 ;; Keywords: faces, minor-mode, matching, display
@@ -751,7 +751,7 @@ with completion and history."
 
 (defvar hi-lock-use-overlays nil
   "Whether to always use overlays instead of font-lock rules.
-When font-lock-mode is enabled and the buffer specifies font-lock rules,
+When `font-lock-mode' is enabled and the buffer specifies font-lock rules,
 highlighting is performed by adding new font-lock rules to the existing ones,
 so when new matching strings are added, they are highlighted by font-lock.
 Otherwise, overlays are used, but new highlighting overlays are not added
@@ -891,7 +891,7 @@ Apply the previous patterns after reverting the buffer."
             (let ((face (hi-lock-keyword->face (cdr pattern))))
               (highlight-regexp (or (get-text-property 0 'regexp (car pattern))
                                     (car pattern))
-                                face)
+                                face nil (car pattern))
               (setq hi-lock--unused-faces
                     (remove (face-name face) hi-lock--unused-faces)))))))))
 

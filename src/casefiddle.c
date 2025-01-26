@@ -1,7 +1,7 @@
 /* -*- coding: utf-8 -*- */
 /* GNU Emacs case conversion functions.
 
-Copyright (C) 1985, 1994, 1997-1999, 2001-2024 Free Software Foundation,
+Copyright (C) 1985, 1994, 1997-1999, 2001-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -285,7 +285,7 @@ do_casify_multibyte_string (struct casing_context *ctx, Lisp_Object obj)
      representation of the character is at the beginning of the
      buffer.  This is why we don’t need a separate struct
      casing_str_buf object, and can write directly to the destination.  */
-  verify (offsetof (struct casing_str_buf, data) == 0);
+  static_assert (offsetof (struct casing_str_buf, data) == 0);
 
   ptrdiff_t size = SCHARS (obj), n;
   USE_SAFE_ALLOCA;
@@ -583,7 +583,7 @@ casify_pnc_region (enum case_action flag, Lisp_Object beg, Lisp_Object end,
 {
   if (!NILP (region_noncontiguous_p))
     {
-      Lisp_Object bounds = call1 (Vregion_extract_function, Qbounds);
+      Lisp_Object bounds = calln (Vregion_extract_function, Qbounds);
       FOR_EACH_TAIL (bounds)
 	{
 	  CHECK_CONS (XCAR (bounds));

@@ -1,6 +1,6 @@
 ;;; ob-exp.el --- Exportation of Babel Source Blocks -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Authors: Eric Schulte
 ;;	Dan Davison
@@ -21,6 +21,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;;; Code:
 
@@ -439,7 +441,7 @@ replaced with its value."
      ("header-args"
       .
       ,(org-babel-exp--at-source
-           (when-let ((params (org-element-property :parameters (org-element-context))))
+           (when-let* ((params (org-element-property :parameters (org-element-context))))
              (concat " " params))))
      ,@(mapcar (lambda (pair)
 		 (cons (substring (symbol-name (car pair)) 1)

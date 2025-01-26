@@ -1,6 +1,6 @@
 /* Lisp parsing and input streams.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2024 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <errno.h>
+#include <locale.h>
 #include <math.h>
 #include <stat-time.h>
 #include "lisp.h"
@@ -55,11 +56,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #include <unistd.h>
-
-#ifdef HAVE_SETLOCALE
-#include <locale.h>
-#endif /* HAVE_SETLOCALE */
-
 #include <fcntl.h>
 
 #if !defined HAVE_ANDROID || defined ANDROID_STUBIFY	\
@@ -528,7 +524,7 @@ unreadchar (Lisp_Object readcharfun, int c)
       unread_char = c;
     }
   else
-    call1 (readcharfun, make_fixnum (c));
+    calln (readcharfun, make_fixnum (c));
 }
 
 static int
@@ -966,7 +962,7 @@ floating-point value.
 
 If `inhibit-interaction' is non-nil, this function will signal an
 `inhibited-interaction' error.  */)
-(Lisp_Object prompt, Lisp_Object inherit_input_method, Lisp_Object seconds)
+  (Lisp_Object prompt, Lisp_Object inherit_input_method, Lisp_Object seconds)
 {
   Lisp_Object val;
 
@@ -1346,7 +1342,7 @@ Return t if the file exists and loads successfully.  */)
   handler = Ffind_file_name_handler (file, Qload);
   if (!NILP (handler))
     return
-      call6 (handler, Qload, file, noerror, nomessage, nosuffix, must_suffix);
+      calln (handler, Qload, file, noerror, nomessage, nosuffix, must_suffix);
 
   /* The presence of this call is the result of a historical accident:
      it used to be in every file-operation and when it got removed
@@ -1450,7 +1446,7 @@ Return t if the file exists and loads successfully.  */)
       else
 	handler = Ffind_file_name_handler (found, Qload);
       if (! NILP (handler))
-	return call5 (handler, Qload, found, noerror, nomessage, Qt);
+	return calln (handler, Qload, found, noerror, nomessage, Qt);
 #ifdef DOS_NT
       /* Tramp has to deal with semi-broken packages that prepend
 	 drive letters to remote files.  For that reason, Tramp
@@ -1616,7 +1612,7 @@ Return t if the file exists and loads successfully.  */)
 	      lread_close (fd);
 	      clear_unwind_protect (fd_index);
 	    }
-	  val = call4 (Vload_source_file_function, found, hist_file_name,
+	  val = calln (Vload_source_file_function, found, hist_file_name,
 		       NILP (noerror) ? Qnil : Qt,
 		       (NILP (nomessage) || force_load_messages) ? Qnil : Qt);
 	  return unbind_to (count, val);
@@ -1743,7 +1739,7 @@ Return t if the file exists and loads successfully.  */)
 
   /* Run any eval-after-load forms for this file.  */
   if (!NILP (Ffboundp (Qdo_after_load_evaluation)))
-    call1 (Qdo_after_load_evaluation, hist_file_name) ;
+    calln (Qdo_after_load_evaluation, hist_file_name);
 
   for (int i = 0; i < ARRAYELTS (saved_strings); i++)
     {
@@ -1752,6 +1748,9 @@ Return t if the file exists and loads successfully.  */)
       saved_strings[i].size = 0;
     }
 
+  /* The "...done" messages are shown only in interactive mode, because
+     the echo-area can display only the last message, and we want to
+     avoid the impression that the load is still in progress.  */
   if (!noninteractive && (NILP (nomessage) || force_load_messages))
     {
       if (is_module)
@@ -1887,7 +1886,7 @@ maybe_swap_for_eln (bool no_native, Lisp_Object *filename, int *fd,
 		return;
 	      Vdelayed_warnings_list
 		= Fcons (list2
-			 (Qcomp,
+			 (Qnative_compiler,
 			  CALLN (Fformat,
 				 build_string ("Cannot look up .eln file "
 					       "for %s because no source "
@@ -2080,7 +2079,7 @@ openp (Lisp_Object path, Lisp_Object str, Lisp_Object suffixes,
 	      exists = !NILP (Ffile_readable_p (string));
 	    else
 	      {
-		Lisp_Object tmp = call1 (predicate, string);
+		Lisp_Object tmp = calln (predicate, string);
 		if (NILP (tmp))
 		  exists = false;
 		else if (EQ (tmp, Qdir_ok)
@@ -2310,7 +2309,7 @@ build_load_history (Lisp_Object filename, bool entire)
   if (entire || !foundit)
     {
       Lisp_Object tem = Fnreverse (Vcurrent_load_list);
-      eassert (EQ (filename, Fcar (tem)));
+      eassert (!NILP (Fequal (filename, Fcar (tem))));
       Vload_history = Fcons (tem, Vload_history);
       /* FIXME: There should be an unbind_to right after calling us which
          should re-establish the previous value of Vcurrent_load_list.  */
@@ -2344,7 +2343,7 @@ readevalloop_eager_expand_eval (Lisp_Object val, Lisp_Object macroexpand)
      form in the progn as a top-level form.  This way, if one form in
      the progn defines a macro, that macro is in effect when we expand
      the remaining forms.  See similar code in bytecomp.el.  */
-  val = call2 (macroexpand, val, Qnil);
+  val = calln (macroexpand, val, Qnil);
   if (EQ (CAR_SAFE (val), Qprogn))
     {
       Lisp_Object subforms = XCDR (val);
@@ -2353,7 +2352,7 @@ readevalloop_eager_expand_eval (Lisp_Object val, Lisp_Object macroexpand)
 	val = readevalloop_eager_expand_eval (XCAR (subforms), macroexpand);
     }
   else
-      val = eval_sub (call2 (macroexpand, val, Qt));
+      val = eval_sub (calln (macroexpand, val, Qt));
   return val;
 }
 
@@ -2502,7 +2501,7 @@ readevalloop (Lisp_Object readcharfun,
 	{
 	  if (!NILP (readfun))
 	    {
-	      val = call1 (readfun, readcharfun);
+	      val = calln (readfun, readcharfun);
 
 	      /* If READCHARFUN has set point to ZV, we should
 	         stop reading, even if the form read sets point
@@ -2515,7 +2514,7 @@ readevalloop (Lisp_Object readcharfun,
 		}
 	    }
 	  else if (! NILP (Vload_read_function))
-	    val = call1 (Vload_read_function, readcharfun);
+	    val = calln (Vload_read_function, readcharfun);
 	  else
 	    val = read_internal_start (readcharfun, Qnil, Qnil, false);
 	}
@@ -2674,8 +2673,7 @@ STREAM or the value of `standard-input' may be:
        minibuffer without a stream, as in (read).  But is this feature
        ever used, and if so, why?  IOW, will anything break if this
        feature is removed !?  */
-    return call1 (Qread_minibuffer,
-		  build_string ("Lisp expression: "));
+    return calln (Qread_minibuffer, build_string ("Lisp expression: "));
 
   return read_internal_start (stream, Qnil, Qnil, false);
 }
@@ -2702,8 +2700,7 @@ STREAM or the value of `standard-input' may be:
     stream = Qread_char;
   if (EQ (stream, Qread_char))
     /* FIXME: ?! When is this used !?  */
-    return call1 (Qread_minibuffer,
-		  build_string ("Lisp expression: "));
+    return calln (Qread_minibuffer, build_string ("Lisp expression: "));
 
   return read_internal_start (stream, Qnil, Qnil, true);
 }
@@ -2812,7 +2809,7 @@ character_name_to_code (char const *name, ptrdiff_t name_len,
   Lisp_Object code
     = (name[0] == 'U' && name[1] == '+'
        ? string_to_number (name + 1, 16, &len)
-       : call2 (Qchar_from_name, make_unibyte_string (name, name_len), Qt));
+       : calln (Qchar_from_name, make_unibyte_string (name, name_len), Qt));
 
   if (! RANGED_FIXNUMP (0, code, MAX_UNICODE_CHAR)
       || len != name_len - 1
@@ -3572,7 +3569,7 @@ string_props_from_rev_list (Lisp_Object elems, Lisp_Object readcharfun)
 static Lisp_Object
 read_bool_vector (Lisp_Object readcharfun)
 {
-  ptrdiff_t length = 0;
+  EMACS_INT length = 0;
   for (;;)
     {
       int c = READCHAR;
@@ -3586,6 +3583,8 @@ read_bool_vector (Lisp_Object readcharfun)
 	  || ckd_add (&length, length, c - '0'))
 	invalid_syntax ("#&", readcharfun);
     }
+  if (BOOL_VECTOR_LENGTH_MAX < length)
+    invalid_syntax ("#&", readcharfun);
 
   ptrdiff_t size_in_chars = bool_vector_bytes (length);
   Lisp_Object str = read_string_literal (readcharfun);
@@ -3648,7 +3647,7 @@ skip_lazy_string (Lisp_Object readcharfun)
 	 and record where in the file it comes from.  */
 
       /* First exchange the two saved_strings.  */
-      verify (ARRAYELTS (saved_strings) == 2);
+      static_assert (ARRAYELTS (saved_strings) == 2);
       struct saved_string t = saved_strings[0];
       saved_strings[0] = saved_strings[1];
       saved_strings[1] = t;
@@ -3910,6 +3909,8 @@ read_stack_reset (intmax_t sp)
 
 #define READ_AND_BUFFER(c)			\
   c = READCHAR;					\
+  if (c < 0)					\
+    INVALID_SYNTAX_WITH_BUFFER ();		\
   if (multibyte)				\
     p += CHAR_STRING (c, (unsigned char *) p);	\
   else						\
@@ -5029,8 +5030,8 @@ it defaults to the value of `obarray'.  */)
     {
       if (longhand)
 	{
-	  tem = intern_driver (make_specified_string (longhand, longhand_chars,
-						      longhand_bytes, true),
+	  tem = intern_driver (make_multibyte_string (longhand, longhand_chars,
+						      longhand_bytes),
 			       obarray, tem);
 	  xfree (longhand);
 	}
@@ -5082,13 +5083,12 @@ it defaults to the value of `obarray'.  */)
     }
 }
 
-DEFUN ("unintern", Funintern, Sunintern, 1, 2, 0,
+DEFUN ("unintern", Funintern, Sunintern, 2, 2, 0,
        doc: /* Delete the symbol named NAME, if any, from OBARRAY.
 The value is t if a symbol was found and deleted, nil otherwise.
 NAME may be a string or a symbol.  If it is a symbol, that symbol
 is deleted, if it belongs to OBARRAY--no other symbol is deleted.
-OBARRAY, if nil, defaults to the value of the variable `obarray'.
-usage: (unintern NAME OBARRAY)  */)
+OBARRAY, if nil, defaults to the value of the variable `obarray'.  */)
   (Lisp_Object name, Lisp_Object obarray)
 {
   register Lisp_Object tem;
@@ -5398,7 +5398,7 @@ map_obarray (Lisp_Object obarray,
 static void
 mapatoms_1 (Lisp_Object sym, Lisp_Object function)
 {
-  call1 (function, sym);
+  calln (function, sym);
 }
 
 DEFUN ("mapatoms", Fmapatoms, Smapatoms, 1, 2, 0,

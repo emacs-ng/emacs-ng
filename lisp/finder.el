@@ -1,6 +1,6 @@
 ;;; finder.el --- topic & keyword-based code finder  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric S. Raymond <esr@thyrsus.com>
 ;; Created: 16 Jun 1992
@@ -71,8 +71,7 @@
     (text	. "editing text files")
     (tools	. "programming tools")
     (unix	. "UNIX feature interfaces and emulators")
-    (vc		. "version control")
-    (wp		. "use keyword `text' instead; this keyword is obsolete"))
+    (vc		. "version control"))
   "Association list of the standard \"Keywords:\" headers.
 Each element has the form (KEYWORD . DESCRIPTION).")
 

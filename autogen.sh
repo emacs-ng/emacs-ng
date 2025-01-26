@@ -1,7 +1,7 @@
 #!/bin/sh
 ### autogen.sh - tool to help build Emacs from a repository checkout
 
-## Copyright (C) 2011-2024 Free Software Foundation, Inc.
+## Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
@@ -115,7 +115,7 @@ do_check=true
 do_autoconf=false
 do_git=false
 
-for arg; do
+for arg in "$@"; do
     case $arg in
       --help)
 	exec echo "$0: usage: $0 [--no-check] [target...]

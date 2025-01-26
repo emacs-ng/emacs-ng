@@ -1,6 +1,6 @@
 ;;; wid-edit-tests.el --- tests for wid-edit.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -344,6 +344,23 @@ return nil, even with a non-nil bubblep argument."
     (should (string= "Third" (widget-value (widget-at))))
     (widget-forward 1)))  ; Should not signal beginning-of-buffer error.
 
+(ert-deftest widget-test-widget-move-bug72995 ()
+  "Test moving to a widget that starts at buffer position 2."
+  (with-temp-buffer
+    ;; The first tabable widget begins at position 2 (bug#72995).
+    (widget-insert " ")
+    (dolist (el '("First" "Second" "Third"))
+      (widget-create 'push-button el))
+    (widget-insert "\n")
+    (use-local-map widget-keymap)
+    (widget-setup)
+    ;; Make sure there is no tabable widget at BOB.
+    (goto-char (point-min))
+    (should-not (widget-tabable-at))
+    ;; Check that we can move to the first widget after BOB.
+    (widget-forward 1)
+    (should (widget-tabable-at))))
+
 (ert-deftest widget-test-color-match ()
   "Test that the :match function for the color widget works."
   (let ((widget (widget-convert 'color)))
@@ -396,5 +413,21 @@ return nil, even with a non-nil bubblep argument."
       (widget-backward 1)
       (delete-char 1)
       (should (string= (widget-value w) "")))))
+
+(ert-deftest widget-test-delete-field-overlays ()
+  "Test that we delete all the field's overlays when deleting it."
+  (with-temp-buffer
+    (let ((field (widget-create 'editable-field
+                                :format "%t: %v "
+                                :tag "Delete me"))
+          field-overlay field-end-overlay)
+      (widget-insert "\n")
+      (widget-setup)
+      (widget-backward 1)
+      (setq field-overlay (widget-get field :field-overlay))
+      (setq field-end-overlay (car (overlays-at (point))))
+      (widget-delete field)
+      (should-not (overlay-buffer field-overlay))
+      (should-not (overlay-buffer field-end-overlay)))))
 
 ;;; wid-edit-tests.el ends here

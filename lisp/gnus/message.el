@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -1520,24 +1520,24 @@ starting with `not' and followed by regexps."
 (defface message-header-to
   '((((class color)
       (background dark))
-     :foreground "DarkOliveGreen1" :bold t)
+     :foreground "DarkOliveGreen1" :weight bold)
     (((class color)
       (background light))
-     :foreground "MidnightBlue" :bold t)
+     :foreground "MidnightBlue" :weight bold)
     (t
-     :bold t :italic t))
+     :weight bold :slant italic))
   "Face used for displaying To headers."
   :group 'message-faces)
 
 (defface message-header-cc
   '((((class color)
       (background dark))
-     :foreground "chartreuse1" :bold t)
+     :foreground "chartreuse1" :weight bold)
     (((class color)
       (background light))
      :foreground "MidnightBlue")
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying Cc headers."
   :group 'message-faces)
 
@@ -1547,21 +1547,21 @@ starting with `not' and followed by regexps."
      :foreground "OliveDrab1")
     (((class color)
       (background light))
-     :foreground "navy blue" :bold t)
+     :foreground "navy blue" :weight bold)
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying Subject headers."
   :group 'message-faces)
 
 (defface message-header-newsgroups
   '((((class color)
       (background dark))
-     :foreground "yellow" :bold t :italic t)
+     :foreground "yellow" :weight bold :slant italic)
     (((class color)
       (background light))
-     :foreground "blue4" :bold t :italic t)
+     :foreground "blue4" :weight bold :slant italic)
     (t
-     :bold t :italic t))
+     :weight bold :slant italic))
   "Face used for displaying Newsgroups headers."
   :group 'message-faces)
 
@@ -1573,7 +1573,7 @@ starting with `not' and followed by regexps."
       (background light))
      :foreground "steel blue")
     (t
-     :bold t :italic t))
+     :weight bold :slant italic))
   "Face used for displaying other headers."
   :group 'message-faces)
 
@@ -1585,7 +1585,7 @@ starting with `not' and followed by regexps."
       (background light))
      :foreground "cornflower blue")
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying header names."
   :group 'message-faces)
 
@@ -1597,7 +1597,7 @@ starting with `not' and followed by regexps."
       (background light))
      :foreground "blue")
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying X-Header headers."
   :group 'message-faces)
 
@@ -1609,7 +1609,7 @@ starting with `not' and followed by regexps."
       (background light))
      :foreground "brown")
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying the separator."
   :group 'message-faces)
 
@@ -1621,7 +1621,7 @@ starting with `not' and followed by regexps."
       (background light))
      (:foreground "red1"))
     (t
-     (:bold t)))
+     (:weight bold)))
   "Face used for displaying 1st-level cited text."
   :group 'message-faces)
 
@@ -1633,7 +1633,7 @@ starting with `not' and followed by regexps."
       (background light))
      (:foreground "red4"))
     (t
-     (:bold t)))
+     (:weight bold)))
   "Face used for displaying 2nd-level cited text."
   :group 'message-faces)
 
@@ -1645,7 +1645,7 @@ starting with `not' and followed by regexps."
       (background light))
      (:foreground "OliveDrab4"))
     (t
-     (:bold t)))
+     (:weight bold)))
   "Face used for displaying 3rd-level cited text."
   :group 'message-faces)
 
@@ -1657,7 +1657,7 @@ starting with `not' and followed by regexps."
       (background light))
      (:foreground "SteelBlue4"))
     (t
-     (:bold t)))
+     (:weight bold)))
   "Face used for displaying 4th-level cited text."
   :group 'message-faces)
 
@@ -1673,11 +1673,11 @@ starting with `not' and followed by regexps."
       (background light))
      :foreground "ForestGreen")
     (t
-     :bold t))
+     :weight bold))
   "Face used for displaying MML."
   :group 'message-faces)
 
-(defface message-signature-separator '((t :bold t))
+(defface message-signature-separator '((t :weight bold))
   "Face used for displaying the signature separator."
   :group 'message-faces
   :version "28.1")
@@ -3253,79 +3253,79 @@ Like `text-mode', but with these additional commands:
 ;;; Movement commands
 
 (defun message-goto-to ()
-  "Move point to the To header."
+  "Move point to the To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "To"))
 
 (defun message-goto-from ()
-  "Move point to the From header."
+  "Move point to the From header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "From"))
 
 (defun message-goto-subject ()
-  "Move point to the Subject header."
+  "Move point to the Subject header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Subject"))
 
 (defun message-goto-cc ()
-  "Move point to the Cc header."
+  "Move point to the Cc header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Cc" "To"))
 
 (defun message-goto-bcc ()
-  "Move point to the Bcc  header."
+  "Move point to the Bcc  header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Bcc" "Cc" "To"))
 
 (defun message-goto-fcc ()
-  "Move point to the Fcc header."
+  "Move point to the Fcc header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Fcc" "To" "Newsgroups"))
 
 (defun message-goto-reply-to ()
-  "Move point to the Reply-To header."
+  "Move point to the Reply-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Reply-To" "Subject"))
 
 (defun message-goto-newsgroups ()
-  "Move point to the Newsgroups header."
+  "Move point to the Newsgroups header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Newsgroups"))
 
 (defun message-goto-distribution ()
-  "Move point to the Distribution header."
+  "Move point to the Distribution header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Distribution"))
 
 (defun message-goto-followup-to ()
-  "Move point to the Followup-To header."
+  "Move point to the Followup-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Followup-To" "Newsgroups"))
 
 (defun message-goto-mail-followup-to ()
-  "Move point to the Mail-Followup-To header."
+  "Move point to the Mail-Followup-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Mail-Followup-To" "To"))
 
 (defun message-goto-keywords ()
-  "Move point to the Keywords header."
+  "Move point to the Keywords header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Keywords" "Subject"))
 
 (defun message-goto-summary ()
-  "Move point to the Summary header."
+  "Move point to the Summary header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Summary" "Subject"))
@@ -4249,6 +4249,10 @@ This function strips off the signature from the original message."
     (newline)))
 
 (defun message-position-on-field (header &rest afters)
+  "Move point to header HEADER or insert it if not found.
+
+If HEADER is not present, insert it with an empty value, after any
+headers specified in AFTERS."
   (let ((case-fold-search t))
     (save-restriction
       (narrow-to-region
@@ -4900,7 +4904,7 @@ If you always want Gnus to send messages in one piece, set
 		 message-required-mail-headers))
 	;; otherwise, delete the MFT header if the field is empty
 	(when (equal "" (mail-fetch-field "mail-followup-to"))
-	  (message-remove-header "^Mail-Followup-To:")))
+	  (message-remove-header "Mail-Followup-To")))
       ;; Insert some headers.
       (let ((message-deletable-headers
 	     (if news nil message-deletable-headers)))
@@ -4934,8 +4938,8 @@ If you always want Gnus to send messages in one piece, set
               (let ((addr (message-fetch-field hdr)))
 	        (when (stringp addr)
 	          (dolist (address (mail-header-parse-addresses addr t))
-	            (when-let ((warning (textsec-suspicious-p
-                                         address 'email-address-header)))
+	            (when-let* ((warning (textsec-suspicious-p
+                                          address 'email-address-header)))
 	              (unless (y-or-n-p
 		               (format "Suspicious address: %s; send anyway?"
                                        warning))
@@ -6605,8 +6609,7 @@ they are."
   (sit-for 0))
 
 (defcustom message-beginning-of-line t
-  "Whether \\<message-mode-map>\\[message-beginning-of-line]\
- goes to beginning of header values."
+  "Whether \\<message-mode-map>\\[message-beginning-of-line] goes to beginning of header values."
   :version "22.1"
   :group 'message-buffers
   :link '(custom-manual "(message)Movement")
@@ -6668,7 +6671,7 @@ beginning of line.
 When called without a prefix argument, header value spanning
 multiple lines is treated as a single line.  Otherwise, even if
 N is 1, when point is on a continuation header line, it will be
-moved to the beginning "
+moved to the beginning."
   (interactive "^p" message-mode)
   (cond
    ;; Go to beginning of header or beginning of line.
@@ -8613,7 +8616,6 @@ From headers in the original article."
   (let ((regexps (if (stringp message-hidden-headers)
 		     (list message-hidden-headers)
 		   message-hidden-headers))
-	(inhibit-modification-hooks t)
 	end-of-headers)
     (when regexps
       (save-excursion

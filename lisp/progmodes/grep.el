@@ -1,6 +1,6 @@
 ;;; grep.el --- run `grep' and display the results  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2024 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
@@ -297,22 +297,22 @@ See `compilation-error-screen-columns'."
   "List of hook functions run by `grep-process-setup' (see `run-hooks')."
   :type 'hook)
 
-(defvar grep-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map compilation-minor-mode-map)
-    (define-key map " " #'scroll-up-command)
-    (define-key map [?\S-\ ] #'scroll-down-command)
-    (define-key map "\^?" #'scroll-down-command)
-    (define-key map "\C-c\C-f" #'next-error-follow-minor-mode)
+(defvar-keymap grep-mode-map
+  :doc "Keymap for grep buffers.
+This keymap inherits from `compilation-minor-mode-map'."
+  :parent compilation-minor-mode-map
+  "SPC"       #'scroll-up-command
+  "S-SPC"     #'scroll-down-command
+  "DEL"       #'scroll-down-command
+  "C-c C-f"   #'next-error-follow-minor-mode
 
-    (define-key map "\r" #'compile-goto-error)  ;; ?
-    (define-key map "{" #'compilation-previous-file)
-    (define-key map "}" #'compilation-next-file)
-    (define-key map "\t" #'compilation-next-error)
-    (define-key map [backtab] #'compilation-previous-error)
-    map)
-  "Keymap for grep buffers.
-`compilation-minor-mode-map' is a cdr of this.")
+  "RET"       #'compile-goto-error
+  "{"         #'compilation-previous-file
+  "}"         #'compilation-next-file
+  "TAB"       #'compilation-next-error
+  "<backtab>" #'compilation-previous-error
+
+  "e"         #'grep-change-to-grep-edit-mode)
 
 (easy-menu-define grep-menu-map grep-mode-map
   "Menu for grep buffers."
@@ -827,15 +827,23 @@ The value depends on `grep-command', `grep-template',
 	(unless grep-find-use-xargs
 	  (setq grep-find-use-xargs
 		(cond
-		 ((grep-probe find-program
-			      `(nil nil nil ,(null-device) "-exec" "echo"
-				    "{}" "+"))
-		  'exec-plus)
+                 ;; For performance, we want:
+                 ;; A. Run grep on batches of files (instead of one grep per file)
+                 ;; B. If the directory is large and we need multiple batches,
+                 ;;    run find in parallel with a running grep.
+                 ;; "find | xargs grep" gives both A and B
 		 ((and
+                   (not (eq system-type 'windows-nt))
 		   (grep-probe
                     find-program `(nil nil nil ,(null-device) "-print0"))
 		   (grep-probe xargs-program '(nil nil nil "-0" "echo")))
 		  'gnu)
+                 ;; "find -exec {} +" gives A but not B
+		 ((grep-probe find-program
+			      `(nil nil nil ,(null-device) "-exec" "echo"
+				    "{}" "+"))
+		  'exec-plus)
+                 ;; "find -exec {} ;" gives neither A nor B.
 		 (t
 		  'exec))))
 	(unless grep-find-command
@@ -1044,6 +1052,89 @@ list is empty)."
 		       command-args)
 		     #'grep-mode))
 
+(defun grep-edit--prepare-buffer ()
+  "Mark relevant regions read-only, and add relevant occur text-properties."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((inhibit-read-only t)
+          (dummy (make-marker))
+          match)
+      (while (setq match (text-property-search-forward 'compilation-annotation))
+        (add-text-properties (prop-match-beginning match) (prop-match-end match)
+                             '(read-only t)))
+      (goto-char (point-min))
+      (while (setq match (text-property-search-forward 'compilation-message))
+        (add-text-properties (prop-match-beginning match) (prop-match-end match)
+                             '(read-only t occur-prefix t))
+        (let ((loc (compilation--message->loc (prop-match-value match)))
+              m)
+          ;; Update the markers if necessary.
+          (unless (and (compilation--loc->marker loc)
+                       (marker-buffer (compilation--loc->marker loc)))
+            (compilation--update-markers loc dummy compilation-error-screen-columns compilation-first-column))
+          (setq m (compilation--loc->marker loc))
+          (add-text-properties (prop-match-beginning match)
+                               (or (next-single-property-change
+                                    (prop-match-end match)
+                                    'compilation-message)
+                                   (1+ (pos-eol)))
+                               `(occur-target ((,m . ,m)))))))))
+
+(defvar-keymap grep-edit-mode-map
+  :doc "Keymap for `grep-edit-mode'."
+  :parent text-mode-map
+  "C-c C-c" #'grep-edit-save-changes)
+
+(defvar grep-edit-mode-hook nil
+  "Hooks run when changing to Grep-Edit mode.")
+
+(defun grep-edit-mode ()
+  "Major mode for editing *grep* buffers.
+In this mode, changes to the *grep* buffer are applied to the
+originating files.
+\\<grep-edit-mode-map>
+Type \\[grep-edit-save-changes] to exit Grep-Edit mode, return to Grep
+mode.
+
+The only editable texts in a Grep-Edit buffer are the match results."
+  (interactive)
+  (error "This mode can be enabled only by `grep-change-to-grep-edit-mode'"))
+(put 'grep-edit-mode 'mode-class 'special)
+
+(defun grep-change-to-grep-edit-mode ()
+  "Switch to `grep-edit-mode' to edit *grep* buffer."
+  (interactive)
+  (unless (derived-mode-p 'grep-mode)
+    (error "Not a Grep buffer"))
+  (when (get-buffer-process (current-buffer))
+    (error "Cannot switch when grep is running"))
+  (use-local-map grep-edit-mode-map)
+  (grep-edit--prepare-buffer)
+  (setq buffer-read-only nil)
+  (setq major-mode 'grep-edit-mode)
+  (setq mode-name "Grep-Edit")
+  (buffer-enable-undo)
+  (set-buffer-modified-p nil)
+  (setq buffer-undo-list nil)
+  (add-hook 'after-change-functions #'occur-after-change-function nil t)
+  (run-mode-hooks 'grep-edit-mode-hook)
+  (message (substitute-command-keys
+            "Editing: Type \\[grep-edit-save-changes] to return to Grep mode")))
+
+(defun grep-edit-save-changes ()
+  "Switch back to Grep mode."
+  (interactive)
+  (unless (derived-mode-p 'grep-edit-mode)
+    (error "Not a Grep-Edit buffer"))
+  (remove-hook 'after-change-functions #'occur-after-change-function t)
+  (use-local-map grep-mode-map)
+  (setq buffer-read-only t)
+  (setq major-mode 'grep-mode)
+  (setq mode-name "Grep")
+  (force-mode-line-update)
+  (buffer-disable-undo)
+  (setq buffer-undo-list t)
+  (message "Switching to Grep mode"))
 
 ;;;###autoload
 (defun grep-find (command-args)
@@ -1181,9 +1272,7 @@ REGEXP is used as a string in the prompt."
          (files (completing-read
                  (format-prompt "Search for \"%s\" in files matching wildcard"
                                 default regexp)
-                 (completion-table-merge
-                  (lambda (_string _pred _action) defaults)
-                  #'read-file-name-internal)
+                 (completion-table-merge defaults #'completion-file-name-table)
 		 nil nil nil 'grep-files-history defaults)))
     (and files
 	 (or (cdr (assoc files grep-files-aliases))
@@ -1264,7 +1353,7 @@ command before it's run."
 		       regexp
 		       files
 		       nil
-                       (when-let ((ignores (grep-find-ignored-files dir)))
+                       (when-let* ((ignores (grep-find-ignored-files dir)))
 			 (concat " --exclude="
 				 (mapconcat
                                   (lambda (ignore)
@@ -1381,7 +1470,7 @@ to indicate whether the grep should be case sensitive or not."
   "Compute the command for \\[rgrep] to use by default."
   (require 'find-dired)                 ; for `find-name-arg'
   (let ((ignored-files-arg
-         (when-let ((ignored-files (grep-find-ignored-files dir)))
+         (when-let* ((ignored-files (grep-find-ignored-files dir)))
            (concat (shell-quote-argument "(" grep-quoting-style)
                    ;; we should use shell-quote-argument here
                    " -name "
@@ -1405,7 +1494,7 @@ to indicate whether the grep should be case sensitive or not."
                (concat " " (shell-quote-argument "!" grep-quoting-style) " " ignored-files-arg)))
      dir
      (concat
-      (when-let ((ignored-dirs (rgrep-find-ignored-directories dir)))
+      (when-let* ((ignored-dirs (rgrep-find-ignored-directories dir)))
         (concat "-type d "
                 (shell-quote-argument "(" grep-quoting-style)
                 ;; we should use shell-quote-argument here
@@ -1485,8 +1574,8 @@ command before it's run."
 (defun grep-file-at-point (point)
   "Return the name of the file at POINT a `grep-mode' buffer.
 The returned file name is relative."
-  (when-let ((msg (get-text-property point 'compilation-message))
-             (loc (compilation--message->loc msg)))
+  (when-let* ((msg (get-text-property point 'compilation-message))
+              (loc (compilation--message->loc msg)))
     (caar (compilation--loc->file-struct loc))))
 
 ;;;###autoload

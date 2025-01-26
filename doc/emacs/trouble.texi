@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @iftex
@@ -549,6 +549,13 @@ you in doing so.  Submitting a bug report starts the process of
 investigating and fixing the bug, where you will receive copies of
 email messages discussing the bug, in which we might ask you to
 provide more information, test possible fixes, etc.
+
+@cindex security, reporting issues
+@item
+If you think you may have found a security issue that needs to be
+communicated privately, please contact the GNU Emacs maintainers
+directly.  See the file @file{admin/MAINTAINERS} in the Emacs
+distribution for their contact details.
 
 @item
 Finally, if you want to propose specific changes to Emacs, whether to
@@ -1248,7 +1255,7 @@ Send them @emph{individually}.
 
 If you make two changes for separate reasons, then we might not want
 to install them both.  We might want to install just one, or install
-each one in a different versions of Emacs.  If you send them all
+them separately in different versions of Emacs.  If you send them all
 jumbled together in a single set of diffs, we have to do extra work to
 disentangle them---to figure out which parts of the change serve which
 purpose.  If we don't have time for this, we might have to postpone
@@ -1488,7 +1495,7 @@ the Emacs Lisp Reference Manual
 @cindex coding standards for Emacs submissions
 
 Contributed code should follow the GNU Coding Standards
-@url{https://www.gnu.org/prep/standards/}. This may also be available
+@url{https://www.gnu.org/prep/standards/}.  This may also be available
 in info on your system.
 
 If it doesn't, we'll need to find someone to fix the code before we

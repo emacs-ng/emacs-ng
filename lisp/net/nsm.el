@@ -1,6 +1,6 @@
 ;;; nsm.el --- Network Security Manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: encryption, security, network
@@ -65,10 +65,10 @@ checked and warned against."
 
 The default suite of TLS checks in NSM is designed to follow the
 most current security best practices.  Under some situations,
-such as attempting to connect to an email server that do not
+such as attempting to connect to an email server that does not
 follow these practices inside a school or corporate network, NSM
 may produce warnings for such occasions.  Setting this option to
-a non-nil value, or a zero-argument function that returns non-nil
+a non-nil value, or a zero-argument function that returns non-nil,
 tells NSM to skip checking for potential TLS vulnerabilities when
 connecting to hosts on a local network.
 
@@ -100,21 +100,20 @@ This means that no queries should be performed.")
 (defun nsm-verify-connection (process host port &optional
 				      save-fingerprint warn-unencrypted)
   "Verify the security status of PROCESS that's connected to HOST:PORT.
-If PROCESS is a gnutls connection, the certificate validity will
-be examined.  If it's a non-TLS connection, it may be compared
-against previous connections.  If the function determines that
-there is something odd about the connection, the user will be
-queried about what to do about it.
+If PROCESS is a GnuTLS connection, the certificate validity will be
+examined.  If it's a non-TLS connection, it may be compared against
+previous connections.  If the function determines that there is
+something odd about the connection, the user will be queried about what
+to do about it.
 
-The process is returned if everything is OK, and otherwise, the
-process will be deleted and nil is returned.
+Return the process if all the checks pass.  Otherwise, delete the
+process and return nil.
 
-If SAVE-FINGERPRINT, always save the fingerprint of the
-server (if the connection is a TLS connection).  This is useful
-to keep track of the TLS status of STARTTLS servers.
+If SAVE-FINGERPRINT, always save the fingerprint of the server (if the
+connection is a TLS connection).  This is useful to keep track of the
+TLS status of STARTTLS servers.
 
-If WARN-UNENCRYPTED, query the user if the connection is
-unencrypted."
+If WARN-UNENCRYPTED, query the user if the connection is unencrypted."
   (let* ((status (gnutls-peer-status process))
          (id (nsm-id host port))
          (settings (nsm-host-settings id)))
@@ -152,20 +151,19 @@ unencrypted."
     ;; Deprecated by NIST from 2016/2023 (see also CVE-2016-2183).
     (3des-cipher            medium)
     ;; Towards TLS 1.3
-    (dhe-kx                 high)
-    (rsa-kx                 high)
+    (dhe-kx                 medium)
+    (rsa-kx                 medium)
     (cbc-cipher             high))
-  "This variable specifies what TLS connection checks to perform.
-It's an alist where the key is the name of the check, and the
-value is the minimum security level the check should begin.
+  "Alist of TLS connection checks to perform.
+The key is the name of the check, and the value is the minimum security
+level the check should begin.
 
-Each check function is called with the parameters HOST PORT
-STATUS SETTINGS.  HOST is the host domain, PORT is a TCP port
-number, STATUS is the peer status returned by
-`gnutls-peer-status', and SETTINGS is the persistent and session
-settings for the host HOST.  Please refer to the contents of
-`nsm-settings-file' for details.  If a problem is found, the check
-function is required to return an error message, and nil
+Each check function is called with the parameters HOST PORT STATUS
+SETTINGS.  HOST is the host domain, PORT is a TCP port number, STATUS is
+the peer status returned by `gnutls-peer-status', and SETTINGS is the
+persistent and session settings for the host HOST.  Please refer to the
+contents of `nsm-settings-file' for details.  If a problem is found, the
+check function is required to return an error message, and nil
 otherwise.
 
 See also: `nsm-check-tls-connection', `nsm-save-host-names',
@@ -176,7 +174,7 @@ See also: `nsm-check-tls-connection', `nsm-save-host-names',
                                (const :tag "Low" low)
                                (const :tag "Medium" medium)
                                (const :tag "High" high))))
-  :version "30.1")
+  :version "31.1")
 
 (defun nsm-save-fingerprint-maybe (host port status &rest _)
   "Save the certificate's fingerprint.
@@ -227,27 +225,18 @@ If `nsm-trust-local-network' is or returns non-nil, and if the
 host address is a localhost address, or in the same subnet as one
 of the local interfaces, this function returns nil.  Non-nil
 otherwise."
-  (let ((addresses (network-lookup-address-info host))
-        (network-interface-list (network-interface-list t))
-        (off-net t))
-    (when
-     (or (and (functionp nsm-trust-local-network)
-              (funcall nsm-trust-local-network))
-         nsm-trust-local-network)
-     (mapc
-      (lambda (ip)
-        (mapc
-         (lambda (info)
-           (let ((local-ip (nth 1 info))
-                 (mask (nth 3 info)))
-             (when
-                 (nsm-network-same-subnet (substring local-ip 0 -1)
-                                          (substring mask 0 -1)
-                                          (substring ip 0 -1))
-               (setq off-net nil))))
-         network-interface-list))
-      addresses))
-     off-net))
+  (not (and-let* (((or (and (functionp nsm-trust-local-network)
+                            (funcall nsm-trust-local-network))
+                       nsm-trust-local-network))
+                  (addresses (network-lookup-address-info host))
+                  (network-interface-list (network-interface-list t)))
+         (catch 'nsm-should-check
+           (dolist (ip addresses)
+             (dolist (info network-interface-list)
+               (when (nsm-network-same-subnet (substring (nth 1 info) 0 -1)
+                                              (substring (nth 3 info) 0 -1)
+                                              (substring ip 0 -1))
+                 (throw 'nsm-should-check t))))))))
 
 (defun nsm-check-tls-connection (process host port status settings)
   "Check TLS connection against potential security problems.
@@ -360,18 +349,30 @@ private key had been compromised, the attacker will be able to
 decrypt any past TLS session recorded, as opposed to just one TLS
 session if the key exchange was conducted via a key exchange
 method that offers perfect forward secrecy, such as ephemeral
-Diffie-Hellman key exchange.
+Diffie-Hellman key exchange[1].
 
-By default, this check is only enabled when
-`network-security-level' is set to `high' for compatibility
-reasons.
+There is a long history of attacks against static RSA key exchange in
+TLS, dating back to Bleichenbacher's attack in 1998, and mitigations
+that have subsequently themselves been broken.  In 2017, it was
+discovered that an attacker can decrypt ciphertexts or sign messages
+with the server's private key[2].  The poor security of this key
+exchange protocol was confirmed by new attacks discovered in 2018[3].
+RSA key exchange has been removed in TLS 1.3 (RFC 8446)[4].
 
 Reference:
 
-Sheffer, Holz, Saint-Andre (May 2015).  \"Recommendations for Secure
-Use of Transport Layer Security (TLS) and Datagram Transport Layer
-Security (DTLS)\", \"(4.1.  General Guidelines)\"
-`https://tools.ietf.org/html/rfc7525#section-4.1'"
+[1]: Sheffer, Holz, Saint-Andre (May 2015).  \"Recommendations for
+Secure Use of Transport Layer Security (TLS) and Datagram Transport
+Layer Security (DTLS)\", \"(4.1.  General Guidelines)\"
+`https://tools.ietf.org/html/rfc7525#section-4.1'
+[2]: Böck, Somorovsky, Young (August 2018).  \"Return Of
+Bleichenbacher’s Oracle Threat (ROBOT)\",
+`https://www.usenix.org/system/files/conference/usenixsecurity18/sec18-bock.pdf'
+[3]: Ronen, Gillham, Genkin, Shamir, Wong, and Yarom (2018).  \"The 9
+Lives of Bleichenbacher’s CAT: New Cache ATtacks on TLS
+Implementations.\", `https://eprint.iacr.org/2018/1173.pdf'
+[4]: Rescorla (2018).  \"The Transport Layer Security (TLS) Protocol
+Version 1.3\", `https://tools.ietf.org/html/rfc8446'"
   (let ((kx (plist-get status :key-exchange)))
     (and (string-match "^\\bRSA\\b" kx)
          (format-message
@@ -411,13 +412,17 @@ Diffie-Hellman Fails in Practice\", `https://weakdh.org/'
 (defun nsm-protocol-check--dhe-kx (_host _port status &optional _settings)
   "Check for existence of DH key exchange based on integer factorization.
 
-In the years since the discovery of Logjam, it was discovered
-that there were rampant use of small subgroup prime or composite
-number for DHE by many servers, and thus allowed themselves to be
-vulnerable to backdoors[1].  Given the difficulty in validating
-Diffie-Hellman parameters, major browser vendors had started to
-remove DHE since 2016[2].  Emacs stops short of banning DHE and
-terminating connection, but prompts the user instead.
+In the years since the discovery of Logjam, it was discovered that there
+were rampant use of small subgroup prime or composite number for DHE by
+many servers, and thus allowed themselves to be vulnerable to
+backdoors[1].  Given the difficulty in validating Diffie-Hellman
+parameters, major browser vendors had started to remove DHE since
+2016[2].  In 2020, the so-called Racoon Attack was discovered, a
+server-side vulnerability that exploits a side-channel to get the shared
+secret key[3].
+
+Emacs stops short of banning DHE and terminating the connection, but
+prompts the user instead.
 
 References:
 
@@ -425,7 +430,11 @@ References:
 Diffie-Hellman Backdoors in TLS.\",
 `https://eprint.iacr.org/2016/999.pdf'
 [2]: Chrome Platform Status (2017).  \"Remove DHE-based ciphers\",
-`https://www.chromestatus.com/feature/5128908798164992'"
+`https://www.chromestatus.com/feature/5128908798164992'
+[3]: Merget, Brinkmann, Aviram, Somorovsky, Mittmann, and
+Schwenk (2020).  \"Raccoon Attack: Finding and Exploiting
+Most-Significant-Bit-Oracles in TLS-DH(E)\"
+`https://raccoon-attack.com/RacoonAttack.pdf'"
   (let ((kx (plist-get status :key-exchange)))
     (when (string-match "^\\bDHE\\b" kx)
       (format-message
@@ -703,9 +712,10 @@ Security (DTLS)\", `https://tools.ietf.org/html/rfc7525'"
 (defun nsm-protocol-check--version (_host _port status &optional _settings)
   "Check for SSL/TLS protocol version.
 
-This function guards against the usage of SSL3.0, which has been
-deprecated by RFC7568[1], and TLS 1.0, which has been deprecated
-by PCI DSS[2].
+This function guards against the usage of SSL3.0, TLS 1.0, and TLS 1.1.
+- SSL 3.0 has been deprecated by RFC7568[1].
+- TLS 1.0 has been deprecated by PCI DSS[2], and later by RFC8996[3].
+- TLS 1.1 has been deprecated by RFC8996[3].
 
 References:
 
@@ -713,12 +723,15 @@ References:
 Sockets Layer Version 3.0\", `https://tools.ietf.org/html/rfc7568'
 [2]: PCI Security Standards Council (2016).  \"Migrating from SSL and
 Early TLS\"
-`https://www.pcisecuritystandards.org/documents/Migrating-from-SSL-Early-TLS-Info-Supp-v1_1.pdf'"
+`https://docs-prv.pcisecuritystandards.org/Guidance%20Document/SSL%20TLS/Migrating_from_SSL_and_Early_TLS_-v12.pdf'
+[3]: Moriarty, Farrell (2021).  \"Deprecating TLS 1.0 and TLS 1.1\"
+`https://tools.ietf.org/html/rfc7568'
+"
   (let ((protocol (plist-get status :protocol)))
     (and protocol
          (or (string-match "SSL" protocol)
              (and (string-match "TLS1.\\([0-9]+\\)" protocol)
-                  (< (string-to-number (match-string 1 protocol)) 1)))
+                  (< (string-to-number (match-string 1 protocol)) 2)))
          (format-message
           "%s protocol is deprecated by standard bodies"
           protocol))))

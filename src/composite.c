@@ -1,5 +1,5 @@
 /* Composite sequence support.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H14PRO021
@@ -475,7 +475,7 @@ run_composition_function (ptrdiff_t from, ptrdiff_t to, Lisp_Object prop)
       && !composition_valid_p (start, end, prop))
     to = end;
   if (!NILP (Ffboundp (func)))
-    call2 (func, make_fixnum (from), make_fixnum (to));
+    calln (func, make_fixnum (from), make_fixnum (to));
 }
 
 /* Make invalid compositions adjacent to or inside FROM and TO valid.
@@ -1676,7 +1676,7 @@ find_automatic_composition (ptrdiff_t pos, ptrdiff_t limit, ptrdiff_t backlim,
     }
   else
     {
-      head = backlim < 0 ? 0 : backlim, tail = SCHARS (string), stop = -1;
+      head = max (backlim, 0), tail = SCHARS (string), stop = -1;
       cur.pos_byte = string_char_to_byte (string, cur.pos);
       cur.p = SDATA (string) + cur.pos_byte;
     }

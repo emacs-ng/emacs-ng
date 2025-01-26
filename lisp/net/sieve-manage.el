@@ -1,6 +1,6 @@
 ;;; sieve-manage.el --- Implementation of the managesieve protocol in elisp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;;         Albert Krewinkel <tarleb@moltkeplatz.de>
@@ -178,7 +178,8 @@ If it is nil, logging is disabled."
                              (with-current-buffer
                                  (get-buffer-create sieve-manage-log)
                                (set-buffer-multibyte nil)
-                               (buffer-disable-undo)))
+                               (buffer-disable-undo)
+                               (current-buffer)))
       (goto-char (point-max))
       (apply #'insert args))))
 

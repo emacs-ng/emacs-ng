@@ -1,6 +1,6 @@
 ;;; vhdl-mode.el --- major mode for editing VHDL code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Authors:     Reto Zimmermann <reto@gnu.org>
 ;;              Rodney J. Whitby <software.vhdl-mode@rwhitby.net>
@@ -2338,10 +2338,13 @@ Ignore byte-compiler warnings you might see."
 
 (defun vhdl-run-when-idle (secs repeat function)
   "Wait until idle, then run FUNCTION."
-  (if (fboundp 'start-itimer)
+  (if (fboundp 'start-itimer) ;;XEmacs
       (start-itimer "vhdl-mode" function secs repeat t)
     ;; explicitly activate timer (necessary when Emacs is already idle)
-    (aset (run-with-idle-timer secs repeat function) 0 nil)))
+    (let ((timer (run-with-idle-timer secs repeat function)))
+      ;; `run-with-idle-timer' already sets the `triggered' flag to nil,
+      ;; at least since Emacs-24.
+      (if (< emacs-major-version 24) (aset timer 0 nil)))))
 
 (defun vhdl-warning-when-idle (&rest args)
   "Wait until idle, then print out warning STRING and beep."
@@ -13582,9 +13585,9 @@ This does background highlighting of translate-off regions.")
 
 (defface vhdl-font-lock-prompt-face
   '((((min-colors 88) (class color) (background light))
-     (:foreground "Red1" :bold t))
-    (((class color) (background light)) (:foreground "Red" :bold t))
-    (((class color) (background dark)) (:foreground "Pink" :bold t))
+     (:foreground "Red1" :weight bold))
+    (((class color) (background light)) (:foreground "Red" :weight bold))
+    (((class color) (background dark)) (:foreground "Pink" :weight bold))
     (t (:inverse-video t)))
   "Font lock mode face used to highlight prompts."
   :group 'vhdl-highlight-faces)
@@ -13592,36 +13595,36 @@ This does background highlighting of translate-off regions.")
 (defface vhdl-font-lock-attribute-face
   '((((class color) (background light)) (:foreground "Orchid"))
     (((class color) (background dark)) (:foreground "LightSteelBlue"))
-    (t (:italic t :bold t)))
+    (t (:slant italic :weight bold)))
   "Font lock mode face used to highlight standardized attributes."
   :group 'vhdl-highlight-faces)
 
 (defface vhdl-font-lock-enumvalue-face
   '((((class color) (background light)) (:foreground "SaddleBrown"))
     (((class color) (background dark)) (:foreground "BurlyWood"))
-    (t (:italic t :bold t)))
+    (t (:slant italic :weight bold)))
   "Font lock mode face used to highlight standardized enumeration values."
   :group 'vhdl-highlight-faces)
 
 (defface vhdl-font-lock-function-face
   '((((class color) (background light)) (:foreground "Cyan4"))
     (((class color) (background dark)) (:foreground "Orchid1"))
-    (t (:italic t :bold t)))
+    (t (:slant italic :weight bold)))
   "Font lock mode face used to highlight standardized functions and packages."
   :group 'vhdl-highlight-faces)
 
 (defface vhdl-font-lock-directive-face
   '((((class color) (background light)) (:foreground "CadetBlue"))
     (((class color) (background dark)) (:foreground "Aquamarine"))
-    (t (:italic t :bold t)))
+    (t (:slant italic :weight bold)))
   "Font lock mode face used to highlight directives."
   :group 'vhdl-highlight-faces)
 
 (defface vhdl-font-lock-reserved-words-face
-  '((((class color) (background light)) (:foreground "Orange" :bold t))
+  '((((class color) (background light)) (:foreground "Orange" :weight bold))
     (((min-colors 88) (class color) (background dark))
-     (:foreground "Yellow1" :bold t))
-    (((class color) (background dark)) (:foreground "Yellow" :bold t))
+     (:foreground "Yellow1" :weight bold))
+    (((class color) (background dark)) (:foreground "Yellow" :weight bold))
     (t ()))
   "Font lock mode face used to highlight additional reserved words."
   :group 'vhdl-highlight-faces)

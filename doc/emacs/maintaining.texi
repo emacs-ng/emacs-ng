@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual., Abbrevs, This is part of the Emacs manual., Top
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Maintaining
@@ -1829,7 +1829,7 @@ the current project.
 @item C-x p r
 Perform query-replace for a regexp in all files that belong to the
 current project (@code{project-query-replace-regexp}).
-@item C-x p d
+@item C-x p D
 Run Dired in the current project's root directory
 (@code{project-dired}).
 @item C-x p v
@@ -1850,6 +1850,9 @@ Run shell command in the current project's root directory
 @item C-x p &
 Run shell command asynchronously in the current project's root
 directory (@code{project-async-shell-command}).
+@item C-x p o
+Run the next command in the current project
+(@code{project-any-command}).
 @end table
 
   Emacs provides commands for handling project files conveniently.
@@ -1946,6 +1949,11 @@ directory.  @xref{Top,Eshell,Eshell, eshell, Eshell: The Emacs Shell}.
   The command @kbd{C-x p &} (@code{project-async-shell-command}) runs
 @code{async-shell-command} in the current project's root directory.
 
+@findex project-any-command
+  Finally, the command @kbd{C-x p o} (@code{project-any-command}) will
+run the next command you type, whether related to files or not, in the
+current project.
+
 @node Project Buffer Commands
 @subsection Project Commands That Operate on Buffers
 
@@ -1958,6 +1966,9 @@ List the project buffers (@code{project-list-buffers}).
 @item C-x p k
 Kill all live buffers that belong to the current project
 (@code{project-kill-buffers}).
+@item C-x p o
+Run the next command in the current project
+(@code{project-any-command}).
 @end table
 
 @findex project-switch-to-buffer
@@ -1985,6 +1996,10 @@ accomplishes that: it kills all the buffers that belong to the current
 project that satisfy any of @code{project-kill-buffer-conditions}.  If
 @code{project-kill-buffers-display-buffer-list} is non-@code{nil}, the
 buffers to be killed will be displayed first.
+
+  Finally, the command @kbd{C-x p o} (@code{project-any-command}) will
+run the next command you type, whether related to buffers or not, in the
+current project.
 
 @node Switching Projects
 @subsection Switching Projects
@@ -2169,7 +2184,7 @@ between them.
 end of the change log file.  Here is an example:
 
 @smallexample
-Copyright 1997, 1998 Free Software Foundation, Inc.
+Copyright 1997--1998, 2025 Free Software Foundation, Inc.
 Copying and distribution of this file, with or without modification, are
 permitted provided the copyright notice and this notice are preserved.
 @end smallexample
@@ -2534,6 +2549,15 @@ identifier, showing the file name and the line where the identifier is
 referenced.  The XREF mode commands are available in this buffer, see
 @ref{Xref Commands}.
 
+When invoked in a buffer whose major mode uses the @code{etags} backend,
+@kbd{M-?} searches files and buffers whose major mode matches that of
+the original buffer.  It guesses that mode from file extensions, so if
+@kbd{M-?} seems to be skipping relevant buffers or files, try
+customizing either the variable @code{semantic-symref-filepattern-alist}
+(if your buffer's major mode already has an entry in it), or
+@code{auto-mode-alist} (if not), thereby informing @code{xref} of the
+missing extensions (@pxref{Choosing Modes}).
+
 @vindex xref-auto-jump-to-first-xref
   If the value of the variable @code{xref-auto-jump-to-first-xref} is
 @code{t}, @code{xref-find-references} automatically jumps to the first
@@ -2649,14 +2673,13 @@ loaded, this command can use it to generate completion candidates.
 @xref{Symbol Completion}.
 
 @findex list-tags
-  @kbd{M-x list-tags} reads the name of one of the files covered by
-the selected tags table, and displays a list of tags defined in that
-file.  Do not include a directory as part of the file name unless the
-file name recorded in the tags table includes a directory.  This
-command works only with the etags backend, and requires a tags table
-for the project to be available.  @xref{Tags Tables}.  If used
-interactively, the default tag is file name of the current buffer if
-used interactively.
+  @kbd{M-x list-tags} reads the name of one of the files covered by the
+selected tags table, with completion, and displays the list of tags
+defined in that file; it offers the current buffer's file name as the
+default file whose tags to list.  Do not include a directory as part of
+the file name unless the file name recorded in the tags table includes a
+directory.  This command works only with the etags backend, and requires
+a tags table for the project to be available.  @xref{Tags Tables}.
 
 @findex tags-next-file
   @kbd{M-x tags-next-file} visits files covered by the selected tags table.
@@ -2752,10 +2775,32 @@ Tags for variables and functions in classes are named
 @item
 In @LaTeX{} documents, the arguments for @code{\chapter},
 @code{\section}, @code{\subsection}, @code{\subsubsection},
-@code{\eqno}, @code{\label}, @code{\ref}, @code{\cite},
-@code{\bibitem}, @code{\part}, @code{\appendix}, @code{\entry},
-@code{\index}, @code{\def}, @code{\newcommand}, @code{\renewcommand},
-@code{\newenvironment} and @code{\renewenvironment} are tags.
+@code{\eqno}, @code{\label}, @code{\ref}, @code{\Ref}, @code{\footref},
+@code{\cite}, @code{\bibitem}, @code{\part}, @code{\appendix},
+@code{\entry}, @code{\index}, @code{\def}, @code{\edef}, @code{\gdef},
+@code{\xdef}, @code{\newcommand}, @code{\renewcommand},
+@code{\newenvironment}, @code{\renewenvironment},
+@code{\DeclareRobustCommand}, @code{\newrobustcmd},
+@code{\renewrobustcmd}, @code{\providecommand},
+@code{\providerobustcmd}, @code{\NewDocumentCommand},
+@code{\RenewDocumentCommand}, @code{\ProvideDocumentCommand},
+@code{\DeclareDocumentCommand}, @code{\NewExpandableDocumentCommand},
+@code{\RenewExpandableDocumentCommand},
+@code{\ProvideExpandableDocumentCommand},
+@code{\DeclareExpandableDocumentCommand},
+@code{\NewDocumentEnvironment}, @code{\RenewDocumentEnvironment},
+@code{\ProvideDocumentEnvironment}, @code{\DeclareDocumentEnvironment},
+@code{\csdef}, @code{\csedef}, @code{\csgdef}, @code{\csxdef},
+@code{\csletcs}, @code{\cslet}, @code{\letcs}, @code{\let},
+@code{\cs_new_protected_nopar}, @code{\cs_new_protected},
+@code{\cs_new_nopar}, @code{\cs_new_eq}, @code{\cs_new},
+@code{\cs_set_protected_nopar}, @code{\cs_set_protected},
+@code{\cs_set_nopar}, @code{\cs_set_eq}, @code{\cs_set},
+@code{\cs_gset_protected_nopar}, @code{\cs_gset_protected},
+@code{\cs_gset_nopar}, @code{\cs_gset_eq}, @code{\cs_gset},
+@code{\cs_generate_from_arg_count}, and @code{\cs_generate_variant} are
+tags.  So too are the arguments of any starred variants of these
+commands.
 
 Other commands can make tags as well, if you specify them in the
 environment variable @env{TEXTAGS} before invoking @command{etags}.  The
@@ -3003,6 +3048,10 @@ language not yet supported by @command{etags}, and you want to avoid
 having @command{etags} fall back on Fortran and C as the default
 languages.
 
+  You can also prevent @command{etags} from falling back on Fortran and
+C if you specify the @samp{--no-fallback-lang} option.  The option
+@samp{--fallback-lang} countermands that.
+
   The option @samp{--parse-stdin=@var{file}} is mostly useful when
 calling @command{etags} from programs.  It can be used (only once) in
 place of a file name on the command line.  @command{etags} will read from
@@ -3022,6 +3071,15 @@ a list of all the available @command{etags} options, together with a short
 explanation.  If followed by one or more @samp{--language=@var{lang}}
 options, it outputs detailed information about how tags are generated for
 @var{lang}.
+
+  By default, @command{etags} includes in the tags table it produces all
+the files it scans, including files where it found no tags at all.
+Specify @samp{--no-empty-file-entries} to prevent that; then files with
+no tags will not be mentioned in the tags table.  However, note that
+commands which process files mentioned in the tags table, such as
+@code{tags-search} (@pxref{Identifier Search}), will process files which
+were thus omitted from the tags table.  The option
+@samp{--empty-file-entries} countermands that.
 
 @findex etags-regen-mode
   Instead of creating and updating the tags table by manually invoking
@@ -3080,7 +3138,12 @@ and all the C character escape sequences are supported: @samp{\a} for
 bell, @samp{\b} for back space, @samp{\e} for escape, @samp{\f} for
 formfeed, @samp{\n} for newline, @samp{\r} for carriage return,
 @samp{\t} for tab, and @samp{\v} for vertical tab.  In addition,
-@samp{\d} stands for the @code{DEL} character.
+@samp{\d} stands for the @code{DEL} character.  Otherwise,
+the regular expression syntax is the same as Emacs
+except that backslash escapes are the same
+as GNU grep (which means, for example, that shy groups are not supported),
+and @samp{[:ascii:]}, @samp{[:multibyte:]}, @samp{[:nonascii:]},
+@samp{[:word:]}, and @samp{[:unibyte:]} are not supported.
 
   Ideally, @var{tagregexp} should not match more characters than are
 needed to recognize what you want to tag.  If the syntax requires you

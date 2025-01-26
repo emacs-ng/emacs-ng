@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Building
@@ -310,6 +310,15 @@ error message formats and tells Emacs how to extract the locus from
 each.  A similar variable, @code{grep-regexp-alist}, tells Emacs how
 to parse output from a @code{grep} command (@pxref{Grep Searching}).
 
+@vindex compilation-transform-file-match-alist
+@cindex compilation transform file
+@cindex compilation find file
+  Sometimes @code{compilation-error-regexp-alist} doesn't correctly
+determine the filename that is the source of the error.  Use user option
+@code{compilation-transform-file-match-alist} to make any necessary
+adjustments, such as adding or changing a directory component, or even
+considering certain compiler messages not error messages at all.
+
 @findex compilation-next-error
 @findex compilation-previous-error
 @findex compilation-next-file
@@ -477,6 +486,14 @@ non-@code{nil} if the buffer is to be saved).  Any other
 non-@code{nil} value means that all buffers should be saved without
 asking.  The default is @code{ask}.
 
+@vindex grep-use-headings
+@vindex grep-heading@r{ face}
+  By default, grep matches are shown with the file names prefixed to
+each line.  But if the variable @code{grep-use-headings} is customized
+to a non-@code{nil} value, the matches are split into sections, one
+section for each file with matches, and the file names are shown in the
+section headings using a special face @code{grep-heading}.
+
 @findex grep-find
 @findex find-grep
   The command @kbd{M-x grep-find} (also available as @kbd{M-x
@@ -519,6 +536,16 @@ interactively toggle viewing the concealed part by typing @kbd{M-x
 grep-find-toggle-abbreviation}.  To disable this abbreviation of the
 shell commands, customize the option @code{grep-find-abbreviate} to a
 @code{nil} value.
+
+@findex grep-change-to-grep-edit-mode
+@cindex Grep Edit mode
+@cindex mode, Grep Edit
+  Typing @kbd{e} in the @file{*grep*} buffer makes the buffer writable
+and enters the Grep Edit mode.  Similar to Occur Edit mode (@pxref{Other
+Repeating Search}), you can edit the matching lines reported by
+@code{grep} and have those changes reflected in the buffer visiting the
+originating file.  Type @kbd{C-c C-c} to leave the Grep Edit mode and
+return to the Grep mode.
 
 @node Flymake
 @section Finding Syntax Errors On The Fly
@@ -1313,6 +1340,10 @@ of output to its standard output, you may wish to separate its I/O
 from interaction with GDB.  Use the command @w{@kbd{M-x
 gdb-display-io-buffer}} to show a window with a buffer to which Emacs
 redirects the input and output from the program you are debugging.
+However, if the variable @code{gdb-display-io-buffer} is @code{nil},
+Emacs will not create nor display a separate I/O buffer, but will
+instead redirect the program's interaction to the GUD interaction
+buffer.
 
 @findex gdb-display-registers-buffer
 @item Registers Buffer
@@ -1677,9 +1708,9 @@ command or function is invoked.  For example:
 
   Note that installing a package using @code{package-install}
 (@pxref{Package Installation}) takes care of placing the package's
-Lisp files in a directory where Emacs will find it, and also writes
-the necessary initialization code into your init files, making the
-above manual customizations unnecessary.
+Lisp files in a directory where Emacs will find it, and also extends
+@code{load-path} as needed, making the above manual customizations
+unnecessary for such packages.
 
 @node Lisp Eval
 @section Evaluating Emacs Lisp Expressions

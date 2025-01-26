@@ -1,6 +1,6 @@
 ;;; proced.el --- operate on system processes like dired  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 ;; Author: Roland Winkler <winkler@gnu.org>
 ;; Keywords: Processes, Unix
@@ -289,8 +289,8 @@ one, etc."
 It can be the car of an element of `proced-format-alist'.
 It can also be a list of keys appearing in `proced-grammar-alist'."
   :type '(choice (symbol :tag "Format Name")
-                 (repeat :tag "Keys" (symbol :tag ""))))
-(make-variable-buffer-local 'proced-format)
+                 (repeat :tag "Keys" (symbol :tag "")))
+  :local t)
 
 ;; FIXME: is there a better name for filter `user' that does not coincide
 ;; with an attribute key?
@@ -335,8 +335,8 @@ of `proced-filter-alist'."
                          (choice (cons :tag "Key . Regexp" (symbol :tag "Key") regexp)
                                  (cons :tag "Key . Function" (symbol :tag "Key") function)
                                  (cons :tag "Function" (const :tag "Key: function" function) function)
-                                 (cons :tag "Fun-all" (const :tag "Key: fun-all" fun-all) function)))))
-(make-variable-buffer-local 'proced-filter)
+                                 (cons :tag "Fun-all" (const :tag "Key: fun-all" fun-all) function))))
+  :local t)
 
 (defcustom proced-sort 'pcpu
   "Current sort scheme for proced listing.
@@ -344,13 +344,13 @@ It must be the KEY of an element of `proced-grammar-alist'.
 It can also be a list of KEYs as in the SORT-SCHEMEs of the elements
 of `proced-grammar-alist'."
   :type '(choice (symbol :tag "Sort Scheme")
-                 (repeat :tag "Key List" (symbol :tag "Key"))))
-(make-variable-buffer-local 'proced-sort)
+                 (repeat :tag "Key List" (symbol :tag "Key")))
+  :local t)
 
 (defcustom proced-descend t
   "Non-nil if proced listing is sorted in descending order."
-  :type '(boolean :tag "Descending Sort Order"))
-(make-variable-buffer-local 'proced-descend)
+  :type '(boolean :tag "Descending Sort Order")
+  :local t)
 
 (defcustom proced-goal-attribute 'args
   "If non-nil, key of the attribute that defines the `goal-column'."
@@ -368,13 +368,13 @@ displayed in a window.  Can be changed interactively via
 `proced-toggle-auto-update'."
   :type '(radio (const :tag "Don't auto update" nil)
                 (const :tag "Only update visible proced buffers" visible)
-                (const :tag "Update all proced buffers" t)))
-(make-variable-buffer-local 'proced-auto-update-flag)
+                (const :tag "Update all proced buffers" t))
+  :local t)
 
 (defcustom proced-tree-flag nil
   "Non-nil for display of Proced buffer as process tree."
-  :type 'boolean)
-(make-variable-buffer-local 'proced-tree-flag)
+  :type 'boolean
+  :local t)
 
 (defcustom proced-post-display-hook nil
   "Normal hook run after displaying or updating a Proced buffer.
@@ -457,13 +457,13 @@ It is a list of lists (KEY PREDICATE REVERSE).")
 
 (defface proced-interruptible-sleep-status-code
   '((((class color) (min-colors 88)) (:foreground "DimGrey"))
-    (t (:italic t)))
+    (t (:slant italic)))
   "Face used in Proced buffers for interruptible sleep status code character \"S\"."
   :version "29.1")
 
 (defface proced-uninterruptible-sleep-status-code
   '((((class color)) (:foreground "red"))
-    (t (:bold t)))
+    (t (:weight bold)))
   "Face used in Proced buffers for uninterruptible sleep status code character \"D\"."
   :version "29.1")
 
@@ -471,7 +471,7 @@ It is a list of lists (KEY PREDICATE REVERSE).")
   '((((class color) (min-colors 88) (background dark)) (:foreground "DeepSkyBlue"))
     (((class color) (background dark)) (:foreground "cyan"))
     (((class color) (background light)) (:foreground "blue"))
-    (t (:bold t)))
+    (t (:weight bold)))
   "Face used in Proced buffers for executable names.
 The first word in the process arguments attribute is assumed to
 be the executable that runs in the process."
@@ -536,8 +536,8 @@ be the executable that runs in the process."
   :version "29.1")
 
 (defface proced-cpu
-  '((((class color) (min-colors 88)) (:foreground "#6d5cc3" :bold t))
-    (t (:bold t)))
+  '((((class color) (min-colors 88)) (:foreground "#6d5cc3" :weight bold))
+    (t (:weight bold)))
   "Face used in Proced buffers for process CPU utilization."
   :version "29.1")
 
@@ -548,13 +548,13 @@ be the executable that runs in the process."
   :version "29.1")
 
 (defface proced-user
-  '((t (:bold t)))
+  '((t (:weight bold)))
   "Face used in Proced buffers for the user owning the process."
   :version "29.1")
 
 (defface proced-time-colon
   '((((class color) (min-colors 88)) (:foreground "DarkMagenta"))
-    (t (:bold t)))
+    (t (:weight bold)))
   "Face used in Proced buffers for the colon in time strings."
   :version "29.1")
 
@@ -955,11 +955,11 @@ Proced buffers."
   "Auto-update Proced buffers using `run-at-time'.
 
 If there are no proced buffers, cancel the timer."
-  (if-let (buffers (match-buffers '(derived-mode . proced-mode)))
+  (if-let* ((buffers (match-buffers '(derived-mode . proced-mode))))
       (dolist (buf buffers)
-        (when-let ((flag (buffer-local-value 'proced-auto-update-flag buf))
-                   ((or (not (eq flag 'visible))
-                        (get-buffer-window buf 'visible))))
+        (when-let* ((flag (buffer-local-value 'proced-auto-update-flag buf))
+                    ((or (not (eq flag 'visible))
+                         (get-buffer-window buf 'visible))))
           (with-current-buffer buf
             (proced-update t t))))
     (cancel-timer proced-auto-update-timer)
@@ -2110,6 +2110,20 @@ The value returned is the value of the last form in BODY."
                            (window-height . fit-window-to-buffer)))
          ,@body))))
 
+(defun proced--read-signal (count)
+  "Read a SIGNAL via `completing-read' for COUNT processes."
+  (completing-read
+   (format-prompt "Send signal [%s]"
+                  "TERM"
+                  (if (= 1 count)
+                      "1 process"
+                    (format "%d processes" count)))
+   (completion-table-with-metadata
+    (completion-table-case-fold proced-signal-list)
+    `((annotation-function
+       . ,(lambda (s) (cdr (assoc s proced-signal-list))))))
+   nil nil nil nil "TERM"))
+
 (defun proced-send-signal (&optional signal process-alist)
   "Send a SIGNAL to processes in PROCESS-ALIST.
 PROCESS-ALIST is an alist as returned by `proced-marked-processes'.
@@ -2124,20 +2138,10 @@ Then PROCESS-ALIST contains the marked processes or the process point is on
 and SIGNAL is queried interactively.  This noninteractive usage is still
 supported but discouraged.  It will be removed in a future version of Emacs."
   (interactive
-   (let* ((process-alist (proced-marked-processes))
-          (pnum (if (= 1 (length process-alist))
-                    "1 process"
-                  (format "%d processes" (length process-alist))))
-          (completion-ignore-case t)
-          (completion-extra-properties
-           `(:annotation-function
-             ,(lambda (s) (cdr (assoc s proced-signal-list))))))
-     (proced-with-processes-buffer process-alist
-       (list (completing-read (format-prompt "Send signal [%s]"
-                                             "TERM" pnum)
-                              proced-signal-list
-                              nil nil nil nil "TERM")
-             process-alist)))
+   (let ((process-alist (proced-marked-processes)))
+     (proced-with-processes-buffer
+         process-alist
+       (list (proced--read-signal (length process-alist)) process-alist)))
    proced-mode)
 
   (unless (and signal process-alist)
@@ -2151,18 +2155,9 @@ supported but discouraged.  It will be removed in a future version of Emacs."
        (sit-for 2))
     (setq process-alist (proced-marked-processes))
     (unless signal
-      (let ((pnum (if (= 1 (length process-alist))
-                      "1 process"
-                    (format "%d processes" (length process-alist))))
-            (completion-ignore-case t)
-            (completion-extra-properties
-             `(:annotation-function
-               ,(lambda (s) (cdr (assoc s proced-signal-list))))))
-        (proced-with-processes-buffer process-alist
-          (setq signal (completing-read (format-prompt "Send signal [%s]"
-                                                       "TERM" pnum)
-                                        proced-signal-list
-                                        nil nil nil nil "TERM"))))))
+      (proced-with-processes-buffer
+          process-alist
+        (setq signal (proced--read-signal (length process-alist))))))
 
   (let (failures)
     ;; Why not always use `signal-process'?  See

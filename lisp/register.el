@@ -1,6 +1,6 @@
 ;;; register.el --- register commands for Emacs      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1993-1994, 2001-2024 Free Software Foundation,
+;; Copyright (C) 1985, 1993-1994, 2001-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -36,6 +36,7 @@
 ;; FIXME: Clean up namespace usage!
 
 (declare-function frameset-register-p "frameset")
+(declare-function dired-current-directory "dired")
 
 (cl-defstruct
   (registerv (:constructor nil)
@@ -131,17 +132,20 @@ to the value of `register--read-with-preview-function'.")
 (defcustom register-use-preview 'traditional
   "Whether to show register preview when modifying registers.
 
-When set to `t', show a preview buffer with navigation and
-highlighting.
-When set to \\='insist, behave as with `t', but allow exiting the
-minibuffer by pressing the register name a second time.  E.g.,
-press \"a\" to select register \"a\", then press \"a\" again to
-exit the minibuffer.
-When nil, show a preview buffer without navigation and highlighting, and
-exit the minibuffer immediately after inserting response in minibuffer.
-When set to \\='never, behave as with nil, but with no preview buffer at
-all; the preview buffer is still accessible with `help-char' (C-h).
-When set to \\='traditional (the default), provide a more basic preview
+When set to t, show a preview buffer with navigation and highlighting.
+
+When set `insist', behave as with t, but allow exiting the minibuffer by
+pressing the register name a second time.  For example, press \\`a' to
+select register \"a\", then press \\`a' again to exit the minibuffer.
+
+When set to nil, show a preview buffer without navigation and
+highlighting, and exit the minibuffer immediately after inserting
+response in minibuffer.
+
+When set to `never', behave as with nil, but with no preview buffer at
+all; the preview buffer is still accessible with `help-char' (\\`C-h').
+
+When set to `traditional' (the default), provide a more basic preview
 according to `register-preview-delay'; this preserves the traditional
 behavior of Emacs 29 and before."
   :type '(choice
@@ -297,6 +301,18 @@ If NOCONFIRM is non-nil, request confirmation of register name by RET."
    :act 'set
    :noconfirm (memq register-use-preview '(nil never))
    :smatch t))
+(cl-defmethod register-command-info ((_command (eql file-to-register)))
+  (make-register-preview-info
+   :types '(all)
+   :msg "File to register `%s'"
+   :act 'set
+   :noconfirm (memq register-use-preview '(nil never))))
+(cl-defmethod register-command-info ((_command (eql buffer-to-register)))
+  (make-register-preview-info
+   :types '(all)
+   :msg "Buffer to register `%s'"
+   :act 'set
+   :noconfirm (memq register-use-preview '(nil never))))
 
 (defun register-preview-forward-line (arg)
   "Move to next or previous line in register preview buffer.
@@ -406,7 +422,8 @@ Format of each entry is controlled by the variable `register-preview-function'."
                                                    (window-height . fit-window-to-buffer)
 	                                           (preserve-size . (nil . t)))
   "Window configuration for the register preview buffer."
-  :type display-buffer--action-custom-type)
+  :type display-buffer--action-custom-type
+  :version "30.1")
 
 (defun register-preview-1 (buffer &optional show-empty types)
   "Pop up a window showing the preview of registers in BUFFER.
@@ -669,7 +686,6 @@ Interactively, prompt for REGISTER using `register-read-with-preview'."
 Push the mark if going to the location moves point, unless called in succession.
 If the register contains a file name, find that file.
 If the register contains a buffer name, switch to that buffer.
-\(To put a file or buffer name in a register, you must use `set-register'.)
 If the register contains a window configuration (one frame) or a frameset
 \(all frames), restore the configuration of that frame or of all frames
 accordingly.
@@ -684,6 +700,44 @@ Interactively, prompt for REGISTER using `register-read-with-preview'."
 		     current-prefix-arg))
   (let ((val (get-register register)))
     (register-val-jump-to val delete)))
+
+(defun file-to-register (file-name register)
+  "Insert FILE-NAME into REGISTER.
+To visit the file, use \\[jump-to-register].
+
+Interactively, prompt for REGISTER using `register-read-with-preview'.
+With a prefix-argument, prompt for FILE-NAME using `read-file-name',
+With no prefix-argument, use the currently visited file or directory
+for FILE-NAME."
+  (interactive (list (if (eq current-prefix-arg nil)
+                         (if (eq major-mode 'dired-mode)
+                             (dired-current-directory)
+                           (buffer-file-name))
+                       (read-file-name "File: "))
+                (register-read-with-preview "File to register: ")))
+  (unless (eq file-name nil)
+    (set-register register (cons 'file file-name))))
+
+(defun buffer-to-register (buffer register)
+  "Store reference to BUFFER in REGISTER.
+To visit the buffer, use \\[jump-to-register].
+
+Interactively, use current buffer as BUFFER, and prompt for REGISTER.
+With a prefix argument, prompt for BUFFER as well."
+  (interactive
+   (let ((buffer
+          (if current-prefix-arg
+              (get-buffer (read-buffer "Store reference to buffer"
+                                       (current-buffer) t))
+            (current-buffer))))
+     (list buffer
+           (register-read-with-preview
+            (substitute-quotes
+             (format "Store reference to buffer `%s' in register: "
+                     (buffer-name buffer)))))))
+  (with-current-buffer buffer
+    (add-hook 'kill-buffer-hook #'register-buffer-to-file-query nil t))
+  (set-register register (cons 'buffer buffer)))
 
 (cl-defgeneric register-val-jump-to (_val _arg)
   "Execute the \"jump\" operation of VAL.
@@ -735,6 +789,18 @@ ARG is the value of the prefix argument or nil."
 		      (list 'file-query
 			    buffer-file-name
 			    (marker-position (cdr elem))))))))
+
+(defun register-buffer-to-file-query ()
+  "Turn buffer registers into file-query references when a buffer is killed."
+  (and buffer-file-name
+       (dolist (elem register-alist)
+         (and (consp (cdr elem))
+              (eq (current-buffer) (cddr elem))
+              (setcdr elem
+                      (list 'file-query
+                            buffer-file-name
+                            (point)))))))
+
 
 (defun number-to-register (number register)
   "Store NUMBER in REGISTER.

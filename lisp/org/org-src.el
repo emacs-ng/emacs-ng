@@ -1,6 +1,6 @@
 ;;; org-src.el --- Source code examples in Org       -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;;	   Bastien Guerry <bzg@gnu.org>
@@ -663,7 +663,7 @@ Leave point in edit buffer."
 (defvar org-src-fontify-natively) ; Defined in org.el
 (defun org-src-font-lock-fontify-block (lang start end)
   "Fontify code block between START and END using LANG's syntax.
-This function is called by Emacs' automatic fontification, as long
+This function is called by Emacs's automatic fontification, as long
 as `org-src-fontify-natively' is non-nil."
   (let ((modified (buffer-modified-p)) native-tab-width)
     (remove-text-properties start end '(face nil))
@@ -950,16 +950,16 @@ remotely with point temporarily at the start of the code block in
 the Org buffer.
 
 This command is not bound to a key by default, to avoid conflicts
-with language major mode bindings.  To bind it to C-c @ in all
+with language major mode bindings.  To bind it to \\`C-c @' in all
 language major modes, you could use
 
   (add-hook \\='org-src-mode-hook
             (lambda () (define-key org-src-mode-map \"\\C-c@\"
                     \\='org-src-do-key-sequence-at-code-block)))
 
-In that case, for example, C-c @ t issued in code edit buffers
-would tangle the current Org code block, C-c @ e would execute
-the block and C-c @ h would display the other available
+In that case, for example, \\`C-c @ t' issued in code edit buffers
+would tangle the current Org code block, \\`C-c @ e' would execute
+the block and \\`C-c @ h' would display the other available
 Org-babel commands."
   (interactive "kOrg-babel key: ")
   (if (equal key (kbd "C-g")) (keyboard-quit)

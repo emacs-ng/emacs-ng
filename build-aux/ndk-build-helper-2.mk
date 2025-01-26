@@ -1,5 +1,5 @@
 # ndk-build-helper-2.mk -- Helper for ndk-build.m4.
-# Copyright (C) 2023-2024 Free Software Foundation, Inc.
+# Copyright (C) 2023-2025 Free Software Foundation, Inc.
 # This file is part of GNU Emacs.
 
 # GNU Emacs is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ NDK_CXX_FLAG_$(LOCAL_MODULE) :=
 
 $(info Building $(build_kind))
 $(info $(LOCAL_MODULE))
-$(info $(addprefix $(LOCAL_PATH)/,$(LOCAL_SRC_FILES) $(LOCAL_SRC_FILES$(EMACS_ABI))))
+$(info $(addprefix $(LOCAL_PATH:%/=%)/,$(LOCAL_SRC_FILES) $(LOCAL_SRC_FILES$(EMACS_ABI))))
 
 ifeq ($(filter-out lib%,$(LOCAL_MODULE)),)
 NDK_A_NAMES = $(LOCAL_MODULE).a
@@ -99,7 +99,7 @@ endif
 
 $(info $(foreach dir,$(NDK_INCLUDES),-I$(dir)))
 $(info $(LOCAL_EXPORT_CFLAGS))
-$(info $(LOCAL_EXPORT_LDFLAGS) $(abspath $(addprefix $(NDK_BUILD_DIR)/,$(NDK_A_NAMES))) $(and $(NDK_SO_NAMES), -L$(abspath $(NDK_BUILD_DIR)) $(foreach soname,$(NDK_SO_NAMES),-l:$(soname))))
+$(info $(LOCAL_EXPORT_LDFLAGS) $(abspath $(addprefix $(NDK_BUILD_DIR:%/=%)/,$(NDK_A_NAMES))) $(and $(NDK_SO_NAMES), -L$(abspath $(NDK_BUILD_DIR)) $(foreach soname,$(NDK_SO_NAMES),-l:$(soname))))
 $(info $(NDK_A_NAMES) $(NDK_SO_NAMES))
 $(info $(NDK_CXX_FLAG_$(LOCAL_MODULE)))
 $(info End)

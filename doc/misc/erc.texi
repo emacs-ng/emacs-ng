@@ -12,7 +12,7 @@
 @copying
 This manual is for ERC @value{ERCVER} @value{ERCDIST}.
 
-Copyright @copyright{} 2005--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2005--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -411,8 +411,9 @@ Kill current input line using @code{erc-bol} followed by @code{kill-line}.
 One way to add functionality to ERC is to customize which of its many
 modules are loaded.
 
-There is a spiffy customize interface, which may be reached by typing
-@kbd{M-x customize-option @key{RET} erc-modules @key{RET}}.  When
+You can do this by typing @kbd{C-h v erc-modules @key{RET}} and clicking
+@samp{customize} near the bottom of the resulting help buffer, where it
+says ``You can @emph{customize} this variable.''  When
 removing a module outside of Customize, you may wish to ensure it's
 disabled by invoking its associated minor-mode toggle with a
 nonpositive prefix argument, for example, @kbd{C-u - M-x
@@ -850,7 +851,7 @@ Examples of use:
 
 In the case of @code{:client-certificate t}, you will need to add a
 line like the following to your authinfo file
-(e.g. @file{~/.authinfo.gpg}):
+(for example, @file{~/.authinfo.gpg}):
 
 @example
 machine irc.libera.chat key /home/bandali/my-cert.key cert /home/bandali/my-cert.crt
@@ -867,8 +868,8 @@ ERC's auth-source integration}.
 @defun erc-compute-server &optional server
 Return an IRC server name.
 
-This tries a number of increasingly more default methods until a non-@code{nil}
-value is found.
+This tries a progressively greater number of default methods until a
+non-@code{nil} value is found.
 
 @itemize @bullet
 @item @var{server} (the argument passed to this function)
@@ -888,8 +889,8 @@ IRC server to use if one is not provided.
 @defun erc-compute-port &optional port
 Return a port for an IRC server.
 
-This tries a number of increasingly more default methods until a non-@code{nil}
-value is found.
+This tries a progressively greater number of default methods until a
+non-@code{nil} value is found.
 
 @itemize @bullet
 @item @var{port} (the argument passed to this function)
@@ -910,7 +911,7 @@ This can be either a string or a number.
 @defun erc-compute-nick &optional nick
 Return user's IRC nick.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-@code{nil} value is found.
 
 @itemize
@@ -1010,7 +1011,7 @@ auth-source facility to retrieve a server password, although hitting
 @defun erc-compute-full-name &optional full-name
 Return user's full name.
 
-This tries a number of increasingly more default methods until a
+This tries a progressively greater number of default methods until a
 non-@code{nil} value is found.
 
 @itemize @bullet
@@ -1339,8 +1340,7 @@ settings (@pxref{Sample configuration via Customize}).
   ;; Scroll all windows to prompt when submitting input.
   (erc-scrolltobottom-all t)
 
-  ;; Reconnect automatically using a fancy strategy.
-  (erc-server-reconnect-function #'erc-server-delayed-check-reconnect)
+  ;; Wait a bit longer between automatic reconnect attempts.
   (erc-server-reconnect-timeout 30)
 
   ;; Show new buffers in the current window instead of a split.
@@ -1371,6 +1371,13 @@ settings (@pxref{Sample configuration via Customize}).
   (erc-fill-static-center 18)
 
   :bind (:map erc-fill-wrap-mode-map ("C-c =" . #'erc-fill-wrap-nudge)))
+
+(use-package erc-match
+  ;; Use the same face for my own nick wherever it appears.
+  :custom-face
+  (erc-current-nick-face ((t ( :weight unspecified
+                               :foreground unspecified
+                               :inherit erc-my-nick-face)))))
 
 (use-package erc-track
   ;; Prevent JOINs and PARTs from lighting up the mode-line.
@@ -1436,30 +1443,18 @@ descriptions just in case you want to disable them later.  When
 finished, hit @kbd{C-x C-s} or click @samp{[Apply and Save]} atop the
 buffer.
 
-Now do the same for another couple options, this time having to do
-with automatic reconnection.  But instead of searching for their print
-names, try running @kbd{M-x customize-option @key{RET} @samp{<option>}
-@key{RET}}, replacing @samp{<option>} with:
+Now do the same for another option, this time having to do with
+automatic reconnection.  But instead of searching for its print name,
+try running @kbd{M-x customize-option @key{RET}
+erc-server-reconnect-timeout @key{RET}}.  (If it helps, hit @key{TAB}
+for completion.)  As you may have noticed, when customizing options
+individually, each buffer displays but a single option's widget.  For
+@code{erc-server-reconnect-timeout}, you'll encounter a text field
+(instead of a button), which works like those in a typical web form.
+Enter @samp{30} and either hit @kbd{C-x C-s} to save or @key{TAB} over
+to @samp{[State]} and hit @key{RET} followed by @kbd{1} to persist your
+changes.
 
-@itemize @bullet
-@item @code{erc-server-reconnect-function}, a function
-@item @code{erc-server-reconnect-timeout}, a number
-@end itemize
-
-@noindent
-(If it helps, hit @key{TAB} for completion.)  As you may have noticed,
-when customizing options individually, each buffer displays but a
-single option's widget.  When you get to the buffer for ``Erc Server
-Reconnect Function'', you'll see that @samp{[Toggle]} has been
-replaced with @samp{[Value Menu]} and that clicking it reveals three
-choices in a pop-up window.  Enter @kbd{1} to select
-@code{erc-server-delayed-check-reconnect} before @key{TAB}'ing over to
-@samp{[State]} and hitting @key{RET}.  Enter @kbd{1} again, this time
-to persists your changes.
-
-For the final option, @code{erc-server-reconnect-timeout}, you'll
-encounter a text field (instead of a button), which works like those
-in a typical web form.  Enter @samp{30} and hit @kbd{C-x C-s} to save.
 Just for fun, click the group link for @samp{Erc Server} at the bottom
 of the buffer.  You could just as well have set the last two options
 from this ``custom group'' buffer alone, which very much resembles the
@@ -1551,6 +1546,18 @@ function @code{erc-fill-wrap-nudge} in the minor-mode keymap
 @code{erc-fill-wrap-mode-map} (hint: the minor mode's hook is called
 @code{erc-fill-wrap-mode-hook}, and it's not a member of any
 customization group).
+
+Try customizing another face, this time with inheritance.  ERC's match
+module highlights your nick whenever someone mentions you in
+conversation.  However, some users don't like that this face differs
+from the one in your own messages.  Let's change that.  Type @kbd{M-x
+customize-group @key{RET} erc-faces @key{RET}}.  Either search for the
+word ``Current'' or type @kbd{M-x customize-face @key{RET}
+erc-current-nick-face @key{RET}}.  Untick @samp{Weight} and
+@samp{Foreground}, then click the ``Show All Attributes'' button below
+them.  Navigate down to the @samp{Inherit} box, tick it, hit
+@samp{[INS]}, and type @code{erc-my-nick-face} in the @samp{Face} field.
+Hit @kbd{C-x C-s} to save.
 
 ERC users tend to be picky about the mode line.  If you find that
 you'd rather not see changes when people join and leave channels,
@@ -1660,6 +1667,8 @@ shown in the following example:
         (socks-server '("tor" "localhost" 9050 5)))
     (apply #'erc-open-socks-tls-stream args)))
 
+(setopt erc-server-reconnect-function #'erc-server-delayed-check-reconnect)
+
 (let* ((erc-modules (cons 'sasl erc-modules))
        (erc-sasl-mechanism 'external)
        (erc-server-connect-function #'my-erc-open-socks-tls-stream))
@@ -1679,6 +1688,18 @@ available when reconnecting.  If you plan on using @acronym{SOCKS}
 with ERC exclusively, you can just set those options and variables
 globally and bind @code{erc-server-connect-function} to
 @code{erc-open-socks-tls-stream} instead.
+
+@defun erc-open-socks-tls-stream
+The default TLS @dfn{connector} for @acronym{SOCKS} connections.
+Compatible with option @code{erc-server-connect-function}.  Be aware
+that if used in conjunction with certain values of
+@code{erc-server-reconnect-function} (such as
+@code{erc-server-prefer-check-reconnect}, currently the default
+@dfn{reconnector}, or @code{erc-server-delayed-check-reconnect}, the
+more specialized workhorse it defers to), this function may cause ERC to
+misreport proxy-related failures as routine lapses in internet
+connectivity.
+@end defun
 
 @node auth-source
 @subsection auth-source
@@ -1895,8 +1916,8 @@ interactve contexts covered by the option
 @lisp
 (defun my-erc-interactive-display-buffer (buffer action)
   "Pop to BUFFER when running \\[erc-tls], clicking a link, etc."
-  (when-let ((alist (cdr action))
-             (found (alist-get 'erc-interactive-display alist)))
+  (when-let* ((alist (cdr action))
+              (found (alist-get 'erc-interactive-display alist)))
     (if (eq found 'erc-tls)
         (pop-to-buffer-same-window buffer action)
       (pop-to-buffer buffer action))))
@@ -2127,7 +2148,7 @@ to IRC, and don't forget that you can roll back to the previous
 version by running @kbd{M-x package-delete @key{RET}}.
 @xref{Packages,,,emacs, The Emacs Editor}, for more information.
 
-Note that a bug affecting Emacs' packaging machinery may prevent the
+Note that a bug affecting Emacs's packaging machinery may prevent the
 above method from working on Emacs versions 29 and below.  Users on 29
 can try running @kbd{C-u M-x package-install @key{RET}} instead.
 Users on 28 and below can click on the @emph{installed} @samp{erc}

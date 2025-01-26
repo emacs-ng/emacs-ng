@@ -1,6 +1,6 @@
 ;;; go-ts-mode.el --- tree-sitter support for Go  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -22,6 +22,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Tree-sitter language versions
+;;
+;; go-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-go: v0.23.4-1-g12fe553
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
+
 ;;; Commentary:
 ;;
 
@@ -29,21 +38,25 @@
 
 (require 'treesit)
 (eval-when-compile (require 'rx))
-
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-induce-sparse-tree "treesit.c")
-(declare-function treesit-node-child "treesit.c")
-(declare-function treesit-node-child-by-field-name "treesit.c")
-(declare-function treesit-node-start "treesit.c")
-(declare-function treesit-node-end "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-search-subtree "treesit.c")
+(treesit-declare-unavailable-functions)
 
 (defcustom go-ts-mode-indent-offset 8
   "Number of spaces for each indentation step in `go-ts-mode'."
   :version "29.1"
   :type 'integer
   :safe 'integerp
+  :group 'go)
+
+(defcustom go-ts-mode-build-tags nil
+  "List of Go build tags for the test commands."
+  :version "31.1"
+  :type '(repeat string)
+  :group 'go)
+
+(defcustom go-ts-mode-test-flags nil
+  "List of extra flags for the Go test commands."
+  :version "31.1"
+  :type '(repeat string)
   :group 'go)
 
 (defvar go-ts-mode--syntax-table
@@ -90,9 +103,11 @@
      ((parent-is "parameter_list") parent-bol go-ts-mode-indent-offset)
      ((parent-is "select_statement") parent-bol 0)
      ((parent-is "type_case") parent-bol go-ts-mode-indent-offset)
+     ((parent-is "type_declaration") parent-bol go-ts-mode-indent-offset)
      ((parent-is "type_spec") parent-bol go-ts-mode-indent-offset)
      ((parent-is "type_switch_statement") parent-bol 0)
      ((parent-is "var_declaration") parent-bol go-ts-mode-indent-offset)
+     ((parent-is "var_spec_list") parent-bol go-ts-mode-indent-offset)
      (no-node parent-bol 0)))
   "Tree-sitter indent rules for `go-ts-mode'.")
 
@@ -242,7 +257,10 @@
 (defvar-keymap go-ts-mode-map
   :doc "Keymap used in Go mode, powered by tree-sitter"
   :parent prog-mode-map
-  "C-c C-d" #'go-ts-mode-docstring)
+  "C-c C-d" #'go-ts-mode-docstring
+  "C-c C-t t" #'go-ts-mode-test-function-at-point
+  "C-c C-t f" #'go-ts-mode-test-this-file
+  "C-c C-t p" #'go-ts-mode-test-this-package)
 
 ;;;###autoload
 (define-derived-mode go-ts-mode prog-mode "Go"
@@ -253,7 +271,7 @@
   :syntax-table go-ts-mode--syntax-table
 
   (when (treesit-ready-p 'go)
-    (treesit-parser-create 'go)
+    (setq treesit-primary-parser (treesit-parser-create 'go))
 
     ;; Comments.
     (setq-local comment-start "// ")
@@ -354,7 +372,7 @@ Methods are prefixed with the receiver name, unless SKIP-PREFIX is t."
 The added docstring is prefilled with the defun's name.  If the
 comment already exists, jump to it."
   (interactive)
-  (when-let ((defun-node (treesit-defun-at-point)))
+  (when-let* ((defun-node (treesit-defun-at-point)))
     (goto-char (treesit-node-start defun-node))
     (if (go-ts-mode--comment-on-previous-line-p)
         ;; go to top comment line
@@ -366,14 +384,99 @@ comment already exists, jump to it."
 
 (defun go-ts-mode--comment-on-previous-line-p ()
   "Return t if the previous line is a comment."
-  (when-let ((point (- (pos-bol) 1))
-             ((> point 0))
-             (node (treesit-node-at point)))
+  (when-let* ((point (- (pos-bol) 1))
+              ((> point 0))
+              (node (treesit-node-at point)))
     (and
      ;; check point is actually inside the found node
      ;; treesit-node-at can return nodes after point
      (<= (treesit-node-start node) point (treesit-node-end node))
      (string-equal "comment" (treesit-node-type node)))))
+
+(defun go-ts-mode--get-build-tags-flag ()
+  "Return the compile flag for build tags.
+This function respects the `go-ts-mode-build-tags' variable for
+specifying build tags."
+  (if go-ts-mode-build-tags
+      (format "-tags %s" (string-join go-ts-mode-build-tags ","))
+    ""))
+
+(defun go-ts-mode--get-test-flags ()
+  "Return the flags for test invocation."
+  (if go-ts-mode-test-flags
+      (mapconcat #'shell-quote-argument go-ts-mode-test-flags " ")
+    ""))
+
+(defun go-ts-mode--compile-test (regexp)
+  "Compile the tests matching REGEXP.
+This function respects the `go-ts-mode-build-tags' variable for
+specifying build tags."
+  (compile (format "go test -v %s -run '%s' %s"
+                   (go-ts-mode--get-build-tags-flag)
+                   regexp
+                   (go-ts-mode--get-test-flags))))
+
+(defun go-ts-mode--find-defun-at (start)
+  "Return the first defun node from START."
+  (let ((thing (or treesit-defun-type-regexp 'defun)))
+    (or (treesit-thing-at start thing)
+        (treesit-thing-next start thing))))
+
+(defun go-ts-mode--get-function-regexp (name)
+  (if name
+      (format "^%s$" name)
+    (error "No test function found")))
+
+(defun go-ts-mode--get-functions-in-range (start end)
+  "Return a list with the names of all defuns in the range START to END."
+  (let* ((node (go-ts-mode--find-defun-at start))
+         (name (treesit-defun-name node))
+         (node-start (treesit-node-start node))
+         (node-end (treesit-node-end node)))
+    (cond ((or (not node)
+               (> start node-end)
+               (< end node-start))
+           nil)
+          ((or (not (equal (treesit-node-type node) "function_declaration"))
+               (not (string-prefix-p "Test" name)))
+           (go-ts-mode--get-functions-in-range (treesit-node-end node) end))
+          (t
+           (cons (go-ts-mode--get-function-regexp name)
+                 (go-ts-mode--get-functions-in-range (treesit-node-end node) end))))))
+
+(defun go-ts-mode--get-test-regexp-at-point ()
+  "Return a regular expression for the tests at point.
+If region is active, the regexp will include all the functions under the
+region."
+  (if-let* ((range (if (region-active-p)
+                       (list (region-beginning) (region-end))
+                     (list (point) (point))))
+            (funcs (apply #'go-ts-mode--get-functions-in-range range)))
+      (string-join funcs "|")
+    (error "No test function found")))
+
+(defun go-ts-mode-test-function-at-point ()
+  "Run the unit test at point.
+If the point is anywhere in the test function, that function will be
+run.  If the region is selected, all the functions under the region will
+be run."
+  (interactive)
+  (go-ts-mode--compile-test (go-ts-mode--get-test-regexp-at-point)))
+
+(defun go-ts-mode-test-this-file ()
+  "Run all the unit tests in the current file."
+  (interactive)
+  (if-let* ((defuns (go-ts-mode--get-functions-in-range (point-min) (point-max))))
+      (go-ts-mode--compile-test (string-join defuns "|"))
+    (error "No test functions found in the current file")))
+
+(defun go-ts-mode-test-this-package ()
+  "Run all the unit tests under the current package."
+  (interactive)
+  (compile (format "go test -v %s %s %s"
+                   (go-ts-mode--get-build-tags-flag)
+                   default-directory
+                   (go-ts-mode--get-test-flags))))
 
 ;; go.mod support.
 
@@ -453,7 +556,7 @@ what the parent of the node would be if it were a node."
   :syntax-table go-mod-ts-mode--syntax-table
 
   (when (treesit-ready-p 'gomod)
-    (treesit-parser-create 'gomod)
+    (setq treesit-primary-parser (treesit-parser-create 'gomod))
 
     ;; Comments.
     (setq-local comment-start "// ")

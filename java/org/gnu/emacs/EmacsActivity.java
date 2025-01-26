@@ -1,6 +1,6 @@
 /* Communication module for Android terminals.  -*- c-file-style: "GNU" -*-
 
-Copyright (C) 2023-2024 Free Software Foundation, Inc.
+Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -78,7 +78,7 @@ public class EmacsActivity extends Activity
   public static EmacsWindow focusedWindow;
 
   /* Whether or not this activity is paused.  */
-  private boolean isPaused;
+  private boolean isStopped;
 
   /* Whether or not this activity is fullscreen.  */
   private boolean isFullscreen;
@@ -196,7 +196,7 @@ public class EmacsActivity extends Activity
       window.view.requestFocus ();
 
     /* If the activity is iconified, send that to the window.  */
-    if (isPaused)
+    if (isStopped)
       window.noticeIconified ();
 
     /* Invalidate the focus.  Since attachWindow may be called from
@@ -271,6 +271,12 @@ public class EmacsActivity extends Activity
     /* Set it as the content view.  */
     setContentView (layout);
 
+    /* Android 15 also realigns activity contents to originate beneath
+       system windows, e.g. the navigation bar, so request the original
+       behavior.  */
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
+      layout.setFitsSystemWindows (true);
+
     /* Maybe start the Emacs service if necessary.  */
     EmacsService.startEmacsService (this);
 
@@ -308,8 +314,13 @@ public class EmacsActivity extends Activity
   public final void
   onStop ()
   {
-    timeOfLastInteraction = SystemClock.elapsedRealtime ();
+    /* Iconification was previously reported in onPause, but that was
+       misinformed, as `onStop' is the actual callback activated upon
+       changes in an activity's visibility.  */
+    isStopped = true;
+    EmacsWindowManager.MANAGER.noticeIconified (this);
 
+    timeOfLastInteraction = SystemClock.elapsedRealtime ();
     super.onStop ();
   }
 
@@ -405,19 +416,9 @@ public class EmacsActivity extends Activity
 
   @Override
   public final void
-  onPause ()
-  {
-    isPaused = true;
-
-    EmacsWindowManager.MANAGER.noticeIconified (this);
-    super.onPause ();
-  }
-
-  @Override
-  public final void
   onResume ()
   {
-    isPaused = false;
+    isStopped = false;
     timeOfLastInteraction = 0;
 
     EmacsWindowManager.MANAGER.noticeDeiconified (this);

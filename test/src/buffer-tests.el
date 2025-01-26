@@ -1,6 +1,6 @@
 ;;; buffer-tests.el --- tests for buffer.c functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -1720,7 +1720,7 @@ This test works best when Emacs is configured with
 --enable-checking=yes.  This is a little bit like fuzz testing,
 except this test has no way to reduce to a minimal failing test
 case.  Regardless, by exercising many corner cases bugs can be
-found using Emacs' internal consistency assertions."
+found using Emacs's internal consistency assertions."
   (let* (
          ;; The size and slack for the test buffer size.
          (buffer-size-target 1000)

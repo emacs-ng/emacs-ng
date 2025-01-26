@@ -1,5 +1,5 @@
 /* Interfaces to system-dependent kernel and library entries.
-   Copyright (C) 1985-1988, 1993-1995, 1999-2024 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1999-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -33,7 +33,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 #include <close-stream.h>
 #include <pathmax.h>
-#include <utimens.h>
 
 #include "lisp.h"
 #include "sysselect.h"
@@ -2248,7 +2247,7 @@ init_random (void)
   /* FIXME: Perhaps getrandom can be used here too?  */
   success = w32_init_random (&v, sizeof v) == 0;
 #else
-  verify (sizeof v <= 256);
+  static_assert (sizeof v <= 256);
   success = getrandom (&v, sizeof v, 0) == sizeof v;
 #endif
 
@@ -2742,16 +2741,16 @@ emacs_fchmodat (int fd, const char *path, mode_t mode, int flags)
 #ifndef SSIZE_MAX
 # define SSIZE_MAX TYPE_MAXIMUM (ssize_t)
 #endif
-verify (MAX_RW_COUNT <= PTRDIFF_MAX);
-verify (MAX_RW_COUNT <= SIZE_MAX);
-verify (MAX_RW_COUNT <= SSIZE_MAX);
+static_assert (MAX_RW_COUNT <= PTRDIFF_MAX);
+static_assert (MAX_RW_COUNT <= SIZE_MAX);
+static_assert (MAX_RW_COUNT <= SSIZE_MAX);
 
 #ifdef WINDOWSNT
 /* Verify that Emacs read requests cannot cause trouble, even in
    64-bit builds.  The last argument of 'read' is 'unsigned int', and
    the return value's type (see 'sys_read') is 'int'.  */
-verify (MAX_RW_COUNT <= INT_MAX);
-verify (MAX_RW_COUNT <= UINT_MAX);
+static_assert (MAX_RW_COUNT <= INT_MAX);
+static_assert (MAX_RW_COUNT <= UINT_MAX);
 #endif
 
 /* Read from FD to a buffer BUF with size NBYTE.
@@ -3161,7 +3160,7 @@ static const struct speed_struct speeds[] =
 static speed_t
 convert_speed (speed_t speed)
 {
-  for (size_t i = 0; i < sizeof speeds / sizeof speeds[0]; i++)
+  for (size_t i = 0; i < ARRAYELTS (speeds); i++)
     {
       if (speed == speeds[i].internal)
 	return speed;
@@ -3381,7 +3380,7 @@ list_system_processes (void)
   int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PROC};
 #endif
   size_t len;
-  size_t mibsize = sizeof mib / sizeof mib[0];
+  size_t mibsize = ARRAYELTS (mib);
   struct kinfo_proc *procs;
   size_t i;
 
@@ -3548,6 +3547,7 @@ procfs_ttyname (int rdev)
 }
 # endif	/* GNU_LINUX || __ANDROID__ */
 
+/* Total usable RAM in KiB.  */
 static uintmax_t
 procfs_get_total_memory (void)
 {
@@ -3737,8 +3737,13 @@ system_process_attributes (Lisp_Object pid)
 	  attrs = Fcons (Fcons (Qnice, make_fixnum (niceness)), attrs);
 	  attrs = Fcons (Fcons (Qthcount, INT_TO_INTEGER (thcount)), attrs);
 	  attrs = Fcons (Fcons (Qvsize, INT_TO_INTEGER (vsize / 1024)), attrs);
-	  attrs = Fcons (Fcons (Qrss, INT_TO_INTEGER (4 * rss)), attrs);
-	  pmem = 4.0 * 100 * rss / procfs_get_total_memory ();
+
+	  /* RSS in KiB.  */
+	  uintmax_t rssk = rss;
+	  rssk *= getpagesize () >> 10;
+
+	  attrs = Fcons (Fcons (Qrss, INT_TO_INTEGER (rssk)), attrs);
+	  pmem = 100.0 * rssk / procfs_get_total_memory ();
 	  if (pmem > 100)
 	    pmem = 100;
 	  attrs = Fcons (Fcons (Qpmem, make_float (pmem)), attrs);
@@ -4551,17 +4556,9 @@ does the same thing as `current-time'.  */)
 # include <wchar.h>
 # include <wctype.h>
 
-# if defined HAVE_NEWLOCALE || defined HAVE_SETLOCALE
-#  include <locale.h>
-# endif
-# ifndef LC_COLLATE
-#  define LC_COLLATE 0
-# endif
+# include <locale.h>
 # ifndef LC_COLLATE_MASK
 #  define LC_COLLATE_MASK 0
-# endif
-# ifndef LC_CTYPE
-#  define LC_CTYPE 0
 # endif
 # ifndef LC_CTYPE_MASK
 #  define LC_CTYPE_MASK 0
@@ -4595,15 +4592,11 @@ freelocale (locale_t loc)
 static char *
 emacs_setlocale (int category, char const *locale)
 {
-#  ifdef HAVE_SETLOCALE
   errno = 0;
   char *loc = setlocale (category, locale);
   if (loc || errno)
     return loc;
   errno = EINVAL;
-#  else
-  errno = ENOTSUP;
-#  endif
   return 0;
 }
 

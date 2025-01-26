@@ -90,10 +90,23 @@ documentation (or decide no updates are necessary) for those that aren't.
 
 ** Try to reorder NEWS: most important things first, related items together.
 
-** For a major release, add a "New in Emacs XX" section to faq.texi.
+** For a major release, add a "New in Emacs XX" section to efaq.texi.
+This should highlight some of the more significant changes.
 
 ** cusver-check from admin.el can help find new defcustoms missing
-:version tags.
+:version tags.  This asks for new and old Lisp directories; use the one
+in the current release branch as New and the one from the last released
+Emacs version as Old.
+
+Note that this doesn't (yet) know about :package-version and
+'customize-package-emacs-version-alist', so it could produce false
+positives for packages that use :package-version.  Make sure the files
+with defcustoms that use :package-version have the appropriate
+add-to-list that determines the correspondence between package versions
+and Emacs versions.  Any changes you make in :version etc. should be
+tested by running "M-x customize-changed" after regenerating cus-load.el
+(run "make custom-deps" in the lisp/ directory) and loaddefs.el (run
+"make autoloads-force").
 
 ** Manuals
 Check for node names using problematic characters:
@@ -101,8 +114,14 @@ Check for node names using problematic characters:
 Sadly makeinfo does not warn about such characters.
 
 Check for major new features added since the last release (e.g. new
-lisp files), and add the relevant authors to the Acknowledgments in
-doc/emacs/ack.texi and emacs.texi.
+Lisp files), and add the relevant authors to the Acknowledgments in
+doc/emacs/ack.texi and emacs.texi.  To find new files, you could run a
+command such as this:
+
+  $ git diff --name-status emacs-NN emacs-XX | grep -E "^A"
+
+where emacs-NN is the previous Emacs release branch, and emacs-XX is the
+new one.
 
 For major releases, rewrite the "Antinews" appendix of the User Manual
 (doc/emacs/anti.texi) to describe features lost by downgrading to the
@@ -110,10 +129,6 @@ previous version.  The way to do that is read NEWS, pick up the more
 significant changes and new features in the upcoming release, then
 describe the "benefits" from losing those features.  Be funny, use
 humor.  The text written for the previous releases can serve as an example.
-
-The Emacs FAQ (doc/misc/efaq.texi) also has a "What's new" section;
-for major releases a new section should be added listing the
-significant changes.
 
 Check cross-references between the manuals (e.g. from emacs to elisp)
 are correct.  You can use something like the following in the info
@@ -206,6 +221,13 @@ https://publicsuffix.org/list/public_suffix_list.dat
 
 - leim/SKK-DIC/SKK-JISYO.L
 https://raw.githubusercontent.com/skk-dev/dict/master/SKK-JISYO.L
+
+** Check for mistakes in man pages.
+
+The below script checks for any mistakes in the source text of
+manual pages.  Fix any errors and re-run the script to verify.
+
+  ./admin/check-man-pages
 
 * BUGS
 

@@ -1,6 +1,6 @@
 ;;; emacs-tests.el --- unit tests for emacs.c -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -183,7 +183,13 @@
     (skip-unless bash)
     (skip-unless bwrap)
     (skip-unless (file-executable-p emacs))
-    (skip-unless (file-readable-p filter))
+    (skip-unless
+     (let ((command
+            (concat
+             (shell-quote-argument (file-name-unquote bwrap))
+             " --ro-bind / / --seccomp 20 -- echo Hi 20< "
+             (shell-quote-argument (file-name-unquote filter)))))
+       (zerop (call-process bash nil nil nil "-c" command))))
     (should-not (file-remote-p bwrap))
     (should-not (file-remote-p emacs))
     (should-not (file-remote-p filter))
@@ -221,7 +227,7 @@ which the process was running."
     (terpri)
     (princ (buffer-substring-no-properties (point-min) (point-max)))
     ;; Search audit logs for Seccomp messages.
-    (when-let ((ausearch (executable-find "ausearch")))
+    (when-let* ((ausearch (executable-find "ausearch")))
       (terpri)
       (princ "Potentially relevant Seccomp audit events:")
       (terpri)
@@ -236,7 +242,7 @@ which the process was running."
                       (format-time-string "%T" end-time)
                       "--interpret")))
     ;; Print coredump information if available.
-    (when-let ((coredumpctl (executable-find "coredumpctl")))
+    (when-let* ((coredumpctl (executable-find "coredumpctl")))
       (terpri)
       (princ "Potentially useful coredump information:")
       (terpri)

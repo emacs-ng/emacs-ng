@@ -1,6 +1,6 @@
 ;;; tooltip.el --- show tooltip windows  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@acm.org>
 ;; Keywords: help c mouse tools
@@ -135,8 +135,8 @@ of the `tooltip' face are used instead."
      :inherit variable-pitch))
   "Face for tooltips.
 
-When using the GTK toolkit, this face will only be used if
-`x-gtk-use-system-tooltips' is non-nil."
+When using the GTK toolkit, NS, or Haiku, this face will only
+be used if `use-system-tooltips' is nil."
   :group 'tooltip
   :group 'basic-faces)
 

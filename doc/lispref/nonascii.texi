@@ -1,6 +1,6 @@
-@c -*- mode: texinfo; coding: utf-8 -*-
+@c -*- mode: texinfo -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1998--1999, 2001--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1998--1999, 2001--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Non-ASCII Characters
 @chapter Non-@acronym{ASCII} Characters
@@ -341,6 +341,9 @@ buffer.  An indirect buffer always inherits the representation of its
 base buffer.
 @end defun
 
+The following two functions are obsolete and will be removed in a future
+version of Emacs; use @code{encode-coding-string} instead.
+
 @defun string-as-unibyte string
 If @var{string} is already a unibyte string, this function returns
 @var{string} itself.  Otherwise, it returns a new string with the same
@@ -631,26 +634,31 @@ is @code{nil}, which means the character itself.
 @item special-uppercase
 Corresponds to Unicode language- and context-independent special upper-casing
 rules.  The value of this property is a string (which may be empty).  For
-example mapping for U+00DF @sc{latin small letter sharp s} is
-@code{"SS"}.  For characters with no special mapping, the value is @code{nil}
-which means @code{uppercase} property needs to be consulted instead.
+example for U+00DF @sc{latin small letter sharp s} the value is
+@code{"SS"}.  This mapping overrides the @code{uppercase} property, and
+thus the current case table.  For characters with no special mapping,
+the value is @code{nil}, which means the @code{uppercase} property needs to
+be consulted instead.
 
 @item special-lowercase
 Corresponds to Unicode language- and context-independent special
 lower-casing rules.  The value of this property is a string (which may
-be empty).  For example mapping for U+0130 @sc{latin capital letter i
-with dot above} the value is @code{"i\u0307"} (i.e. 2-character string
+be empty).  For example for U+0130 @sc{latin capital letter i
+with dot above} the value is @code{"i\u0307"} (i.e., a 2-character string
 consisting of @sc{latin small letter i} followed by U+0307
-@sc{combining dot above}).  For characters with no special mapping,
-the value is @code{nil} which means @code{lowercase} property needs to
-be consulted instead.
+@sc{combining dot above}).  This mapping overrides the @code{lowercase}
+property, and thus the current case table.  For characters with no
+special mapping, the value is @code{nil}, which means the @code{lowercase}
+property needs to be consulted instead.
 
 @item special-titlecase
 Corresponds to Unicode unconditional special title-casing rules.  The value of
-this property is a string (which may be empty).  For example mapping for
-U+FB01 @sc{latin small ligature fi} the value is @code{"Fi"}.  For
-characters with no special mapping, the value is @code{nil} which means
-@code{titlecase} property needs to be consulted instead.
+this property is a string (which may be empty).  For example for
+U+FB01 @sc{latin small ligature fi} the value is @code{"Fi"}.  This
+mapping overrides the @code{titlecase} property, and thus the current
+case table.  For characters with no special mapping, the value is
+@code{nil}, which means the @code{titlecase} property needs to be consulted
+instead.
 @end table
 
 @defun get-char-code-property char propname
@@ -732,8 +740,8 @@ character, a symbol whose name is the script to which the character
 belongs, according to the Unicode Standard classification of the
 Unicode code space into script-specific blocks.  This char-table has a
 single extra slot whose value is the list of all script symbols.  Note
-that Emacs' classification of characters into scripts is not a 1-for-1
-reflection of the Unicode standard, e.g. there is no @samp{symbol}
+that Emacs's classification of characters into scripts is not a 1-for-1
+reflection of the Unicode standard, for example there is no @samp{symbol}
 script in Unicode.
 @end defvar
 
@@ -1091,13 +1099,13 @@ that result from encoding unsupported characters.
 @cindex EOL conversion
 @cindex end-of-line conversion
 @cindex line end conversion
-  @dfn{End of line conversion} handles three different conventions
-used on various systems for representing end of line in files.  The
-Unix convention, used on GNU and Unix systems, is to use the linefeed
-character (also called newline).  The DOS convention, used on
+  @dfn{End of line conversion} handles three different conventions used
+on various systems for representing end of line in files.  The Unix
+convention, used on GNU and Unix systems, and macOS, is to use the
+linefeed character (also called newline).  The DOS convention, used on
 MS-Windows and MS-DOS systems, is to use a carriage return and a
-linefeed at the end of a line.  The Mac convention is to use just
-carriage return.  (This was the convention used in Classic Mac OS.)
+linefeed.  The Mac convention, used in Classic Mac OS and now rare
+outside of legacy software, is to use just carriage return.
 
 @cindex base coding system
 @cindex variant coding system
@@ -1992,7 +2000,7 @@ original text:
 @example
 @group
 (decode-coding-string "Gr\374ss Gott" 'latin-1)
-     @result{} #("Grüss Gott" 0 9 (charset iso-8859-1))
+     @result{} #("Gr@"uss Gott" 0 9 (charset iso-8859-1))
 @end group
 @end example
 @end defun

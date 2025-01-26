@@ -1,6 +1,6 @@
 ;;; comp-test-funcs.el --- compilation unit tested by comp-tests.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -361,7 +361,7 @@
        2))
 
 (defun comp-test-copy-insn-f (insn)
-  ;; From `comp-copy-insn'.
+  ;; From `comp--copy-insn'.
   (if (consp insn)
       (let (result)
 	(while (consp insn)
@@ -561,6 +561,23 @@
 
 (defun comp-test-67883-1-f ()
   '#1=(1 . #1#))
+
+(cl-defstruct comp-test-73270-base)
+(cl-defstruct
+    (comp-test-73270-child1 (:include comp-test-73270-base)))
+(cl-defstruct
+    (comp-test-73270-child2 (:include comp-test-73270-base)))
+(cl-defstruct
+    (comp-test-73270-child3 (:include comp-test-73270-base)))
+(cl-defstruct
+    (comp-test-73270-child4 (:include comp-test-73270-base)))
+
+(defun comp-test-73270-1-f (x)
+  (cl-typecase x
+    (comp-test-73270-child1 'child1)
+    (comp-test-73270-child2 'child2)
+    (comp-test-73270-child3 'child3)
+    (comp-test-73270-child4 'child4)))
 
 
 ;;;;;;;;;;;;;;;;;;;;

@@ -1,6 +1,6 @@
 ;;; ruby-ts-mode.el --- Major mode for editing Ruby files using tree-sitter -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Perry Smith <pedz@easesoftware.com>
 ;; Created: December 2022
@@ -22,6 +22,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Tree-sitter language versions
+;;
+;; ruby-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-ruby: v0.23.1
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
+
 ;;; Commentary:
 
 ;; This file defines ruby-ts-mode which is a major mode for editing
@@ -34,9 +43,38 @@
 ;; put somewhere Emacs can find it.  See the docstring of
 ;; `treesit-extra-load-path'.
 
-;; This mode doesn't associate itself with .rb files automatically.
-;; You can do that either by prepending to the value of
-;; `auto-mode-alist', or using `major-mode-remap-alist'.
+;; This mode doesn't associate itself with .rb files automatically.  To
+;; use this mode by default, assuming you have the tree-sitter grammar
+;; available, do one of the following:
+;;
+;; - Add the following to your init file:
+;;
+;;    (add-to-list 'major-mode-remap-alist '(ruby-mode . ruby-ts-mode))
+;;
+;; - Customize 'auto-mode-alist' to turn ruby-ts-mode automatically.
+;;   For example:
+;;
+;;    (add-to-list 'auto-mode-alist
+;;                 (cons (concat "\\(?:\\.\\(?:"
+;;                               "rbw?\\|ru\\|rake\\|thor\\|axlsx"
+;;                               "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
+;;                               "\\)"
+;;                               "\\|/"
+;;                               "\\(?:Gem\\|Rake\\|Cap\\|Thor"
+;;                               "\\|Puppet\\|Berks\\|Brew\\|Fast"
+;;                               "\\|Vagrant\\|Guard\\|Pod\\)file"
+;;                               "\\)\\'")
+;;                       'ruby-ts-mode))
+;;
+;;   will turn on the ruby-ts-mode for Ruby source files.
+;;
+;; - If you have the Ruby grammar installed, add
+;;
+;;     (load "ruby-ts-mode")
+;;
+;;   to your init file.
+;;
+;; You can also turn on this mode manually in a buffer.
 
 ;; Tree Sitter brings a lot of power and versitility which can be
 ;; broken into these features.
@@ -83,23 +121,7 @@
 
 (require 'treesit)
 (require 'ruby-mode)
-
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-induce-sparse-tree "treesit.c")
-(declare-function treesit-node-child-by-field-name "treesit.c")
-(declare-function treesit-search-subtree "treesit.c")
-(declare-function treesit-node-parent "treesit.c")
-(declare-function treesit-node-next-sibling "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-node-child "treesit.c")
-(declare-function treesit-node-end "treesit.c")
-(declare-function treesit-node-start "treesit.c")
-(declare-function treesit-node-string "treesit.c")
-(declare-function treesit-query-compile "treesit.c")
-(declare-function treesit-query-capture "treesit.c")
-(declare-function treesit-parser-add-notifier "treesit.c")
-(declare-function treesit-parser-buffer "treesit.c")
-(declare-function treesit-parser-list "treesit.c")
+(treesit-declare-unavailable-functions)
 
 (defgroup ruby-ts nil
   "Major mode for editing Ruby code."
@@ -210,9 +232,9 @@ values of OVERRIDE."
              (<= plus-1 end)
              (string-match-p "\\`#" text))
         (treesit-fontify-with-override node-start plus-1
-                                       font-lock-comment-delimiter-face override))
+                                       'font-lock-comment-delimiter-face override))
     (treesit-fontify-with-override (max plus-1 start) (min node-end end)
-                                   font-lock-comment-face override)))
+                                   'font-lock-comment-face override)))
 
 (defun ruby-ts--font-lock-settings (language)
   "Tree-sitter font-lock settings for Ruby."
@@ -842,6 +864,16 @@ a statement container is a node that matches
      ;; No paren/curly/brace found on the same line.
      ((< (treesit-node-start found) parent-bol)
       parent-bol)
+     ;; Nesting of brackets args.
+     ((and
+       (not (eq ruby-bracketed-args-indent t))
+       (string-match-p "\\`array\\|hash\\'" (treesit-node-type parent))
+       (equal (treesit-node-parent parent) found)
+       ;; Grandparent is not a parenless call.
+       (or (not (equal (treesit-node-type found) "argument_list"))
+           (equal (treesit-node-type (treesit-node-child found 0))
+                  "(")))
+      parent-bol)
      ;; Hash or array opener on the same line.
      ((string-match-p "\\`array\\|hash\\'" (treesit-node-type found))
       (save-excursion
@@ -1029,6 +1061,9 @@ leading double colon is not added."
                              ;; Method calls with name ending with ? or !.
                              ((call method: (identifier) @ident)
                               (:match "[?!]\\'" @ident))
+                             ;; Method definitions for the above.
+                             ((method name: (identifier) @ident)
+                              (:match "[?!]\\'" @ident))
                              ;; Backtick method redefinition.
                              ((operator "`" @backtick))
                              ;; TODO: Stop at interpolations.
@@ -1097,6 +1132,12 @@ leading double colon is not added."
       (equal (treesit-node-type (treesit-node-child node 0))
              "(")))
 
+(defun ruby-ts--list-p (node)
+  ;; Distinguish between the named `unless' node and the
+  ;; node with the same value of type.
+  (when (treesit-node-check node 'named)
+    (ruby-ts--sexp-p node)))
+
 (defvar-keymap ruby-ts-mode-map
   :doc "Keymap used in Ruby mode"
   :parent prog-mode-map
@@ -1117,7 +1158,7 @@ leading double colon is not added."
   (unless (treesit-ready-p 'ruby)
     (error "Tree-sitter for Ruby isn't available"))
 
-  (treesit-parser-create 'ruby)
+  (setq treesit-primary-parser (treesit-parser-create 'ruby))
 
   (setq-local add-log-current-defun-function #'ruby-ts-add-log-current-function)
 
@@ -1172,6 +1213,47 @@ leading double colon is not added."
                                 )
                                eol)
                               #'ruby-ts--sexp-p))
+                 (list
+                  ,(cons (rx
+                          bol
+                          (or
+                           "begin_block"
+                           "end_block"
+                           "method"
+                           "singleton_method"
+                           "method_parameters"
+                           "parameters"
+                           "block_parameters"
+                           "class"
+                           "singleton_class"
+                           "module"
+                           "do"
+                           "case"
+                           "case_match"
+                           "array_pattern"
+                           "find_pattern"
+                           "hash_pattern"
+                           "parenthesized_pattern"
+                           "expression_reference_pattern"
+                           "if"
+                           "unless"
+                           "begin"
+                           "parenthesized_statements"
+                           "argument_list"
+                           "do_block"
+                           "block"
+                           "destructured_left_assignment"
+                           "interpolation"
+                           "string"
+                           "string_array"
+                           "symbol_array"
+                           "delimited_symbol"
+                           "regex"
+                           "heredoc_body"
+                           "array"
+                           "hash")
+                          eol)
+                         #'ruby-ts--list-p))
                  (text ,(lambda (node)
                           (or (member (treesit-node-type node)
                                       '("comment" "string_content" "heredoc_content"))
@@ -1187,9 +1269,6 @@ leading double colon is not added."
                                    (equal (treesit-node-type
                                            (treesit-node-parent node))
                                           "interpolation"))))))))
-
-  ;; AFAIK, Ruby can not nest methods
-  (setq-local treesit-defun-prefer-top-level nil)
 
   ;; Imenu.
   (setq-local imenu-create-index-function #'ruby-ts--imenu)
@@ -1227,8 +1306,10 @@ leading double colon is not added."
 
 (derived-mode-add-parents 'ruby-ts-mode '(ruby-mode))
 
-(if (treesit-ready-p 'ruby)
-    (add-to-list 'major-mode-remap-defaults
+(when (treesit-ready-p 'ruby)
+  (setq major-mode-remap-defaults
+        (assq-delete-all 'ruby-mode major-mode-remap-defaults))
+  (add-to-list 'major-mode-remap-defaults
                  '(ruby-mode . ruby-ts-mode)))
 
 (provide 'ruby-ts-mode)

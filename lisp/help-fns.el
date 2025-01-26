@@ -1,6 +1,6 @@
 ;;; help-fns.el --- Complex help functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2024 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -85,14 +85,14 @@ current help buffer.")
 
 (defun help-definition-prefixes ()
   "Return the up-to-date radix-tree form of `definition-prefixes'."
-  (when (> (hash-table-count definition-prefixes) 0)
+  (when (and (null help-definition-prefixes)
+             (> (hash-table-count definition-prefixes) 0))
     (maphash (lambda (prefix files)
                (let ((old (radix-tree-lookup help-definition-prefixes prefix)))
                  (setq help-definition-prefixes
                        (radix-tree-insert help-definition-prefixes
                                           prefix (append old files)))))
-             definition-prefixes)
-    (clrhash definition-prefixes))
+             definition-prefixes))
   help-definition-prefixes)
 
 (defun help--loaded-p (file)
@@ -112,6 +112,7 @@ current help buffer.")
   (pcase-dolist (`(,prefix . ,files) prefixes)
     (setq help-definition-prefixes
           (radix-tree-insert help-definition-prefixes prefix nil))
+    (remhash prefix definition-prefixes)
     (dolist (file files)
       ;; FIXME: Should we scan help-definition-prefixes to remove
       ;; other prefixes of the same file?
@@ -206,9 +207,12 @@ type specifier when available."
         ,@(when completions-detailed
             '((affixation-function . help--symbol-completion-table-affixation)))
         (category . symbol-help))
-    (when help-enable-completion-autoload
+    (when (and help-enable-completion-autoload
+               (memq action '(nil t lambda)))
       (let ((prefixes (radix-tree-prefixes (help-definition-prefixes) string)))
-        (help--load-prefixes prefixes)))
+        ;; Don't load FOO.el during `test-completion' of `FOO-'.
+        (unless (and (eq action 'lambda) (assoc string prefixes))
+          (help--load-prefixes prefixes))))
     (let ((prefix-completions
            (and help-enable-completion-autoload
                 (mapcar #'intern (all-completions string definition-prefixes)))))
@@ -262,6 +266,23 @@ interactive command."
                   fn))
     (list fn)))
 
+(declare-function project-combine-directories "project" (&rest lists))
+
+(cl-defmethod xref-backend-references ((_backend (eql 'elisp)) identifier
+                                       &context (major-mode help-mode))
+  (mapcan
+   (lambda (dir)
+     (message "Searching %s..." dir)
+     (redisplay)
+     (prog1
+         (xref-references-in-directory identifier dir)
+       (message "Searching %s... done" dir)))
+   (project-combine-directories (elisp-load-path-roots))))
+
+(defun help-fns--setup-xref-backend ()
+  (add-hook 'xref-backend-functions #'elisp--xref-backend nil t)
+  (setq-local semantic-symref-filepattern-alist '((help-mode "*.el"))))
+
 ;;;###autoload
 (defun describe-function (function)
   "Display the full documentation of FUNCTION (a symbol).
@@ -295,6 +316,8 @@ handling of autoloaded functions."
         (princ " is ")
         (describe-function-1 function)
         (with-current-buffer standard-output
+          (help-fns--setup-xref-backend)
+
           ;; Return the text we displayed.
           (buffer-string))))))
 
@@ -302,7 +325,7 @@ handling of autoloaded functions."
 (defun help-find-source ()
   "Switch to a buffer visiting the source of what is being described in *Help*."
   (interactive)
-  (if-let ((help-buffer (get-buffer "*Help*")))
+  (if-let* ((help-buffer (get-buffer "*Help*")))
       (with-current-buffer help-buffer
           (help-view-source))
     (error "No *Help* buffer found")))
@@ -628,7 +651,7 @@ the C sources, too."
          (lambda (entry level)
            (when (symbolp map)
              (setq map (symbol-function map)))
-           (when-let ((elem (assq entry (cdr map))))
+           (when-let* ((elem (assq entry (cdr map))))
              (when (> level 0)
                (push sep string))
              (if (eq (nth 1 elem) 'menu-item)
@@ -871,6 +894,21 @@ the C sources, too."
     ))
 
 
+(defun help-fns--first-release-override (symbol type)
+  "The first release defining SYMBOL of TYPE, or nil.
+TYPE indicates the namespace and is `fun' or `var'."
+  (let* ((sym-rel-file (expand-file-name "symbol-releases.eld" data-directory))
+         (tuples
+          (with-temp-buffer
+            (ignore-errors
+              (insert-file-contents sym-rel-file)
+              (goto-char (point-min))
+              (read (current-buffer))))))
+    (unless (cl-every (lambda (x) (and (= (length x) 3) (stringp (car x))))
+                      tuples)
+      (error "Bad %s format" sym-rel-file))
+    (car (rassoc (list type symbol) tuples))))
+
 (defun help-fns--first-release (symbol)
   "Return the likely first release that defined SYMBOL, or nil."
   ;; Code below relies on the etc/NEWS* files.
@@ -951,15 +989,23 @@ the C sources, too."
 ;;       (display-buffer (current-buffer)))))
 
 (add-hook 'help-fns-describe-function-functions
-          #'help-fns--mention-first-release)
+          #'help-fns--mention-first-function-release)
 (add-hook 'help-fns-describe-variable-functions
-          #'help-fns--mention-first-release)
-(defun help-fns--mention-first-release (object)
+          #'help-fns--mention-first-variable-release)
+
+(defun help-fns--mention-first-function-release (object)
+  (help-fns--mention-first-release object 'fun))
+
+(defun help-fns--mention-first-variable-release (object)
   ;; Don't output anything if we've already output the :version from
   ;; the `defcustom'.
   (unless (memq 'help-fns--customize-variable-version
                 help-fns--activated-functions)
-    (when-let ((first (and (symbolp object)
+    (help-fns--mention-first-release object 'var)))
+
+(defun help-fns--mention-first-release (object type)
+  (when (symbolp object)
+    (when-let* ((first (or (help-fns--first-release-override object type)
                            (help-fns--first-release object))))
       (with-current-buffer standard-output
         (insert (format "  Probably introduced at or before Emacs version %s.\n"
@@ -972,8 +1018,8 @@ the C sources, too."
           #'help-fns--mention-shortdoc-groups)
 (defun help-fns--mention-shortdoc-groups (object)
   (require 'shortdoc)
-  (when-let ((groups (and (symbolp object)
-                          (shortdoc-function-groups object))))
+  (when-let* ((groups (and (symbolp object)
+                           (shortdoc-function-groups object))))
     (let ((start (point))
           (times 0))
       (with-current-buffer standard-output
@@ -1001,17 +1047,49 @@ the C sources, too."
         (fill-region-as-paragraph (point-min) (point-max))
         (goto-char (point-max))))))
 
+(require 'radix-tree)
+
+(defconst help-fns--radix-trees
+  (make-hash-table :weakness 'key :test 'equal)
+  "Cache of radix-tree representation of `load-path'.")
+
+(defun help-fns--filename (file)
+  (let ((f (abbreviate-file-name (expand-file-name file))))
+    (if (file-name-case-insensitive-p f) (downcase f) f)))
+
+(defun help-fns--radix-tree (dirs)
+  (with-memoization (gethash dirs help-fns--radix-trees)
+    (let ((rt radix-tree-empty))
+      (dolist (d dirs)
+        (let ((d (help-fns--filename (file-name-as-directory d))))
+          (setq rt (radix-tree-insert rt d t))))
+      rt)))
+
 (defun help-fns-short-filename (filename)
-  (let* ((abbrev (abbreviate-file-name filename))
-         (short abbrev))
-    (dolist (dir load-path)
-      (let ((rel (file-relative-name filename dir)))
-        (if (< (length rel) (length short))
-            (setq short rel)))
-      (let ((rel (file-relative-name abbrev dir)))
-        (if (< (length rel) (length short))
-            (setq short rel))))
-    short))
+  "Turn a full Elisp file name to one relative to `load-path'."
+  (if (not (file-name-absolute-p filename))
+      ;; This happens when FILENAME is a `src/*.c' returned by
+      ;; `help-C-file-name', in which case it's not searched through
+      ;; `load-path' anyway (bug#74504).
+      ;; Even if it came from elsewhere it's not clear to
+      ;; which directory it is relative.
+      filename
+    (let* ((short (help-fns--filename filename))
+           (prefixes (radix-tree-prefixes (help-fns--radix-tree load-path)
+                                          (file-name-directory short))))
+      (if (not prefixes)
+          ;; The file is not inside the `load-path'.
+          ;; FIXME: Here's the old code (too slow, bug#73766),
+          ;; which used to try and shorten it with "../" as well.
+          ;; (dolist (dir load-path)
+          ;;   (let ((rel (file-relative-name filename dir)))
+          ;;     (if (< (length rel) (length short))
+          ;;         (setq short rel)))
+          ;;   (let ((rel (file-relative-name abbrev dir)))
+          ;;     (if (< (length rel) (length short))
+          ;;         (setq short rel))))
+          short
+        (file-relative-name short (caar prefixes))))))
 
 (defun help-fns--analyze-function (function)
   ;; FIXME: Document/explain the differences between FUNCTION,
@@ -1369,21 +1447,29 @@ it is displayed along with the global value."
 			     (format-message "`%s'" rep)
 			   rep)))
                       (start (point)))
-		  (if (< (+ (length print-rep) (point) (- line-beg)) 68)
-		      (insert " " print-rep)
-		    (terpri)
-                    (let ((buf (current-buffer)))
-                      (with-temp-buffer
-                        (lisp-data-mode)
-                        (set-syntax-table emacs-lisp-mode-syntax-table)
-                        (insert print-rep)
-                        (pp-buffer)
-                        (font-lock-ensure)
-                        (let ((pp-buffer (current-buffer)))
-                          (with-current-buffer buf
-                            (insert-buffer-substring pp-buffer)))))
-                    ;; Remove trailing newline.
-                    (and (= (char-before) ?\n) (delete-char -1)))
+		 (let (beg)
+		   (if (< (+ (length print-rep) (point) (- line-beg)) 68)
+		       (progn
+		         (setq beg (1+ (point)))
+		         (insert " " print-rep))
+		     (terpri)
+                     (setq beg (point))
+                     (let ((buf (current-buffer)))
+                       (with-temp-buffer
+                         (lisp-data-mode)
+                         (insert print-rep)
+                         (pp-buffer)
+                         (font-lock-ensure)
+                         (let ((pp-buffer (current-buffer)))
+                           (with-current-buffer buf
+                             (insert-buffer-substring pp-buffer))))))
+                   ;; Remove trailing newline.
+                   (and (= (char-before) ?\n) (delete-char -1))
+                   ;; Put a `syntax-table' property on the data, as
+                   ;; a kind of poor man's multi-major-mode support here.
+                   (put-text-property beg (point)
+		                      'syntax-table
+		                      lisp-data-mode-syntax-table))
                   (help-fns--editable-variable start (point)
                                                variable val buffer)
 		  (let* ((sv (get variable 'standard-value))
@@ -1447,10 +1533,6 @@ it is displayed along with the global value."
 	    ;; If the value is large, move it to the end.
 	    (with-current-buffer standard-output
 	      (when (> (count-lines (point-min) (point-max)) 10)
-		;; Note that setting the syntax table like below
-		;; makes forward-sexp move over a `'s' at the end
-		;; of a symbol.
-		(set-syntax-table emacs-lisp-mode-syntax-table)
 		(goto-char val-start-pos)
 		(when (looking-at "value is") (replace-match ""))
 		(save-excursion
@@ -1489,6 +1571,7 @@ it is displayed along with the global value."
                     (delete-char 1)))))
 
 	    (with-current-buffer standard-output
+              (help-fns--setup-xref-backend)
 	      ;; Return the text we displayed.
 	      (buffer-string))))))))
 
@@ -1504,8 +1587,6 @@ it is displayed along with the global value."
                      :parent button-map
                      "e" #'help-fns-edit-variable)))))
 
-(defvar help-fns--edit-variable)
-
 (put 'help-fns-edit-variable 'disabled t)
 (defun help-fns-edit-variable ()
   "Edit the variable under point."
@@ -1514,50 +1595,12 @@ it is displayed along with the global value."
   (let ((var (get-text-property (point) 'help-fns--edit-variable)))
     (unless var
       (error "No variable under point"))
-    (pop-to-buffer-same-window (format "*edit %s*" (nth 0 var)))
-    (prin1 (nth 1 var) (current-buffer))
-    (pp-buffer)
-    (goto-char (point-min))
-    (help-fns--edit-value-mode)
-    (insert (format ";; Edit the `%s' variable.\n" (nth 0 var))
-            (substitute-command-keys
-             ";; `\\[help-fns-edit-mode-done]' to update the value and exit; \
-`\\[help-fns-edit-mode-cancel]' to cancel.\n\n"))
-    (setq-local help-fns--edit-variable var)))
+    (let ((str (read-string-from-buffer
+                (format ";; Edit the `%s' variable." (nth 0 var))
+                (prin1-to-string (nth 1 var)))))
+      (set (nth 0 var) (read str)))))
 
-(defvar-keymap help-fns--edit-value-mode-map
-  "C-c C-c" #'help-fns-edit-mode-done
-  "C-c C-k" #'help-fns-edit-mode-cancel)
-
-(define-derived-mode help-fns--edit-value-mode emacs-lisp-mode "Elisp"
-  :interactive nil)
-
-(defun help-fns-edit-mode-done (&optional kill)
-  "Update the value of the variable being edited and kill the edit buffer.
-If KILL (the prefix), don't update the value, but just kill the
-current buffer."
-  (interactive "P" help-fns--edit-value-mode)
-  (unless help-fns--edit-variable
-    (error "Invalid buffer"))
-  (goto-char (point-min))
-  (cl-destructuring-bind (variable _ buffer help-buffer)
-      help-fns--edit-variable
-    (unless (buffer-live-p buffer)
-      (error "Original buffer is gone; can't update"))
-    (unless kill
-      (let ((value (read (current-buffer))))
-        (with-current-buffer buffer
-          (set variable value))))
-    (kill-buffer (current-buffer))
-    (when (buffer-live-p help-buffer)
-      (with-current-buffer help-buffer
-        (revert-buffer)))))
-
-(defun help-fns-edit-mode-cancel ()
-  "Kill the edit buffer and cancel editing of the value.
-This cancels value editing without updating the value."
-  (interactive nil help-fns--edit-value-mode)
-  (help-fns-edit-mode-done t))
+(autoload 'shortdoc-help-fns-examples-function "shortdoc")
 
 (defun help-fns--run-describe-functions (functions &rest args)
   (with-current-buffer standard-output
@@ -1591,7 +1634,7 @@ This cancels value editing without updating the value."
 (defun help-fns--customize-variable-version (variable)
   (when (custom-variable-p variable)
     ;; Note variable's version or package version.
-    (when-let ((output (describe-variable-custom-version-info variable)))
+    (when-let* ((output (describe-variable-custom-version-info variable)))
       (princ output))))
 
 (add-hook 'help-fns-describe-variable-functions #'help-fns--var-safe-local)
@@ -1682,7 +1725,7 @@ variable.\n")))
       (insert "This variable is obsolete")
       (if (nth 2 obsolete)
           (insert (format " since %s" (nth 2 obsolete))))
-      (insert (cond ((stringp use) (concat "; " use))
+      (insert (cond ((stringp use) (substitute-command-keys (concat "; " use)))
 		    (use (format-message "; use `%s' instead."
                                          (car obsolete)))
 		    (t "."))
@@ -1837,7 +1880,7 @@ If FRAME is omitted or nil, use the selected frame."
 (add-hook 'help-fns-describe-face-functions
           #'help-fns--face-custom-version-info)
 (defun help-fns--face-custom-version-info (face _frame)
-  (when-let ((version-info (describe-variable-custom-version-info face 'face)))
+  (when-let* ((version-info (describe-variable-custom-version-info face 'face)))
     (insert version-info)
     (terpri)))
 
@@ -2196,7 +2239,7 @@ is enabled in the Help buffer."
                    (lambda (_)
                      (describe-function major))))
           (insert " mode")
-          (when-let ((file-name (find-lisp-object-file-name major nil)))
+          (when-let* ((file-name (find-lisp-object-file-name major nil)))
 	    (insert (format " defined in %s:\n\n"
                             (buttonize
                              (help-fns-short-filename file-name)

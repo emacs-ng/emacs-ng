@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1990--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Variables
 @chapter Variables
@@ -1096,7 +1096,7 @@ x                        ; @r{Note that @code{x} has no global value.}
 @end example
 
 @noindent
-The @code{let} binding defines a lexical environment in which the
+Here, the @code{let} binding defines a lexical environment in which the
 variable @code{x} is locally bound to 0.  Within this binding
 construct, we define a lambda expression which increments @code{x} by
 one and returns the incremented value.  This lambda expression is
@@ -1112,6 +1112,12 @@ functions which take a symbol argument (like @code{symbol-value},
 @code{boundp}, and @code{set}) can only retrieve or modify a
 variable's dynamic binding (i.e., the contents of its symbol's value
 cell).
+
+  Note also that variables may be declared special, in which case they
+will use dynamic binding, even for new bindings such as a @code{let}
+binding.  Depending on how the variable is declared, it can be
+special globally, for a single file, or for a portion of a file.
+@xref{Dynamic Binding}, for further details.
 
 @node Dynamic Binding
 @subsection Dynamic Binding
@@ -1732,11 +1738,11 @@ buffer-local variables interactively.
 @defun kill-all-local-variables &optional kill-permanent
 This function eliminates all the buffer-local variable bindings of the
 current buffer.  As a result, the buffer will see the default values
-of most variables.  By default, for variables marked as permanent and
+of most variables.  By default, variables marked as permanent and
 local hook functions that have a non-@code{nil}
 @code{permanent-local-hook} property (@pxref{Setting Hooks}) won't be
 killed, but if the optional @var{kill-permanent} argument is
-non-@code{nil}, even these variables will be killed.
+non-@code{nil}, even those variables will be killed.
 
 This function also resets certain other information pertaining to the
 buffer: it sets the local keymap to @code{nil}, the syntax table to the
@@ -1768,6 +1774,7 @@ subsequent major mode.  @xref{Hooks}.
 @end defvar
 
 @cindex permanent local variable
+@cindex @code{permanent-local} (symbol property)
 A buffer-local variable is @dfn{permanent} if the variable name (a
 symbol) has a @code{permanent-local} property that is non-@code{nil}.
 Such variables are unaffected by @code{kill-all-local-variables}, and
@@ -2045,7 +2052,7 @@ file-local variables stored in @code{file-local-variables-alist}.
 @end defvar
 
 @cindex safe local variable
-@cindex @code{safe-local-variable}, property of variable
+@cindex @code{safe-local-variable} (symbol property)
   You can specify safe values for a variable with a
 @code{safe-local-variable} property.  The property has to be a
 function of one argument; any value is safe if the function returns
@@ -2054,6 +2061,11 @@ variables have @code{safe-local-variable} properties; these include
 @code{fill-column}, @code{fill-prefix}, and @code{indent-tabs-mode}.
 For boolean-valued variables that are safe, use @code{booleanp} as the
 property value.
+
+  Since the value of @code{safe-local-variable} is consulted when
+loading files, the function should be efficient and should ideally not
+lead to loading any libraries to determine the safeness (e.g., it should
+not be an autoloaded function).
 
   If you want to define @code{safe-local-variable} properties for
 variables defined in C source code, add the names and the properties
@@ -2112,7 +2124,7 @@ This function returns non-@code{nil} if it is safe to give @var{sym}
 the value @var{val}, based on the above criteria.
 @end defun
 
-@c @cindex risky local variable   Duplicates risky-local-variable
+@cindex @code{risky-local-variable} (symbol property)
   Some variables are considered @dfn{risky}.  If a variable is risky,
 it is never entered automatically into
 @code{safe-local-variable-values}; Emacs always queries before setting
@@ -2161,6 +2173,7 @@ evaluate when found in the @samp{Eval:} ``variable'' in a file
 local variables list.
 @end defopt
 
+@cindex @code{safe-local-eval-function} (symbol property)
   If the expression is a function call and the function has a
 @code{safe-local-eval-function} property, the property value
 determines whether the expression is safe to evaluate.  The property
@@ -2613,7 +2626,7 @@ compatibility.  You can do this with @code{defvaralias}.
 
 @defun defvaralias new-alias base-variable &optional docstring
 This function defines the symbol @var{new-alias} as a variable alias
-for symbol @var{base-variable}. This means that retrieving the value
+for symbol @var{base-variable}.  This means that retrieving the value
 of @var{new-alias} returns the value of @var{base-variable}, and
 changing the value of @var{new-alias} changes the value of
 @var{base-variable}.  The two aliased variable names always share the
@@ -2641,10 +2654,10 @@ This function makes the byte compiler warn that the variable
 @var{obsolete-name} is obsolete.  If @var{current-name} is a symbol,
 it is the variable's new name; then the warning message says to use
 @var{current-name} instead of @var{obsolete-name}.  If
-@var{current-name} is a string, this is the message and there is no
-replacement variable.  @var{when} should be a string indicating when
-the variable was first made obsolete (usually a version number
-string).
+@var{current-name} is a string, this is the message (after passing
+through @code{substitute-command-keys}) and there is no replacement
+variable.  @var{when} should be a string indicating when the variable
+was first made obsolete (usually a version number string).
 
 The optional argument @var{access-type}, if non-@code{nil}, should
 specify the kind of access that will trigger obsolescence warnings; it

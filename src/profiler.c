@@ -1,6 +1,6 @@
 /* Profiler implementation.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -238,8 +238,8 @@ approximate_median (log_t *log, int start, int size)
       EMACS_INT i3 = approximate_median (log, start2 + newsize,
 					 size - 2 * newsize);
       return (i1 < i2
-	      ? (i2 < i3 ? i2 : (i1 < i3 ? i3 : i1))
-	      : (i1 < i3 ? i1 : (i2 < i3 ? i3 : i2)));
+	      ? (i2 < i3 ? i2 : max (i1, i3))
+	      : (i1 < i3 ? i1 : max (i2, i3)));
     }
 }
 
