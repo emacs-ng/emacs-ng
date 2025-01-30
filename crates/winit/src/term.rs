@@ -33,6 +33,7 @@ use emacs_sys::terminal::TerminalRef;
 use libc::fd_set;
 use libc::sigset_t;
 use libc::timespec;
+use raw_window_handle::HasDisplayHandle;
 use std::ptr;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -882,7 +883,7 @@ pub fn winit_term_init(display_name: LispObject) -> DisplayInfoRef {
         emacs_sys::bindings::Fset_input_interrupt_mode(Qnil);
     }
 
-    let fd = emacs_sys::display_descriptor(terminal.raw_display_handle().unwrap());
+    let fd = emacs_sys::display_descriptor(terminal.display_handle().unwrap().as_raw());
 
     unsafe {
         if interrupt_input {

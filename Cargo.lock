@@ -684,10 +684,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
-name = "colors"
-version = "0.1.0"
-
-[[package]]
 name = "combine"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -953,7 +949,6 @@ dependencies = [
  "arboard",
  "bindgen",
  "cfg_aliases 0.2.1",
- "colors",
  "euclid",
  "gdk",
  "gdkwayland-sys",
@@ -971,7 +966,6 @@ dependencies = [
  "regex",
  "surfman",
  "wayland-sys 0.31.6",
- "webrender_api",
  "winit 0.30.8",
  "x11",
  "x11-dl",
@@ -5019,7 +5013,6 @@ dependencies = [
  "bit-vec",
  "cfg_aliases 0.2.1",
  "codegen",
- "colors",
  "core-foundation",
  "emacs-sys",
  "font",

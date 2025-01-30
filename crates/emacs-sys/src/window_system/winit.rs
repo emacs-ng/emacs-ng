@@ -4,11 +4,12 @@ use crate::frame::FrameRef;
 use crate::lisp::ExternalPtr;
 use crate::terminal::TerminalRef;
 use arboard::Clipboard;
+use raw_window_handle::DisplayHandle;
+use raw_window_handle::HandleError;
 use raw_window_handle::HasDisplayHandle;
 use raw_window_handle::HasWindowHandle;
-use raw_window_handle::RawDisplayHandle;
 use raw_window_handle::RawWindowHandle;
-use webrender_api::ColorF;
+use raw_window_handle::WindowHandle;
 use winit::dpi::PhysicalPosition;
 use winit::dpi::PhysicalSize;
 use winit::dpi::Position;
@@ -25,9 +26,8 @@ use winit::window::WindowLevel;
 use std::ptr;
 
 pub struct WinitFrameData {
-    pub background_color: ColorF,
-    pub cursor_color: ColorF,
-    pub cursor_foreground_color: ColorF,
+    pub cursor_color: ::libc::c_ulong,
+    pub cursor_foreground_color: ::libc::c_ulong,
     pub window: Option<winit::window::Window>,
     pub cursor_position: winit::dpi::PhysicalPosition<f64>,
 }
@@ -35,9 +35,8 @@ pub struct WinitFrameData {
 impl Default for WinitFrameData {
     fn default() -> Self {
         WinitFrameData {
-            background_color: ColorF::WHITE,
-            cursor_color: ColorF::BLACK,
-            cursor_foreground_color: ColorF::WHITE,
+            cursor_color: 0x000000,
+            cursor_foreground_color: 0xFFFFFF,
             window: None,
             cursor_position: winit::dpi::PhysicalPosition::new(0.0, 0.0),
         }
@@ -104,42 +103,46 @@ impl TerminalRef {
     pub fn get_color_bits(&self) -> u8 {
         24
     }
+}
 
-    pub fn raw_display_handle(&self) -> Option<RawDisplayHandle> {
-        Some(
-            self.winit_data()?
-                .event_loop
-                .display_handle()
-                .ok()?
-                .as_raw(),
-        )
+impl HasDisplayHandle for TerminalRef {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        match self.winit_data() {
+            Some(d) => {
+                Ok(unsafe { DisplayHandle::borrow_raw(d.event_loop.display_handle()?.as_raw()) })
+            }
+            None => Err(HandleError::Unavailable),
+        }
+    }
+}
+
+impl HasWindowHandle for FrameRef {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        match self.winit_data() {
+            Some(d) => match d.window.as_ref() {
+                Some(w) => Ok(unsafe { WindowHandle::borrow_raw(w.window_handle()?.as_raw()) }),
+                None => Err(HandleError::Unavailable),
+            },
+            None => Err(HandleError::Unavailable),
+        }
+    }
+}
+
+impl HasDisplayHandle for FrameRef {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        match self.winit_data() {
+            Some(d) => match d.window.as_ref() {
+                Some(w) => Ok(unsafe { DisplayHandle::borrow_raw(w.display_handle()?.as_raw()) }),
+                None => Ok(unsafe {
+                    DisplayHandle::borrow_raw(self.terminal().display_handle()?.as_raw())
+                }),
+            },
+            None => Err(HandleError::Unavailable),
+        }
     }
 }
 
 impl FrameRef {
-    // Using frame winit window display handle, fallback to terminal display handle
-    pub fn raw_display_handle(&self) -> Option<RawDisplayHandle> {
-        fn frame_display_handle(f: &FrameRef) -> Option<RawDisplayHandle> {
-            Some(
-                f.winit_data()?
-                    .window
-                    .as_ref()?
-                    .display_handle()
-                    .ok()?
-                    .as_raw(),
-            )
-        }
-        frame_display_handle(self).or_else(|| self.terminal().raw_display_handle())
-    }
-
-    pub fn raw_window_handle(&self) -> Option<RawWindowHandle> {
-        self.winit_data().and_then(|data| {
-            data.window
-                .as_ref()
-                .and_then(|w| w.window_handle().map(|handle| handle.as_raw()).ok())
-        })
-    }
-
     pub fn free_winit_data(self) {
         let _ = self
             .winit_data()
@@ -166,10 +169,10 @@ impl FrameRef {
         ))
     }
 
-    pub fn cursor_color(&self) -> ColorF {
+    pub fn cursor_color(&self) -> ::libc::c_ulong {
         self.winit_data()
             .and_then(|data| Some(data.cursor_color))
-            .unwrap_or(ColorF::BLACK)
+            .unwrap_or(0x000000)
     }
 
     // This value may differ from MonitorHandle::scale_factor.
@@ -180,10 +183,10 @@ impl FrameRef {
             .unwrap_or(1.0)
     }
 
-    pub fn cursor_foreground_color(&self) -> ColorF {
+    pub fn cursor_foreground_color(&self) -> ::libc::c_ulong {
         self.winit_data()
             .and_then(|data| Some(data.cursor_foreground_color))
-            .unwrap_or(ColorF::WHITE)
+            .unwrap_or(0xFFFFFF)
     }
 
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
@@ -229,7 +232,7 @@ impl FrameRef {
         }
 
         let parent_frame = FrameRef::from(self.parent_frame);
-        parent_frame.raw_window_handle()
+        Some(parent_frame.window_handle().ok()?.as_raw())
     }
 
     pub fn available_monitors(&self) -> Option<impl Iterator<Item = MonitorHandle>> {

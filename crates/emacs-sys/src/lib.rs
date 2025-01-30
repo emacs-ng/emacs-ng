@@ -42,8 +42,6 @@ pub mod vector_macros;
 pub mod lisp;
 
 pub mod buffer;
-#[cfg(use_webrender)]
-pub mod color;
 #[cfg(have_window_system)]
 pub mod composite;
 #[cfg(have_window_system)]

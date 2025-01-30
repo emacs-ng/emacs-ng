@@ -1,12 +1,7 @@
 // Interface definitions for display code.
-#[cfg(use_webrender)]
-use webrender_api::LineStyle;
-
 use crate::bindings::draw_glyphs_face;
 use crate::bindings::face_id;
-use crate::bindings::face_underline_type;
 use crate::bindings::glyph_row_area;
-use crate::bindings::glyph_type;
 use crate::bindings::image_cache as ImageCache;
 use crate::bindings::resource_types;
 use crate::bindings::text_cursor_kinds;
@@ -91,43 +86,6 @@ pub use face::*;
 pub type ImageCacheRef = ExternalPtr<ImageCache>;
 pub type EmacsGCRef = ExternalPtr<EmacsGC>;
 pub type GlyphRowRef = ExternalPtr<GlyphRow>;
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum GlyphType {
-    Char,
-    Composite,
-    Glyphless,
-    Image,
-    Stretch,
-    Xwidget,
-}
-
-impl From<glyph_type::Type> for GlyphType {
-    fn from(t: glyph_type::Type) -> Self {
-        match t {
-            glyph_type::CHAR_GLYPH => GlyphType::Char,
-            glyph_type::COMPOSITE_GLYPH => GlyphType::Composite,
-            glyph_type::GLYPHLESS_GLYPH => GlyphType::Glyphless,
-            glyph_type::IMAGE_GLYPH => GlyphType::Image,
-            glyph_type::STRETCH_GLYPH => GlyphType::Stretch,
-            glyph_type::XWIDGET_GLYPH => GlyphType::Xwidget,
-            _ => panic!("unsupported glyph type"),
-        }
-    }
-}
-
-impl Into<glyph_type::Type> for GlyphType {
-    fn into(self) -> glyph_type::Type {
-        match self {
-            GlyphType::Char => glyph_type::CHAR_GLYPH,
-            GlyphType::Composite => glyph_type::COMPOSITE_GLYPH,
-            GlyphType::Glyphless => glyph_type::GLYPHLESS_GLYPH,
-            GlyphType::Image => glyph_type::IMAGE_GLYPH,
-            GlyphType::Stretch => glyph_type::STRETCH_GLYPH,
-            GlyphType::Xwidget => glyph_type::XWIDGET_GLYPH,
-        }
-    }
-}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DrawGlyphsFace {
@@ -313,56 +271,6 @@ impl Into<glyph_row_area::Type> for GlyphRowArea {
             GlyphRowArea::Text => glyph_row_area::TEXT_AREA,
             GlyphRowArea::RightMargin => glyph_row_area::RIGHT_MARGIN_AREA,
             GlyphRowArea::Last => glyph_row_area::LAST_AREA,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub enum FaceUnderlineType {
-    None,
-    Line,
-    Double,
-    Wave,
-    Dotted,
-    Dashed,
-}
-
-impl From<face_underline_type::Type> for FaceUnderlineType {
-    fn from(t: face_underline_type::Type) -> Self {
-        match t {
-            face_underline_type::FACE_NO_UNDERLINE => FaceUnderlineType::None,
-            face_underline_type::FACE_UNDERLINE_SINGLE => FaceUnderlineType::Line,
-            face_underline_type::FACE_UNDERLINE_DOUBLE_LINE => FaceUnderlineType::Double,
-            face_underline_type::FACE_UNDERLINE_DOTS => FaceUnderlineType::Dotted,
-            face_underline_type::FACE_UNDERLINE_DASHES => FaceUnderlineType::Dashed,
-            face_underline_type::FACE_UNDERLINE_WAVE => FaceUnderlineType::Wave,
-            _ => FaceUnderlineType::None,
-        }
-    }
-}
-
-impl Into<face_underline_type::Type> for FaceUnderlineType {
-    fn into(self) -> face_underline_type::Type {
-        match self {
-            FaceUnderlineType::Line => face_underline_type::FACE_UNDERLINE_SINGLE,
-            FaceUnderlineType::Double => face_underline_type::FACE_UNDERLINE_DOUBLE_LINE,
-            FaceUnderlineType::Dotted => face_underline_type::FACE_UNDERLINE_DOTS,
-            FaceUnderlineType::Dashed => face_underline_type::FACE_UNDERLINE_DASHES,
-            FaceUnderlineType::Wave => face_underline_type::FACE_UNDERLINE_WAVE,
-            FaceUnderlineType::None => face_underline_type::FACE_NO_UNDERLINE,
-        }
-    }
-}
-
-#[cfg(use_webrender)]
-impl Into<Option<LineStyle>> for FaceUnderlineType {
-    fn into(self) -> Option<LineStyle> {
-        match self {
-            FaceUnderlineType::Line => Some(LineStyle::Solid),
-            FaceUnderlineType::Dotted => Some(LineStyle::Dotted),
-            FaceUnderlineType::Dashed => Some(LineStyle::Dashed),
-            FaceUnderlineType::Wave => Some(LineStyle::Wavy),
-            _ => None,
         }
     }
 }

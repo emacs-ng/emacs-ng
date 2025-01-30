@@ -1,4 +1,6 @@
 use super::util::HandyDandyRectBuilder;
+use crate::color::pixel_to_color;
+use crate::face::WrFace;
 use crate::fringe::FringeBitmap;
 use crate::glyph::GlyphStringExtWr;
 use crate::glyph::WrGlyph;
@@ -6,11 +8,10 @@ use crate::image::ImageExt;
 use crate::image::ImageRef;
 use crate::output::GlRenderer;
 use crate::output::GlRendererRef;
-use emacs_sys::color::pixel_to_color;
+use emacs_sys::bindings::glyph_type;
 use emacs_sys::display_traits::DrawGlyphsFace;
 use emacs_sys::display_traits::FaceRef;
 use emacs_sys::display_traits::GlyphStringRef;
-use emacs_sys::display_traits::GlyphType;
 use emacs_sys::frame::FrameRef;
 use euclid::Scale;
 use std::cmp::min;
@@ -21,6 +22,11 @@ use webrender::api::*;
 pub trait FrameExtWrCommon {
     fn gl_renderer(&self) -> GlRendererRef;
     fn free_gl_renderer_resources(&mut self);
+    fn fg_color_f(&self) -> ColorF;
+    fn cursor_color_f(&self) -> ColorF;
+    fn cursor_foreground_color_f(&self) -> ColorF;
+    fn logical_size(&self) -> LayoutSize;
+    fn physical_size(&self) -> DeviceIntSize;
     fn draw_glyph_string(&mut self, s: GlyphStringRef);
 
     fn draw_glyph_string_background(&mut self, s: GlyphStringRef, force_p: bool);
@@ -100,12 +106,33 @@ impl FrameExtWrCommon for FrameRef {
         self.output().gl_renderer = ptr::null_mut();
     }
 
+    fn fg_color_f(&self) -> ColorF {
+        pixel_to_color(self.fg_color())
+    }
+
+    fn cursor_color_f(&self) -> ColorF {
+        pixel_to_color(self.cursor_color())
+    }
+
+    fn cursor_foreground_color_f(&self) -> ColorF {
+        pixel_to_color(self.cursor_foreground_color())
+    }
+
+    fn logical_size(&self) -> LayoutSize {
+        LayoutSize::new(self.pixel_width as f32, self.pixel_height as f32)
+    }
+
+    fn physical_size(&self) -> DeviceIntSize {
+        let size = self.logical_size() * euclid::Scale::new(self.scale_factor() as f32);
+        size.to_i32()
+    }
+
     fn draw_glyph_string(&mut self, mut s: GlyphStringRef) {
         // wip
         s.set_gc();
 
         match s.glyph_type() {
-            GlyphType::Char => {
+            glyph_type::CHAR_GLYPH => {
                 if s.for_overlaps() != 0 {
                     s.set_background_filled_p(true);
                 } else {
@@ -113,9 +140,9 @@ impl FrameExtWrCommon for FrameRef {
                 }
                 self.draw_char_glyph_string_foreground(s)
             }
-            GlyphType::Stretch => self.draw_stretch_glyph_string_foreground(s),
-            GlyphType::Image => self.draw_image_glyph(s),
-            GlyphType::Composite => {
+            glyph_type::STRETCH_GLYPH => self.draw_stretch_glyph_string_foreground(s),
+            glyph_type::IMAGE_GLYPH => self.draw_image_glyph(s),
+            glyph_type::COMPOSITE_GLYPH => {
                 if s.for_overlaps() != 0 || s.cmp_from > 0 && s.automatic_composite_p() {
                     s.set_background_filled_p(true);
                 } else {
@@ -123,10 +150,10 @@ impl FrameExtWrCommon for FrameRef {
                 }
                 self.draw_composite_glyph_string_foreground(s)
             }
-            GlyphType::Xwidget => {
+            glyph_type::XWIDGET_GLYPH => {
                 log::warn!("TODO unimplemented! GlyphType::XWIDGET_GLYPH\n")
             }
-            GlyphType::Glyphless => {
+            glyph_type::GLYPHLESS_GLYPH => {
                 if s.for_overlaps() != 0 {
                     s.set_background_filled_p(true);
                 } else {
@@ -135,6 +162,7 @@ impl FrameExtWrCommon for FrameRef {
 
                 self.draw_glyphless_glyph_string_foreground(s);
             }
+            _ => {}
         }
 
         if !s.is_for_overlaps() {
@@ -181,7 +209,7 @@ impl FrameExtWrCommon for FrameRef {
             || s.font_not_found_p()
             || s.extends_to_end_of_line_p() || force_p
         {
-            let background_color = pixel_to_color(s.gc().background as u64);
+            let background_color = s.bg_color_f();
             self.clear_area(
                 background_color,
                 s.x,
@@ -201,12 +229,12 @@ impl FrameExtWrCommon for FrameRef {
         let visible_height = s.visible_height();
 
         // draw background
-        let background_color = pixel_to_color(s.gc().background as u64);
+        let background_color = s.bg_color_f();
         self.clear_area(background_color, x, y, s.background_width, visible_height);
 
         self.gl_renderer()
             .display(|builder, space_and_clip, scale| {
-                let foreground_color = pixel_to_color(s.gc().foreground);
+                let foreground_color = s.fg_color_f();
 
                 let glyph_instances = s.scaled_glyph_instances(scale);
                 // draw foreground
@@ -240,7 +268,7 @@ impl FrameExtWrCommon for FrameRef {
             s.background_width
         };
 
-        let background_color = s.bg_color();
+        let background_color = s.bg_color_f();
         self.clear_area(background_color, s.x, s.y, background_width, visible_height);
 
         s.set_background_filled_p(true);
@@ -251,11 +279,11 @@ impl FrameExtWrCommon for FrameRef {
         let x = s.x;
         let y = s.y;
         let visible_height = s.visible_height();
-        let background_color = s.bg_color();
+        let background_color = s.bg_color_f();
         self.clear_area(background_color, x, y, s.background_width, visible_height);
         let clip_rect = s.clip_rect();
 
-        let background_color = s.face().bg_color();
+        let background_color = s.face().bg_color_f();
         let scale = s.frame().gl_renderer().scale();
         let clip_bounds =
             (clip_rect.x, clip_rect.y).by(clip_rect.width as i32, clip_rect.height as i32, scale);
@@ -318,20 +346,20 @@ impl FrameExtWrCommon for FrameRef {
         // first character of the composition could not be loaded.
         if s.font_not_found_p() {
             if s.cmp_from == 0 {
-                self.clear_area(self.cursor_color(), s.x, s.y, s.width, s.height);
+                self.clear_area(self.cursor_color_f(), s.x, s.y, s.width, s.height);
             }
         } else {
             let visible_height = s.visible_height();
 
             let x = s.x;
             let y = s.y;
-            let background_color = pixel_to_color(s.gc().background as u64);
+            let background_color = s.bg_color_f();
             self.clear_area(background_color, x, y, s.background_width, visible_height);
             self.gl_renderer()
                 .display(|builder, space_and_clip, scale| {
                     let s = s.clone();
 
-                    let foreground_color = pixel_to_color(s.gc().foreground);
+                    let foreground_color = s.fg_color_f();
 
                     let visible_rect = (x, y).by(s.width, visible_height, scale);
 
@@ -402,7 +430,7 @@ impl FrameExtWrCommon for FrameRef {
         let y1 = y1 + 1;
 
         let color = match face {
-            Some(f) => f.fg_color(),
+            Some(f) => f.fg_color_f(),
             None => ColorF::BLACK,
         };
 
@@ -529,7 +557,7 @@ impl FrameExtWrCommon for FrameRef {
     }
 
     fn draw_hollow_box_cursor(&mut self, cursor_rect: LayoutRect, clip_rect: LayoutRect) {
-        let cursor_color = self.cursor_color();
+        let cursor_color = self.cursor_color_f();
 
         let border_widths = LayoutSideOffsets::new_all_same(1.0);
 
@@ -560,8 +588,8 @@ impl FrameExtWrCommon for FrameRef {
 
     fn draw_bar_cursor(&mut self, face: Option<FaceRef>, x: i32, y: i32, width: i32, height: i32) {
         let cursor_color = match face {
-            Some(face) if face.bg_color() == self.cursor_color() => face.fg_color(),
-            _ => self.cursor_color(),
+            Some(face) if face.bg_color_f() == self.cursor_color_f() => face.fg_color_f(),
+            _ => self.cursor_color_f(),
         };
 
         let scale = self.gl_renderer().scale();

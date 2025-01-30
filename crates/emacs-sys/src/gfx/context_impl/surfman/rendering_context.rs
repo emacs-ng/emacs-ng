@@ -5,6 +5,7 @@
 // Copied from https://github.com/servo/servo/commit/bc211f8ff387ea59bc8af7bb7394c7be7ca69597
 
 #![deny(unsafe_code)]
+#![allow(dead_code)]
 
 use std::cell::RefCell;
 use std::ffi::c_void;

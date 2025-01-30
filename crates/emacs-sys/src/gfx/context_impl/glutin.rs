@@ -21,7 +21,7 @@ use glutin::surface::WindowSurface;
 use raw_window_handle::HasDisplayHandle;
 use raw_window_handle::HasWindowHandle;
 
-use webrender_api::units::DeviceIntSize;
+use crate::DeviceIntSize;
 
 use std::ffi::CString;
 use std::num::NonZeroU32;

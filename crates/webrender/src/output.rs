@@ -84,7 +84,8 @@ impl GlRenderer {
         let mut api = sender.create_api();
         let device_size = frame.physical_size();
         gl_context.resize(&device_size);
-        let document_id = api.add_document(device_size);
+        let document_id =
+            api.add_document(device_size.cast_unit::<webrender::api::units::DevicePixel>());
         api.send_transaction(document_id, txn);
 
         Self {
@@ -183,7 +184,9 @@ impl GlRenderer {
     }
 
     pub fn device_size(&self) -> DeviceIntSize {
-        self.frame.physical_size()
+        self.frame
+            .physical_size()
+            .cast_unit::<webrender::api::units::DevicePixel>()
     }
 
     pub fn display<F>(&mut self, f: F)
@@ -459,7 +462,8 @@ impl GlRenderer {
         txn.set_document_view(device_rect);
         self.render_api.send_transaction(self.document_id, txn);
 
-        self.gl_context.resize(&size);
+        self.gl_context
+            .resize(&size.cast_unit::<emacs_sys::DevicePixel>());
     }
 
     pub fn deinit(mut self) {

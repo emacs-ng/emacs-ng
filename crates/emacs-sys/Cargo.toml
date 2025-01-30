@@ -12,10 +12,9 @@ libc = "0.2.154"
 log = "0.4"
 memoffset = "0.9"
 raw-window-handle = { workspace = true, optional = true }
-webrender_api = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
-colors = { path = "../colors", optional = true }
 surfman = { version = "0.9.8", features = ["chains", "sm-angle", "sm-angle-default", "sm-raw-window-handle-06"] , optional = true }
+
 glutin = { version = "0.31", optional = true }
 gleam = { workspace = true, optional = true }
 winit = { workspace = true, optional = true }
@@ -57,7 +56,7 @@ wayland = [
   "winit?/wayland-dlopen",
 ]
 gtk3=["dep:gtk", "dep:gdk", "dep:gl_loader"]
-webrender = ["dep:raw-window-handle", "dep:webrender_api", "dep:image", "dep:colors", "dep:gleam"]
+webrender = ["dep:raw-window-handle", "dep:image", "dep:gleam"]
 # window system
 window-system-x11=[]
 window-system-nextstep=[]

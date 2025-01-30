@@ -3,6 +3,7 @@ use crate::frame::Frame;
 use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
 use crate::window_system::FrameExtPgtk;
+use crate::DeviceIntSize;
 use gleam::gl::ErrorCheckingGl;
 use gleam::gl::Gl;
 use gleam::gl::GlFns;
@@ -11,7 +12,6 @@ use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use gtk::GLArea;
 use std::rc::Rc;
-use webrender_api::units::DeviceIntSize;
 
 pub struct ContextImpl {
     area: GLArea,

@@ -1,7 +1,4 @@
 //! Generic frame functions.
-#[cfg(use_webrender)]
-use webrender_api::ColorF;
-
 use crate::bindings::adjust_frame_size;
 use crate::bindings::change_frame_size;
 use crate::bindings::face;
@@ -16,8 +13,6 @@ use crate::bindings::Fassq;
 use crate::bindings::Fselected_frame;
 use crate::bindings::Lisp_Type;
 use crate::bindings::Vframe_list;
-#[cfg(use_webrender)]
-use crate::color::pixel_to_color;
 use crate::display_traits::FaceRef;
 #[cfg(have_window_system)]
 use crate::display_traits::FrameParam;
@@ -207,9 +202,8 @@ impl FrameRef {
         faces_map.get(id as usize).copied().map(|f| FaceRef::new(f))
     }
 
-    #[cfg(use_webrender)]
-    pub fn fg_color(&self) -> ColorF {
-        pixel_to_color(self.foreground_pixel)
+    pub fn fg_color(&self) -> ::libc::c_ulong {
+        self.foreground_pixel
     }
 
     pub fn param(self, prop: impl Into<LispObject>) -> LispObject {

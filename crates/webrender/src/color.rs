@@ -1,8 +1,16 @@
-use image::Rgba;
-use webrender_api::ColorF;
-use webrender_api::ColorU;
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
-use crate::bindings::Emacs_Color;
+include!(concat!(env!("OUT_DIR"), "/colors.rs"));
+
+pub static COLOR_MAP: LazyLock<HashMap<&'static str, (u8, u8, u8)>> =
+    LazyLock::new(|| init_color());
+
+use image::Rgba;
+use webrender::api::ColorF;
+use webrender::api::ColorU;
+
+use emacs_sys::bindings::Emacs_Color;
 
 pub fn pixel_to_color(pixel: u64) -> ColorF {
     let pixel_array: [u16; 4] = unsafe { std::mem::transmute(pixel) };
@@ -80,7 +88,7 @@ pub fn lookup_color_by_name_or_hex(color_string: &str) -> Option<ColorF> {
         }
     } else {
         // pre-defined color, `color_string` is the color name.
-        colors::COLOR_MAP
+        COLOR_MAP
             .get::<str>(&color_string.to_lowercase())
             .map(|(red, green, blue)| {
                 ColorF::new(

@@ -7,16 +7,18 @@ use crate::term::winit_term_init;
 use emacs_sys::bindings::gui_update_cursor;
 use emacs_sys::bindings::selected_frame;
 use emacs_sys::bindings::Fredraw_frame;
-use emacs_sys::color::color_to_pixel;
 use emacs_sys::display_traits::FrameParam;
 use emacs_sys::frame::Frame;
 use emacs_sys::output::Output;
 use emacs_sys::terminal::TerminalRef;
 use font::register_swash_font_driver;
+use raw_window_handle::HasDisplayHandle;
+use raw_window_handle::HasWindowHandle;
 use raw_window_handle::RawWindowHandle;
 use std::ffi::CString;
 use std::ptr;
 use std::sync::Mutex;
+use webrender::color::color_to_pixel;
 use webrender_api::*;
 use winit::dpi::LogicalSize;
 
@@ -25,9 +27,9 @@ use winit::monitor::MonitorHandle;
 
 use lisp_macros::lisp_fn;
 
-use emacs_sys::color::lookup_color_by_name_or_hex;
 use emacs_sys::output::OutputRef;
 use raw_window_handle::RawDisplayHandle;
+use webrender::color::lookup_color_by_name_or_hex;
 
 use emacs_sys::{
     bindings::globals,
@@ -131,7 +133,6 @@ pub extern "C" fn winit_set_background_color(f: *mut Frame, arg: LispObject, _ol
     let pixel = color_to_pixel(color);
 
     frame.background_pixel = pixel;
-    frame.set_background_color(color);
 
     frame.update_face_from_frame_param(Qbackground_color, arg);
 
@@ -335,7 +336,7 @@ pub fn winit_create_frame(params: LispObject) -> FrameRef {
     }
 
     //TODO do something specific to each display
-    match f.raw_display_handle().unwrap() {
+    match f.display_handle().unwrap().as_raw() {
         RawDisplayHandle::UiKit(_) => {
             todo!()
         }
@@ -964,7 +965,7 @@ pub fn winit_frame_edges(frame: LispObject, type_: LispObject) -> LispObject {
 pub fn winit_raw_window_handle_name(frame: LispObject) -> LispObject {
     let frame: FrameRef = window_frame_live_or_selected(frame);
 
-    match frame.raw_window_handle().unwrap() {
+    match frame.window_handle().unwrap().as_raw() {
         RawWindowHandle::UiKit(_) => QUiKit,
         RawWindowHandle::AppKit(_) => QAppKit,
         RawWindowHandle::Orbital(_) => QOrbital,

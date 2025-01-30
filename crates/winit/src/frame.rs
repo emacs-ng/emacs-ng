@@ -12,6 +12,7 @@ use emacs_sys::globals::Qmaximized;
 use emacs_sys::globals::Qnil;
 use emacs_sys::globals::Qouter_edges;
 use emacs_sys::lisp::LispObject;
+use webrender::color::color_to_pixel;
 
 use webrender_api::units::*;
 use webrender_api::ColorF;
@@ -28,7 +29,6 @@ pub trait FrameExtWinit {
     fn set_winit_window(&self, handle: winit::window::Window);
     fn set_inner_size(&self, size: PhysicalSize<u32>);
     fn set_cursor_color(&self, color: ColorF);
-    fn set_background_color(&self, color: ColorF);
     fn set_cursor_position(&self, pos: PhysicalPosition<f64>);
     fn set_visible_(&mut self, visible: bool);
     fn set_cursor_icon(&self, cursor: Emacs_Cursor);
@@ -86,11 +86,8 @@ impl FrameExtWinit for FrameRef {
     }
 
     fn set_cursor_color(&self, color: ColorF) {
-        self.winit_data().map(|mut d| d.cursor_color = color);
-    }
-
-    fn set_background_color(&self, color: ColorF) {
-        self.winit_data().map(|mut d| d.background_color = color);
+        self.winit_data()
+            .map(|mut d| d.cursor_color = color_to_pixel(color));
     }
 
     fn set_visible_(&mut self, is_visible: bool) {

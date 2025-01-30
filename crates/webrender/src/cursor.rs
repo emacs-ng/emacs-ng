@@ -1,8 +1,8 @@
 use crate::frame::FrameExtWrCommon;
 use crate::util::HandyDandyRectBuilder;
+use emacs_sys::bindings::glyph_type;
 use emacs_sys::display_traits::GlyphRowArea;
 use emacs_sys::display_traits::GlyphRowRef;
-use emacs_sys::display_traits::GlyphType;
 use emacs_sys::window::WindowRef;
 
 pub fn draw_filled_cursor(window: WindowRef, row: GlyphRowRef) {
@@ -39,7 +39,7 @@ pub fn draw_bar_cursor(mut window: WindowRef, row: GlyphRowRef, cursor_width: i3
     }
 
     let glyph_type = cursor_glyph.glyph_type();
-    if glyph_type == GlyphType::Xwidget || glyph_type == GlyphType::Image {
+    if glyph_type == glyph_type::XWIDGET_GLYPH || glyph_type == glyph_type::IMAGE_GLYPH {
         return;
     }
 

@@ -1,9 +1,9 @@
 use super::ImageExt;
 use super::ImageRef;
 use super::WrPixmapRef;
+use crate::color::color_to_rgba;
 use emacs_sys::bindings::Fequal;
 use emacs_sys::bindings::EMACS_UINT;
-use emacs_sys::color::color_to_rgba;
 use emacs_sys::globals::Qnil;
 use emacs_sys::globals::Qsvg;
 use emacs_sys::lisp::LispObject;

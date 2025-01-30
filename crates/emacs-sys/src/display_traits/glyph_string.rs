@@ -1,28 +1,20 @@
 use std::cmp::min;
 use std::slice;
 
-#[cfg(use_webrender)]
-use webrender_api::ColorF;
-
 use super::DrawGlyphsFace;
-#[cfg(use_webrender)]
 use super::EmacsGCRef;
 use super::FaceRef;
 use super::GlyphRowRef;
-use super::GlyphType;
 use crate::bindings::composition_gstring_from_id;
 use crate::bindings::composition_hash_table;
 use crate::bindings::composition_method;
 use crate::bindings::font_for_underline_metrics;
 use crate::bindings::glyph_string;
+use crate::bindings::glyph_type;
 use crate::bindings::hash_hash_t;
 use crate::bindings::hash_lookup_get_hash;
 use crate::bindings::prepare_face_for_display;
-#[cfg(use_webrender)]
-use crate::bindings::Emacs_Rectangle as NativeRectangle;
 use crate::bindings::XHASH_TABLE;
-#[cfg(use_webrender)]
-use crate::color::pixel_to_color;
 use crate::definitions::EmacsInt;
 use crate::display_traits::GlyphRef;
 use crate::font::FontRef;
@@ -35,8 +27,8 @@ pub type XChar2b = u32;
 
 pub type GlyphStringRef = ExternalPtr<glyph_string>;
 impl GlyphStringRef {
-    pub fn glyph_type(&self) -> GlyphType {
-        self.first_glyph().type_().into()
+    pub fn glyph_type(&self) -> glyph_type::Type {
+        self.first_glyph().type_()
     }
 
     pub fn hl(&self) -> DrawGlyphsFace {
@@ -99,67 +91,52 @@ impl GlyphStringRef {
         Some(GlyphRowRef::new(self.row))
     }
 
-    #[cfg(use_webrender)]
     pub fn gc(&self) -> EmacsGCRef {
-        EmacsGCRef::new(self.gc)
+        #[cfg(use_webrender)]
+        {
+            EmacsGCRef::new(self.gc)
+        }
+        #[cfg(not(use_webrender))]
+        unimplemented!();
     }
 
     pub fn prepare_face_for_display(&self) {
         unsafe { prepare_face_for_display(self.f, self.face) }
     }
 
-    #[cfg(use_webrender)]
-    pub fn bg_color(&self) -> ColorF {
-        pixel_to_color(self.gc().background as u64)
+    pub fn bg_color(&self) -> ::libc::c_ulong {
+        self.gc().background as u64
     }
 
-    #[cfg(use_webrender)]
-    pub fn fg_color(&self) -> ColorF {
-        pixel_to_color(self.gc().foreground as u64)
+    pub fn fg_color(&self) -> ::libc::c_ulong {
+        self.gc().foreground as u64
     }
 
-    #[cfg(use_webrender)]
-    pub fn clip_rect(&mut self) -> NativeRectangle {
-        use crate::bindings::get_glyph_string_clip_rect;
-        let mut clip_rect = NativeRectangle {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-        };
-
-        unsafe { get_glyph_string_clip_rect(self.as_mut(), &mut clip_rect) };
-        clip_rect
-    }
-
-    #[cfg(use_webrender)]
-    pub fn underline_color(&self) -> ColorF {
+    pub fn underline_color(&self) -> ::libc::c_ulong {
         let color = if self.face().underline_defaulted_p() {
             self.gc().foreground
         } else {
             self.face().underline_color
         };
-        pixel_to_color(color)
+        color
     }
 
-    #[cfg(use_webrender)]
-    pub fn overline_color(&self) -> ColorF {
+    pub fn overline_color(&self) -> ::libc::c_ulong {
         let color = if self.face().overline_color_defaulted_p() {
             self.gc().foreground
         } else {
             self.face().overline_color
         };
-        pixel_to_color(color)
+        color
     }
 
-    #[cfg(use_webrender)]
-    pub fn strike_through_color(&self) -> ColorF {
+    pub fn strike_through_color(&self) -> ::libc::c_ulong {
         let color = if self.face().strike_through_color_defaulted_p() {
             self.gc().foreground
         } else {
             self.face().strike_through_color
         };
-        pixel_to_color(color)
+        color
     }
 
     pub fn get_chars(&self) -> &[XChar2b] {

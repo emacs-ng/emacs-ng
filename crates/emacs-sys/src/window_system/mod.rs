@@ -8,8 +8,11 @@ mod winit;
 pub use winit::*;
 
 use crate::frame::FrameRef;
-use webrender_api::units::DeviceIntSize;
-use webrender_api::units::LayoutSize;
+use euclid::*;
+pub struct LayoutPixel;
+pub type LayoutSize = Size2D<f32, LayoutPixel>;
+pub struct DevicePixel;
+pub type DeviceIntSize = Size2D<i32, DevicePixel>;
 
 impl FrameRef {
     pub fn logical_size(&self) -> LayoutSize {

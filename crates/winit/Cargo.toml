@@ -13,7 +13,6 @@ lisp-macros = { path = "../lisp-macros" }
 webrender = { path = "../webrender", default-features = false }
 lisp-util = {  path = "../lisp-util" }
 font = {  path = "../font" }
-colors = {  path = "../colors" }
 webrender_api = { workspace = true}
 log.workspace = true
 libc.workspace = true

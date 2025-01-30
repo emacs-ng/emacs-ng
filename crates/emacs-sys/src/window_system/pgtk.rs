@@ -1,4 +1,3 @@
-use crate::color::pixel_to_color;
 use crate::frame::FrameRef;
 use core::ptr::NonNull;
 use gtk::glib::translate::FromGlibPtrNone;
@@ -18,12 +17,14 @@ use raw_window_handle::WindowHandle;
 use raw_window_handle::XlibDisplayHandle;
 use raw_window_handle::XlibWindowHandle;
 use std::ptr;
-use webrender_api::ColorF;
 
 impl FrameRef {
-    pub fn cursor_color(&self) -> ColorF {
-        let color = self.output().cursor_color;
-        pixel_to_color(color)
+    pub fn cursor_color(&self) -> ::libc::c_ulong {
+        self.output().cursor_color
+    }
+
+    pub fn cursor_foreground_color(&self) -> ::libc::c_ulong {
+        self.output().cursor_foreground_color
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -38,11 +39,6 @@ impl FrameRef {
         }
 
         1.0
-    }
-
-    pub fn cursor_foreground_color(&self) -> ColorF {
-        let color = self.output().cursor_foreground_color;
-        pixel_to_color(color)
     }
 }
 

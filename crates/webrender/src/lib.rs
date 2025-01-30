@@ -14,10 +14,12 @@ pub mod frame;
 
 mod cursor;
 
+pub mod color;
 pub mod fns;
 pub mod image;
 pub mod output;
 
+mod face;
 mod fringe;
 mod glyph;
 mod texture;

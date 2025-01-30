@@ -1,8 +1,8 @@
 use crate::frame::FrameRef;
 use crate::gfx::context_impl::ContextImpl;
+use crate::DeviceIntSize;
 use gleam::gl::Gl;
 use std::rc::Rc;
-use webrender_api::units::DeviceIntSize;
 
 pub type GLContext = ContextImpl;
 

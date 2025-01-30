@@ -1,15 +1,18 @@
+use crate::color::pixel_to_color;
 use crate::display_info::DisplayInfoExtWr;
+use crate::face::WrFace;
 use crate::frame::FrameExtWrCommon;
 use crate::image::ImageRef;
 use crate::util::HandyDandyRectBuilder;
 use emacs_sys::bindings::face_box_type::FACE_NO_BOX;
 use emacs_sys::bindings::face_box_type::{self};
+use emacs_sys::bindings::face_underline_type;
 use emacs_sys::bindings::globals;
-use emacs_sys::color::color_to_pixel;
+use emacs_sys::bindings::glyph_type;
+use emacs_sys::bindings::Emacs_GC;
+use emacs_sys::bindings::Emacs_Rectangle as NativeRectangle;
 use emacs_sys::display_traits::DrawGlyphsFace;
-use emacs_sys::display_traits::FaceUnderlineType;
 use emacs_sys::display_traits::GlyphStringRef;
-use emacs_sys::display_traits::GlyphType;
 use emacs_sys::frame::FrameRef;
 use emacs_sys::lisp::LispObject;
 use emacs_sys::number::LNumber;
@@ -24,6 +27,11 @@ use webrender::{self};
 const WAVY_LINE_THICKNESS: i32 = 1;
 
 pub trait WrGlyph {
+    fn bg_color_f(&self) -> ColorF;
+    fn fg_color_f(&self) -> ColorF;
+    fn underline_color_f(&self) -> ColorF;
+    fn overline_color_f(&self) -> ColorF;
+    fn strike_through_color_f(&self) -> ColorF;
     fn x(&self) -> i32;
     fn box_line_width(&self) -> i32;
     fn underline_area(&self) -> LayoutRect;
@@ -45,6 +53,26 @@ pub trait WrGlyph {
 }
 
 impl WrGlyph for GlyphStringRef {
+    fn bg_color_f(&self) -> ColorF {
+        pixel_to_color(self.bg_color())
+    }
+
+    fn fg_color_f(&self) -> ColorF {
+        pixel_to_color(self.fg_color())
+    }
+
+    fn underline_color_f(&self) -> ColorF {
+        pixel_to_color(self.underline_color())
+    }
+
+    fn overline_color_f(&self) -> ColorF {
+        pixel_to_color(self.overline_color())
+    }
+
+    fn strike_through_color_f(&self) -> ColorF {
+        pixel_to_color(self.strike_through_color())
+    }
+
     // If first glyph of S has a left box line, start drawing the text
     // of S to the right of that box line.
     fn x(&self) -> i32 {
@@ -73,10 +101,13 @@ impl WrGlyph for GlyphStringRef {
     }
 
     fn underline_area(&self) -> LayoutRect {
-        assert_ne!(self.face().underline_type(), FaceUnderlineType::Wave);
+        assert_ne!(
+            self.face().underline_type(),
+            face_underline_type::FACE_UNDERLINE_WAVE
+        );
         let underline_size = || {
             if let Some(prev) = self.prev().filter(|s| {
-                s.face().underline_type() == FaceUnderlineType::Line
+                s.face().underline_type() == face_underline_type::FACE_UNDERLINE_SINGLE
                     && (s.face().underline_at_descent_line_p()
                         == self.face().underline_at_descent_line_p())
                     && (s.face().underline_pixels_above_descent_line
@@ -159,7 +190,7 @@ impl WrGlyph for GlyphStringRef {
     }
 
     fn composite_p(&self) -> bool {
-        self.glyph_type() == GlyphType::Composite
+        self.glyph_type() == glyph_type::COMPOSITE_GLYPH
     }
 
     fn automatic_composite_p(&self) -> bool {
@@ -219,8 +250,8 @@ impl WrGlyph for GlyphStringRef {
         let glyph_type = self.glyph_type();
 
         match glyph_type {
-            GlyphType::Char => self.char_glyph_instances(),
-            GlyphType::Composite => {
+            glyph_type::CHAR_GLYPH => self.char_glyph_instances(),
+            glyph_type::COMPOSITE_GLYPH => {
                 if self.automatic_composite_p() {
                     self.automatic_composite_glyph_instances()
                 } else {
@@ -353,6 +384,7 @@ pub trait GlyphStringExtWr {
     fn set_gc(&mut self);
     fn set_cursor_gc(&mut self);
     fn set_mouse_gc(&mut self);
+    fn clip_rect(&mut self) -> NativeRectangle;
     fn set_clipping(&mut self);
     fn set_clipping_exactly(&mut self, dist: Self);
     fn draw(&mut self);
@@ -426,7 +458,7 @@ impl GlyphStringExtWr for GlyphStringRef {
             let mut dpyinfo = f.display_info();
 
             let mut foreground = face.background;
-            let mut background = color_to_pixel(f.cursor_color());
+            let mut background = f.cursor_color();
 
             // If the glyph would be invisible, try a different foreground.
             if foreground == background {
@@ -434,7 +466,7 @@ impl GlyphStringExtWr for GlyphStringRef {
             }
 
             if foreground == background {
-                foreground = color_to_pixel(f.cursor_foreground_color());
+                foreground = f.cursor_foreground_color();
             }
 
             if foreground == background {
@@ -456,11 +488,30 @@ impl GlyphStringExtWr for GlyphStringRef {
         }
     }
     fn set_mouse_gc(&mut self) {
+        self.prepare_face_for_display();
         if self.font() == self.face().font() {
             self.gc = self.face().gc;
         } else {
-            log::error!("unimplemented code path set_mouse_gc, ref x_set_mouse_face_gc");
+            let gc = Box::new(Emacs_GC {
+                background: self.face().background,
+                foreground: self.face().foreground,
+            });
+            let gc = Box::into_raw(gc);
+            self.gc = gc as *mut Emacs_GC;
         }
+    }
+
+    fn clip_rect(&mut self) -> NativeRectangle {
+        use emacs_sys::bindings::get_glyph_string_clip_rect;
+        let mut clip_rect = NativeRectangle {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+
+        unsafe { get_glyph_string_clip_rect(self.as_mut(), &mut clip_rect) };
+        clip_rect
     }
 
     fn set_clipping(&mut self) {
@@ -484,10 +535,10 @@ impl GlyphStringExtWr for GlyphStringRef {
                 }
 
                 let glyph_type = s.glyph_type();
-                if glyph_type != GlyphType::Image {
+                if glyph_type != glyph_type::IMAGE_GLYPH {
                     s.set_gc();
                     s.set_clipping();
-                } else if glyph_type == GlyphType::Stretch {
+                } else if glyph_type == glyph_type::STRETCH_GLYPH {
                     s.draw_stretch();
                 } else {
                     s.draw_background(false);
@@ -503,7 +554,8 @@ impl GlyphStringExtWr for GlyphStringRef {
         // glyph string can be drawn over it.
         if !self.is_for_overlaps()
             && self.face().box_() != face_box_type::FACE_NO_BOX
-            && (self.glyph_type() == GlyphType::Char || self.glyph_type() == GlyphType::Composite)
+            && (self.glyph_type() == glyph_type::CHAR_GLYPH
+                || self.glyph_type() == glyph_type::COMPOSITE_GLYPH)
         {
             self.set_clipping();
             self.draw_background(true);
@@ -526,10 +578,10 @@ impl GlyphStringExtWr for GlyphStringRef {
         }
 
         match self.glyph_type() {
-            GlyphType::Image => self.draw_image(),
-            GlyphType::Xwidget => self.draw_xwidget(),
-            GlyphType::Stretch => self.draw_stretch(),
-            GlyphType::Char => {
+            glyph_type::IMAGE_GLYPH => self.draw_image(),
+            glyph_type::XWIDGET_GLYPH => self.draw_xwidget(),
+            glyph_type::STRETCH_GLYPH => self.draw_stretch(),
+            glyph_type::CHAR_GLYPH => {
                 if self.for_overlaps() != 0 {
                     self.set_background_filled_p(true);
                 } else {
@@ -537,7 +589,7 @@ impl GlyphStringExtWr for GlyphStringRef {
                 }
                 self.draw_foreground();
             }
-            GlyphType::Composite => {
+            glyph_type::COMPOSITE_GLYPH => {
                 if self.for_overlaps() != 0
                     || (self.cmp_from > 0 && !self.is_automatic_composition())
                 {
@@ -547,7 +599,7 @@ impl GlyphStringExtWr for GlyphStringRef {
                 }
                 self.draw_composite_foreground();
             }
-            GlyphType::Glyphless => {
+            glyph_type::GLYPHLESS_GLYPH => {
                 if self.for_overlaps() != 0 {
                     self.set_background_filled_p(true);
                 } else {
@@ -555,6 +607,7 @@ impl GlyphStringExtWr for GlyphStringRef {
                 }
                 self.draw_glyphless_foreground()
             }
+            _ => {}
         }
 
         if !self.is_for_overlaps() {
@@ -689,7 +742,7 @@ impl GlyphStringExtWr for GlyphStringRef {
     }
 
     fn draw_underline(&self) {
-        let color = self.underline_color();
+        let color = self.underline_color_f();
 
         if let Some(style) = self.face().underline_style() {
             let area = match style {
@@ -707,7 +760,7 @@ impl GlyphStringExtWr for GlyphStringRef {
         let area = (self.x, self.y + dy).by(self.width, h, self.scale_factor());
         self.draw_line(
             LineStyle::Solid,
-            self.overline_color(),
+            self.overline_color_f(),
             area,
             LineOrientation::Horizontal,
         );
@@ -729,7 +782,7 @@ impl GlyphStringExtWr for GlyphStringRef {
         let area = (self.x, glyph_y + dy as i32).by(self.width, h as i32, self.scale_factor());
         self.draw_line(
             LineStyle::Solid,
-            self.strike_through_color(),
+            self.strike_through_color_f(),
             area,
             LineOrientation::Horizontal,
         );
@@ -770,7 +823,7 @@ impl GlyphStringExtWr for GlyphStringRef {
             || self.font_not_found_p()
             || self.extends_to_end_of_line_p() || is_force
         {
-            let background_color = self.bg_color();
+            let background_color = self.bg_color_f();
             self.clear_rect(
                 background_color,
                 self.x,
@@ -791,7 +844,7 @@ impl GlyphStringExtWr for GlyphStringRef {
         let visible_height = self.visible_height();
 
         // draw background
-        let background_color = self.bg_color();
+        let background_color = self.bg_color_f();
         self.clear_area(
             background_color,
             x,
@@ -803,10 +856,10 @@ impl GlyphStringExtWr for GlyphStringRef {
         self.frame()
             .gl_renderer()
             .display(|builder, space_and_clip, scale| {
-                let foreground_color = self.fg_color();
+                let foreground_color = self.fg_color_f();
 
                 // // draw underline
-                // if face.underline() != face_underline_type::FACE_NO_UNDERLINE {
+                // if face.underline_type() != face_underline_type::FACE_NO_UNDERLINE {
                 //     self.draw_underline(
                 //         builder,
                 //         s,

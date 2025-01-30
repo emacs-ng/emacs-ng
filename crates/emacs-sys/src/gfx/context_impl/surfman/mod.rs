@@ -3,8 +3,10 @@ mod rendering_context;
 use crate::frame::FrameRef;
 use crate::gfx::context::GLContextTrait;
 
-use webrender_api::units::DeviceIntSize;
+use crate::DeviceIntSize;
 
+use raw_window_handle::HasDisplayHandle;
+use raw_window_handle::HasWindowHandle;
 use surfman::Connection;
 use surfman::GLApi;
 use surfman::SurfaceType;

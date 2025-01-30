@@ -1,7 +1,11 @@
+use crate::color::color_to_xcolor;
+use crate::color::lookup_color_by_name_or_hex;
+use crate::color::pixel_to_color;
 use crate::cursor::draw_bar_cursor;
 use crate::cursor::draw_filled_cursor;
 use crate::cursor::draw_hollow_box_cursor;
 use crate::display_info::DisplayInfoExtWr;
+use crate::face::WrFace;
 use crate::frame::FrameExtWrCommon;
 use crate::fringe::get_or_create_fringe_bitmap;
 use crate::image::ImageExt;
@@ -31,10 +35,8 @@ use emacs_sys::bindings::Emacs_Color;
 use emacs_sys::bindings::Emacs_Pixmap;
 use emacs_sys::bindings::Fprovide;
 use emacs_sys::bindings::FACE_FROM_ID_OR_NULL;
-use emacs_sys::color::color_to_xcolor;
-use emacs_sys::color::lookup_color_by_name_or_hex;
-use emacs_sys::color::pixel_to_color;
 use emacs_sys::display_traits::FaceId;
+use emacs_sys::display_traits::FaceRef;
 use emacs_sys::display_traits::GlyphRowArea;
 use emacs_sys::display_traits::GlyphRowRef;
 use emacs_sys::display_traits::GlyphStringRef;
@@ -180,16 +182,16 @@ pub extern "C" fn wr_draw_fringe_bitmap(
 
     let image = get_or_create_fringe_bitmap(frame, which, p);
 
-    let face = unsafe { (*p).face };
+    let face = FaceRef::new(unsafe { (*p).face });
 
-    let background_color = pixel_to_color(unsafe { (*face).background });
+    let background_color = face.bg_color_f();
 
     let bitmap_color = if unsafe { (*p).cursor_p() } {
-        frame.cursor_color()
+        frame.cursor_color_f()
     } else if unsafe { (*p).overlay_p() } {
         background_color
     } else {
-        pixel_to_color(unsafe { (*face).foreground })
+        face.fg_color_f()
     };
 
     frame.draw_fringe_bitmap(
@@ -211,8 +213,8 @@ pub extern "C" fn wr_draw_window_divider(window: *mut Window, x0: i32, x1: i32, 
     let face_fg_color = |id: FaceId| -> ColorF {
         frame
             .face_from_id(id)
-            .map(|f| f.fg_color())
-            .unwrap_or(frame.fg_color())
+            .map(|f| f.fg_color_f())
+            .unwrap_or(frame.fg_color_f())
     };
 
     let color = face_fg_color(FaceId::WindowDivider);

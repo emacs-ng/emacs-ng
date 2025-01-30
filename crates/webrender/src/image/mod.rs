@@ -22,8 +22,8 @@ use webrender::api::ImageDescriptor;
 
 use crate::frame::FrameExtWrCommon;
 
-use emacs_sys::color::lookup_color_by_name_or_hex;
-use emacs_sys::color::pixel_to_color;
+use crate::color::lookup_color_by_name_or_hex;
+use crate::color::pixel_to_color;
 
 pub type ImageRef = ExternalPtr<image>;
 
