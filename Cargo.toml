@@ -119,11 +119,6 @@ opt-level = 'z' # Optimize for size
 
 ### Patches
 
-# fontconfig font dirs patch
-[patch.crates-io.font-loader]
-git = "https://github.com/declantsien/rust-font-loader.git"
-rev = "9e1776052d906f6cd3b78aa701ffb2d657877830"
-
 # surfman raw-window-handle 0.6
 [patch.crates-io.surfman]
 git = "https://github.com/declantsien/surfman.git"

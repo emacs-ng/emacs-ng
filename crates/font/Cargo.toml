@@ -24,9 +24,6 @@ default-features = false
 [dependencies.font-index]
 git = "https://github.com/declantsien/font-index.git"
 
-[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
-font-loader = "0.11"
-
 [lib]
 name = "font"
 path = "src/lib.rs"
