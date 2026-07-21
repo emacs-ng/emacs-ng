@@ -96,7 +96,7 @@ proc-macro2 = "1.0"
 
 [workspace.dependencies.webrender]
 git = "https://github.com/declantsien/webrender.git"
-rev = "6766059a74135ee6ff26fd4f0f1f25db5c8e772e"
+rev = "0fc278ebda466ab0bcf859328df719c54fd12d6b"
 default-features = false
 
 [workspace.dependencies.webrender_api]
